@@ -21,8 +21,8 @@ namespace osu.Game.Online
         {
             string? customApiUrl = configManager?.Get<string>(OsuSetting.CustomApiUrl);
             if (!string.IsNullOrWhiteSpace(customApiUrl) || (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                                                             (uri.Host.Equals("lazer-api.banchosucks.cc", StringComparison.OrdinalIgnoreCase) ||
-                                                              uri.Host.Equals("lazer.banchosucks.cc", StringComparison.OrdinalIgnoreCase) ||
+                                                             (uri.Host.Equals("banchosucks.cc", StringComparison.OrdinalIgnoreCase) ||
+                                                              uri.Host.EndsWith(".banchosucks.cc", StringComparison.OrdinalIgnoreCase) ||
                                                               uri.Host.EndsWith(".ppy.sh", StringComparison.OrdinalIgnoreCase) || uri.Host.EndsWith(".g0v0.top", StringComparison.OrdinalIgnoreCase))))
                 return url;
 

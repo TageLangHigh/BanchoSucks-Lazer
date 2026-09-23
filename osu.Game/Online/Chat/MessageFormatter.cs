@@ -70,12 +70,48 @@ namespace osu.Game.Online.Chat
         public static string WebsiteRootUrl
         {
             get => websiteRootUrl;
-            set => websiteRootUrl = value
-                                    .Trim('/') // trim potential trailing slash/
-                                    .Split('/').Last(); // only keep domain name, ignoring protocol.
+            set
+            {
+                string trimmed = value.Trim('/'); // trim potential trailing slash
+
+                // drop the protocol, keeping the host and any path prefix (e.g. "banchosucks.cc/lazer").
+                int schemeIndex = trimmed.IndexOf("://", StringComparison.Ordinal);
+                if (schemeIndex >= 0)
+                    trimmed = trimmed.Substring(schemeIndex + 3);
+
+                string[] parts = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                websiteRootUrl = parts.Length > 0 ? parts[0] : trimmed;
+                websiteRootPathSegments = parts.Skip(1).ToArray();
+            }
         }
 
         private static string websiteRootUrl = "osu.ppy.sh";
+
+        /// <summary>
+        /// Path segments every website link starts with after the host.
+        /// Empty for a website served from the domain root, ["lazer"] for "banchosucks.cc/lazer".
+        /// </summary>
+        private static string[] websiteRootPathSegments = Array.Empty<string>();
+
+        private static string websiteRootPath => websiteRootPathSegments.Length == 0 ? string.Empty : "/" + string.Join('/', websiteRootPathSegments);
+
+        /// <summary>
+        /// Removes the website's path prefix (if any) from a split url, so the remaining
+        /// segments can be matched like osu-web routes.
+        /// </summary>
+        private static string[] stripWebsiteRootPath(string[] args)
+        {
+            if (websiteRootPathSegments.Length == 0 || args.Length < 2 + websiteRootPathSegments.Length)
+                return args;
+
+            for (int i = 0; i < websiteRootPathSegments.Length; i++)
+            {
+                if (!string.Equals(args[2 + i], websiteRootPathSegments[i], StringComparison.OrdinalIgnoreCase))
+                    return args;
+            }
+
+            return args.Take(2).Concat(args.Skip(2 + websiteRootPathSegments.Length)).ToArray();
+        }
 
         private static void handleMatches(Regex regex, string display, string link, MessageFormatterResult result, int startIndex = 0, LinkAction? linkActionOverride = null,
                                           char[]? escapeChars = null)
@@ -157,6 +193,9 @@ namespace osu.Game.Online.Chat
             {
                 case @"http":
                 case @"https":
+                    if (args.Length > 1 && args[1].EndsWith(WebsiteRootUrl, StringComparison.OrdinalIgnoreCase))
+                        args = stripWebsiteRootPath(args);
+
                     // length > 3 since all these links need another argument to work
                     if (args.Length > 3 && args[1].EndsWith(WebsiteRootUrl, StringComparison.OrdinalIgnoreCase))
                     {
@@ -306,7 +345,7 @@ namespace osu.Game.Online.Chat
             handleMatches(old_link_regex, "{1}", "{2}", result, startIndex, escapeChars: new[] { '(', ')' });
 
             // handle wiki links
-            handleMatches(wiki_regex, "{1}", $"https://{WebsiteRootUrl}/wiki/{{1}}", result, startIndex);
+            handleMatches(wiki_regex, "{1}", $"https://{WebsiteRootUrl}{websiteRootPath}/wiki/{{1}}", result, startIndex);
 
             // handle bare links
             handleAdvanced(advanced_link_regex, result, startIndex);

@@ -31,6 +31,9 @@ namespace osu.Game.Overlays.Login
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
 
+        [Resolved(canBeNull: true)]
+        private OsuGame? game { get; set; }
+
         public Action? RequestHide;
 
         public override bool AcceptsFocus => true;
@@ -124,7 +127,13 @@ namespace osu.Game.Overlays.Login
                     Action = () =>
                     {
                         RequestHide?.Invoke();
-                        accountCreation.Show();
+
+                        // BanchoSucks accounts are created on the website so that the same
+                        // account exists on both the stable and the lazer server.
+                        if (game != null)
+                            game.OpenUrlExternally($"{api.Endpoints.WebsiteUrl}/register");
+                        else
+                            accountCreation.Show();
                     }
                 }
             };

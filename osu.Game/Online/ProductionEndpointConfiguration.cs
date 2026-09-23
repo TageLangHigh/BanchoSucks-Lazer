@@ -7,7 +7,9 @@ namespace osu.Game.Online
     {
         public ProductionEndpointConfiguration()
         {
-            WebsiteUrl = @"https://lazer.banchosucks.cc";
+            // the lazer pages live under a path prefix on the main site; osu-web style
+            // links (/users/{id}, /beatmapsets/{id}, /b/{id}, /scores/{id}) are routed there
+            WebsiteUrl = @"https://banchosucks.cc/lazer";
             APIUrl = @"https://lazer-api.banchosucks.cc";
             APIClientSecret = @"FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk";
             APIClientID = "5";
