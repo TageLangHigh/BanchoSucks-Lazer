@@ -3,11 +3,14 @@
 Windows x64 client based on GooGuTeam/g0v0 v2026.913.0-g0v0
 (fb9d767658b361887830bd475a42efe00721966b).
 
-Website: https://lazer.banchosucks.cc
+Website: https://banchosucks.cc/lazer (lazer profiles, rankings and beatmaps live
+under the /lazer prefix of the main Banchosucks site; the client's links point there)
+Lazer web interface: https://lazer.banchosucks.cc
 API: https://lazer-api.banchosucks.cc
 
-Extract the entire ZIP, then run BanchoSucks-Lazer.exe. Register on the website
-and use that account in the client. No server URL needs to be entered.
+Extract the entire ZIP, then run BanchoSucks-Lazer.exe. Accounts are created on
+https://banchosucks.cc/register and work on both the stable and the lazer server
+(the in-game register button opens that page). No server URL needs to be entered.
 Keep the Custom API Server URL setting empty to use the built-in endpoints.
 
 Game data is stored separately in %APPDATA%/banchosucks-lazer.
@@ -33,7 +36,7 @@ Not affiliated with or endorsed by ppy Pty Ltd or GooGuTeam.
 Requires .NET SDK 10.0.100 or newer compatible feature band.
 
 ```powershell
-dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-win-x64 -p:Version=2026.913.0 -p:AssemblyVersion=2026.913.0 -p:FileVersion=2026.913.0 -p:InformationalVersion=2026.913.0-banchosucks
+dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-win-x64-2026.913.1 -p:Version=2026.913.1 -p:AssemblyVersion=2026.913.1 -p:FileVersion=2026.913.1 -p:InformationalVersion=2026.913.1-banchosucks
 ```
 
 The server must allow the MD5 hash of the resulting osu.Game.dll in its client
