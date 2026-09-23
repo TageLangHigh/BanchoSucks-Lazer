@@ -238,16 +238,17 @@ namespace osu.Game.Updater
             Text = NotificationsStrings.GameVersionAfterUpdate(version);
         }
 
-        [BackgroundDependencyLoader]
-        private void load(OsuColour colours, ChangelogOverlay changelog, INotificationOverlay notificationOverlay)
+        [BackgroundDependencyLoader(true)]
+        private void load(OsuColour colours, INotificationOverlay notificationOverlay, OsuGame game)
         {
             Icon = FontAwesome.Solid.CheckSquare;
             IconContent.Colour = colours.BlueDark;
 
+            // the Banchosucks server has no changelog api; release notes live on GitHub
             Activated = delegate
             {
                 notificationOverlay.Hide();
-                changelog.ShowBuild(version);
+                game?.OpenUrlExternally($"https://github.com/TageLangHigh/BanchoSucks-Lazer/releases/tag/v{version}");
                 return true;
             };
         }

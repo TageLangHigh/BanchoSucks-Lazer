@@ -36,7 +36,7 @@ Not affiliated with or endorsed by ppy Pty Ltd or GooGuTeam.
 Requires .NET SDK 10.0.100 or newer compatible feature band.
 
 ```powershell
-dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-win-x64-2026.913.2 -p:Version=2026.913.2 -p:AssemblyVersion=2026.913.2 -p:FileVersion=2026.913.2 -p:InformationalVersion=2026.913.2-banchosucks
+dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-win-x64-2026.913.3 -p:Version=2026.913.3 -p:AssemblyVersion=2026.913.3 -p:FileVersion=2026.913.3 -p:InformationalVersion=2026.913.3-banchosucks
 ```
 
 The server must allow the MD5 hash of the resulting osu.Game.dll in its client
