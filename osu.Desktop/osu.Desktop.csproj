@@ -9,6 +9,12 @@
     <Title>BanchoSucks Lazer</Title>
     <Product>BanchoSucks Lazer</Product>
     <ApplicationIcon>lazer.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup Label="BanchoSucks official build">
+    <!-- our releases are the official builds for this server; suppresses the "not an official build" warning -->
+    <AssemblyAttribute Include="osu.Game.Utils.OfficialBuildAttribute" />
+  </ItemGroup>
+  <PropertyGroup>
     <Version>0.0.0</Version>
     <FileVersion>0.0.0</FileVersion>
   </PropertyGroup>
