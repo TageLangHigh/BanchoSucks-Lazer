@@ -469,7 +469,8 @@ namespace osu.Game.Graphics
 
         public readonly Color4 ContextMenuGray = Color4Extensions.FromHex(@"223034");
 
-        public readonly Color4 G0V0ThemeColour = Color4Extensions.FromHex(@"5ca9e5");
+        // Banchosucks accent (website: #ff4964); name kept so callers stay unchanged
+        public readonly Color4 G0V0ThemeColour = Color4Extensions.FromHex(@"ff4964");
 
         public Color4 SpotlightColour => Green2;
         public Color4 FeaturedArtistColour => Blue2;

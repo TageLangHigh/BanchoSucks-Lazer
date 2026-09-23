@@ -15,9 +15,9 @@ namespace osu.Game.Localisation
         public static LocalisableString HeaderTitle => new TranslatableString(getKey(@"header_title"), @"settings");
 
         /// <summary>
-        /// "change the way g0v0! behaves"
+        /// "change the way BanchoSucks Lazer behaves"
         /// </summary>
-        public static LocalisableString HeaderDescription => new TranslatableString(getKey(@"header_description"), @"change the way g0v0! behaves");
+        public static LocalisableString HeaderDescription => new TranslatableString(getKey(@"header_description"), @"change the way BanchoSucks Lazer behaves");
 
         /// <summary>
         /// "Copy version"

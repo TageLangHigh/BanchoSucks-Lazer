@@ -3,7 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>A free-to-win rhythm game. Rhythm is just a *click* away!</Description>
+    <Description>The osu! lazer client for the Banchosucks private server.</Description>
     <AssemblyName>BanchoSucks-Lazer</AssemblyName>
     <AssemblyTitle>BanchoSucks Lazer</AssemblyTitle>
     <Title>BanchoSucks Lazer</Title>

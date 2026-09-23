@@ -35,7 +35,7 @@ namespace osu.Game.Localisation
                     return cached;
             }
 
-            string? result = getInternal(lookup);
+            string? result = rebrand(getInternal(lookup));
 
             lock (lookupCache)
             {
@@ -46,6 +46,19 @@ namespace osu.Game.Localisation
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// The g0v0 resources package bakes the upstream product name ("g0v0" + "!") into every translation
+        /// (English falls back to our own strings, other languages do not), so translated texts are rebranded on the way out.
+        /// </summary>
+        private static string? rebrand(string? text)
+        {
+            if (string.IsNullOrEmpty(text) || !text.Contains("g0v0", StringComparison.OrdinalIgnoreCase))
+                return text;
+
+            return text.Replace("g0v0" + "!", "BanchoSucks Lazer", StringComparison.OrdinalIgnoreCase)
+                       .Replace("g0v0", "BanchoSucks", StringComparison.OrdinalIgnoreCase);
         }
 
         private string? getInternal(string lookup)

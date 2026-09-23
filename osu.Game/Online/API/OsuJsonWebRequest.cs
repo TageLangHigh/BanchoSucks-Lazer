@@ -16,6 +16,6 @@ namespace osu.Game.Online.API
         {
         }
 
-        protected override string UserAgent => "g0v0!";
+        protected override string UserAgent => "BanchoSucks Lazer";
     }
 }

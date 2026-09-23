@@ -15,9 +15,9 @@ namespace osu.Game.Localisation
         public static LocalisableString CheckingForFullscreenCapabilities => new TranslatableString(getKey(@"checking_for_fullscreen_capabilities"), @"Checking for fullscreen capabilities...");
 
         /// <summary>
-        /// "g0v0! is running in exclusive fullscreen, guaranteeing low latency!"
+        /// "BanchoSucks Lazer is running in exclusive fullscreen, guaranteeing low latency!"
         /// </summary>
-        public static LocalisableString OsuIsRunningExclusiveFullscreen => new TranslatableString(getKey(@"osu_is_running_exclusive_fullscreen"), @"g0v0! is running in exclusive fullscreen, guaranteeing low latency!");
+        public static LocalisableString OsuIsRunningExclusiveFullscreen => new TranslatableString(getKey(@"osu_is_running_exclusive_fullscreen"), @"BanchoSucks Lazer is running in exclusive fullscreen, guaranteeing low latency!");
 
         /// <summary>
         /// "Unable to run in exclusive fullscreen. You may experience some input latency."

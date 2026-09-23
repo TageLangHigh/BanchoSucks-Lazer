@@ -53,10 +53,10 @@ namespace osu.Desktop
                         // We could also better detect compatibility mode if required:
                         // https://stackoverflow.com/questions/10744651/how-i-can-detect-if-my-application-is-running-under-compatibility-mode#comment58183249_10744730
                         SDL3.SDL_ShowSimpleMessageBox(SDL_MessageBoxFlags.SDL_MESSAGEBOX_ERROR,
-                            "Your operating system is too old to run g0v0!"u8,
-                            "This version of g0v0! requires at least Windows 8.1 to run.\n"u8
-                            + "Please upgrade your operating system or consider using an older version of g0v0!.\n\n"u8
-                            + "If you are running a newer version of windows, please check you don't have \"Compatibility mode\" turned on for g0v0!"u8, null);
+                            "Your operating system is too old to run BanchoSucks Lazer"u8,
+                            "This version of BanchoSucks Lazer requires at least Windows 8.1 to run.\n"u8
+                            + "Please upgrade your operating system or consider using an older version of BanchoSucks Lazer.\n\n"u8
+                            + "If you are running a newer version of windows, please check you don't have \"Compatibility mode\" turned on for BanchoSucks Lazer"u8, null);
                         return;
                     }
                 }
@@ -118,7 +118,7 @@ namespace osu.Desktop
                     // we want to allow multiple instances to be started when in debug.
                     if (!DebugUtils.IsDebugBuild)
                     {
-                        Logger.Log(@"g0v0! does not support multiple running instances.", LoggingTarget.Runtime, LogLevel.Error);
+                        Logger.Log(@"BanchoSucks Lazer does not support multiple running instances.", LoggingTarget.Runtime, LogLevel.Error);
                         return;
                     }
                 }

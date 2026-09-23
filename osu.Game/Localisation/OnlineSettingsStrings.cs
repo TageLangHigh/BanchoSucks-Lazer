@@ -134,9 +134,9 @@ namespace osu.Game.Localisation
         public static LocalisableString CurrentServer(LocalisableString serverName) => new TranslatableString(getKey(@"current_server"), @"Current server: {0}", serverName);
 
         /// <summary>
-        /// "g0v0! Official server (g0v0.top)"
+        /// "Banchosucks server (banchosucks.cc)"
         /// </summary>
-        public static LocalisableString OfficialServer => new TranslatableString(getKey(@"official_server"), @"g0v0! Official server (g0v0.top)");
+        public static LocalisableString OfficialServer => new TranslatableString(getKey(@"official_server"), @"Banchosucks server (banchosucks.cc)");
 
         /// <summary>
         /// "Default server"

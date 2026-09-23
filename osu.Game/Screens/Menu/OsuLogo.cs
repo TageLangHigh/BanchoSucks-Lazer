@@ -188,7 +188,8 @@ namespace osu.Game.Screens.Menu
                                                                         new Box
                                                                         {
                                                                             RelativeSizeAxes = Axes.Both,
-                                                                            Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex(@"5ca9e5"), Color4Extensions.FromHex(@"258ddc")),
+                                                                            // Banchosucks red/pink (matches the website logo)
+                                                                            Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex(@"ff5c76"), Color4Extensions.FromHex(@"e5323f")),
                                                                         },
                                                                         triangles = new TrianglesV2
                                                                         {
@@ -197,7 +198,7 @@ namespace osu.Game.Screens.Menu
                                                                             Thickness = 0.009f,
                                                                             ScaleAdjust = 3,
                                                                             SpawnRatio = 1.4f,
-                                                                            Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex(@"5ca9e5"), Color4Extensions.FromHex(@"1b6aa6")),
+                                                                            Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex(@"ff7a90"), Color4Extensions.FromHex(@"c0262f")),
                                                                             RelativeSizeAxes = Axes.Both,
                                                                         },
                                                                     }

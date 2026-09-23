@@ -10,19 +10,19 @@ namespace osu.Game.Localisation
         private const string prefix = @"osu.Game.Resources.Localisation.StorageErrorDialog";
 
         /// <summary>
-        /// "g0v0! storage error"
+        /// "BanchoSucks Lazer storage error"
         /// </summary>
-        public static LocalisableString StorageError => new TranslatableString(getKey(@"storage_error"), @"g0v0! storage error");
+        public static LocalisableString StorageError => new TranslatableString(getKey(@"storage_error"), @"BanchoSucks Lazer storage error");
 
         /// <summary>
-        /// "The specified g0v0! data location (&quot;{0}&quot;) is not accessible. If it is on external storage, please reconnect the device and try again."
+        /// "The specified BanchoSucks Lazer data location (&quot;{0}&quot;) is not accessible. If it is on external storage, please reconnect the device and try again."
         /// </summary>
-        public static LocalisableString LocationIsNotAccessible(string? loc) => new TranslatableString(getKey(@"location_is_not_accessible"), @"The specified g0v0! data location (""{0}"") is not accessible. If it is on external storage, please reconnect the device and try again.", loc);
+        public static LocalisableString LocationIsNotAccessible(string? loc) => new TranslatableString(getKey(@"location_is_not_accessible"), @"The specified BanchoSucks Lazer data location (""{0}"") is not accessible. If it is on external storage, please reconnect the device and try again.", loc);
 
         /// <summary>
-        /// "The specified g0v0! data location (&quot;{0}&quot;) is empty. If you have moved the files, please close g0v0! and move them back."
+        /// "The specified BanchoSucks Lazer data location (&quot;{0}&quot;) is empty. If you have moved the files, please close BanchoSucks Lazer and move them back."
         /// </summary>
-        public static LocalisableString LocationIsEmpty(string? loc2) => new TranslatableString(getKey(@"location_is_empty"), @"The specified g0v0! data location (""{0}"") is empty. If you have moved the files, please close g0v0! and move them back.", loc2);
+        public static LocalisableString LocationIsEmpty(string? loc2) => new TranslatableString(getKey(@"location_is_empty"), @"The specified BanchoSucks Lazer data location (""{0}"") is empty. If you have moved the files, please close BanchoSucks Lazer and move them back.", loc2);
 
         /// <summary>
         /// "Try again"
