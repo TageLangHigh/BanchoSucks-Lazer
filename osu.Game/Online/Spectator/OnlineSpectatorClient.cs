@@ -1,0 +1,138 @@
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE-OSU file in the repository root for full licence text.
+
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.SignalR.Client;
+using osu.Framework.Allocation;
+using osu.Framework.Bindables;
+using osu.Framework.Logging;
+using osu.Game.Online.API;
+using osu.Game.Online.Multiplayer;
+
+namespace osu.Game.Online.Spectator
+{
+    public partial class OnlineSpectatorClient : SpectatorClient
+    {
+        private readonly string endpoint;
+
+        private IHubClientConnector? connector;
+
+        public override IBindable<bool> IsConnected { get; } = new BindableBool();
+
+        private HubConnection? connection => connector?.CurrentConnection;
+
+        public OnlineSpectatorClient(EndpointConfiguration endpoints)
+        {
+            endpoint = endpoints.SpectatorUrl;
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(IAPIProvider api)
+        {
+            connector = api.GetHubConnector(nameof(SpectatorClient), endpoint);
+
+            if (connector != null)
+            {
+                connector.ConfigureConnection = connection =>
+                {
+                    // until strong typed client support is added, each method must be manually bound
+                    // (see https://github.com/dotnet/aspnetcore/issues/15198)
+                    connection.On<int, SpectatorState>(nameof(ISpectatorClient.UserBeganPlaying), ((ISpectatorClient)this).UserBeganPlaying);
+                    connection.On<int, FrameDataBundle>(nameof(ISpectatorClient.UserSentFrames), ((ISpectatorClient)this).UserSentFrames);
+                    connection.On<int, SpectatorState>(nameof(ISpectatorClient.UserFinishedPlaying), ((ISpectatorClient)this).UserFinishedPlaying);
+                    connection.On<int, long>(nameof(ISpectatorClient.UserScoreProcessed), ((ISpectatorClient)this).UserScoreProcessed);
+                    connection.On<SpectatorUser[]>(nameof(ISpectatorClient.UserStartedWatching), ((ISpectatorClient)this).UserStartedWatching);
+                    connection.On<int>(nameof(ISpectatorClient.UserEndedWatching), ((ISpectatorClient)this).UserEndedWatching);
+                    connection.On(nameof(IStatefulUserHubClient.DisconnectRequested), ((IStatefulUserHubClient)this).DisconnectRequested);
+                    connection.On(nameof(IStatefulUserHubClient.ServerShuttingDown), ((IStatefulUserHubClient)this).ServerShuttingDown);
+                };
+
+                IsConnected.BindTo(connector.IsConnected);
+            }
+        }
+
+        protected override async Task<bool> BeginPlayingInternal(long? scoreToken, SpectatorState state)
+        {
+            if (!IsConnected.Value)
+                return false;
+
+            Debug.Assert(connection != null);
+
+            try
+            {
+                await connection.InvokeAsync(nameof(ISpectatorServer.BeginPlaySessionV2), scoreToken, state).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                if (exception.GetHubExceptionMessage() == HubClientConnector.SERVER_SHUTDOWN_MESSAGE)
+                {
+                    Debug.Assert(connector != null);
+
+                    await connector.Reconnect().ConfigureAwait(false);
+                    return await BeginPlayingInternal(scoreToken, state).ConfigureAwait(false);
+                }
+
+                // Exceptions can occur if, for instance, the locally played beatmap doesn't have a server-side counterpart.
+                // For now, let's ignore these so they don't cause unobserved exceptions to appear to the user (and sentry),
+                // but log to disk for diagnostic purposes.
+                Logger.Log($"{nameof(OnlineSpectatorClient)}.{nameof(BeginPlayingInternal)} failed: {exception.Message}", LoggingTarget.Network);
+                return false;
+            }
+        }
+
+        protected override Task SendFramesInternal(long? scoreToken, FrameDataBundle bundle)
+        {
+            if (!IsConnected.Value)
+                return Task.CompletedTask;
+
+            Debug.Assert(connection != null);
+
+            return connection.SendAsync(nameof(ISpectatorServer.SendFrameDataV2), scoreToken, bundle);
+        }
+
+        protected override Task EndPlayingInternal(long? scoreToken, SpectatedUserState finalState)
+        {
+            if (!IsConnected.Value)
+                return Task.CompletedTask;
+
+            Debug.Assert(connection != null);
+
+            return connection.InvokeAsync(nameof(ISpectatorServer.EndPlaySessionV2), scoreToken, finalState);
+        }
+
+        protected override Task WatchUserInternal(int userId)
+        {
+            if (!IsConnected.Value)
+                return Task.CompletedTask;
+
+            Debug.Assert(connection != null);
+
+            return connection.InvokeAsync(nameof(ISpectatorServer.StartWatchingUser), userId);
+        }
+
+        protected override Task StopWatchingUserInternal(int userId)
+        {
+            if (!IsConnected.Value)
+                return Task.CompletedTask;
+
+            Debug.Assert(connection != null);
+
+            return connection.InvokeAsync(nameof(ISpectatorServer.EndWatchingUser), userId);
+        }
+
+        public override async Task Reconnect()
+        {
+            if (connector != null)
+                await connector.Reconnect().ConfigureAwait(false);
+        }
+
+        protected override async Task DisconnectInternal()
+        {
+            if (connector != null)
+                await connector.Disconnect().ConfigureAwait(false);
+        }
+    }
+}

@@ -1,0 +1,120 @@
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE-OSU file in the repository root for full licence text.
+
+using System.Collections.Generic;
+using System.Linq;
+using osu.Framework.Allocation;
+using osu.Framework.Configuration;
+using osu.Framework.Extensions;
+using osu.Framework.Graphics;
+using osu.Framework.Localisation;
+using osu.Framework.Platform;
+using osu.Game.Configuration;
+using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Localisation;
+using osu.Game.Overlays.Dialog;
+
+namespace osu.Game.Overlays.Settings.Sections.Graphics
+{
+    public partial class RendererSettings : SettingsSubsection
+    {
+        protected override LocalisableString Header => GraphicsSettingsStrings.RendererHeader;
+
+        private bool automaticRendererInUse;
+
+        [BackgroundDependencyLoader]
+        private void load(FrameworkConfigManager config, OsuConfigManager osuConfig, IDialogOverlay? dialogOverlay, OsuGame? game, GameHost host)
+        {
+            var renderer = config.GetBindable<RendererType>(FrameworkSetting.Renderer);
+            automaticRendererInUse = renderer.Value == RendererType.Automatic;
+
+            IEnumerable<RendererType> availableRenderers = host.GetPreferredRenderersForCurrentPlatform().Order();
+
+            // Vulkan renderers are pretty broken to the point it may result in a startup crash at worst.
+            // If a user isn't already using it let's hide it until we can fix.
+            if (renderer.Value != RendererType.Deferred_Vulkan)
+                availableRenderers = availableRenderers.Where(t => t != RendererType.Deferred_Vulkan);
+            if (renderer.Value != RendererType.Vulkan)
+                availableRenderers = availableRenderers.Where(t => t != RendererType.Vulkan);
+
+            Children = new Drawable[]
+            {
+                new SettingsItemV2(new RendererDropdown
+                {
+                    Caption = GraphicsSettingsStrings.Renderer,
+                    Current = renderer,
+                    Items = availableRenderers,
+                })
+                {
+                    Keywords = new[] { @"compatibility", @"directx" },
+                },
+                // TODO: this needs to be a custom dropdown at some point
+                new SettingsItemV2(new FormEnumDropdown<FrameSync>
+                {
+                    Caption = GraphicsSettingsStrings.FrameLimiter,
+                    Current = config.GetBindable<FrameSync>(FrameworkSetting.FrameSync),
+                })
+                {
+                    Keywords = new[] { @"fps", @"framerate" },
+                },
+                new SettingsItemV2(new FormEnumDropdown<ExecutionMode>
+                {
+                    Caption = GraphicsSettingsStrings.ThreadingMode,
+                    Current = config.GetBindable<ExecutionMode>(FrameworkSetting.ExecutionMode)
+                }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = GraphicsSettingsStrings.ShowFPS,
+                    Current = osuConfig.GetBindable<bool>(OsuSetting.ShowFpsDisplay),
+                })
+                {
+                    Keywords = new[] { @"framerate", @"counter" },
+                },
+            };
+
+            renderer.BindValueChanged(r =>
+            {
+                if (r.NewValue == host.ResolvedRenderer)
+                    return;
+
+                // Need to check startup renderer for the "automatic" case, as ResolvedRenderer above will track the final resolved renderer instead.
+                if (r.NewValue == RendererType.Automatic && automaticRendererInUse)
+                    return;
+
+                if (game?.RestartAppWhenExited() == true)
+                {
+                    game.AttemptExit();
+                }
+                else
+                {
+                    dialogOverlay?.Push(new ConfirmDialog(GraphicsSettingsStrings.ChangeRendererConfirmation, () => game?.AttemptExit(), () =>
+                    {
+                        renderer.Value = automaticRendererInUse ? RendererType.Automatic : host.ResolvedRenderer;
+                    }));
+                }
+            });
+        }
+
+        private partial class RendererDropdown : FormEnumDropdown<RendererType>
+        {
+            private RendererType hostResolvedRenderer;
+            private bool automaticRendererInUse;
+
+            [BackgroundDependencyLoader]
+            private void load(FrameworkConfigManager config, GameHost host)
+            {
+                var renderer = config.GetBindable<RendererType>(FrameworkSetting.Renderer);
+                automaticRendererInUse = renderer.Value == RendererType.Automatic;
+                hostResolvedRenderer = host.ResolvedRenderer;
+            }
+
+            protected override LocalisableString GenerateItemText(RendererType item)
+            {
+                if (item == RendererType.Automatic && automaticRendererInUse)
+                    return LocalisableString.Interpolate($"{base.GenerateItemText(item)} ({hostResolvedRenderer.GetDescription()})");
+
+                return base.GenerateItemText(item);
+            }
+        }
+    }
+}

@@ -1,0 +1,3 @@
+[*.cs]
+dotnet_diagnostic.OLOC001.words_in_name = 5
+dotnet_diagnostic.OLOC001.prefix_namespace = osu.Game.Resources.Localisation

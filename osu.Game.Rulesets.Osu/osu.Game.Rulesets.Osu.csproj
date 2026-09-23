@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup Label="Project">
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>click the circles. to the beat.</Description>
+    <Authors>ppy Pty Ltd &amp; GooGuTeam</Authors>
+    <Copyright>Copyright (c) 2026 ppy Pty Ltd, GooGuTeam</Copyright>
+    <PackageProjectUrl>https://github.com/GooGuTeam/g0v0</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/GooGuTeam/g0v0</RepositoryUrl>
+    <PackageReleaseNotes>osu! (ruleset) modified by GooGuTeam.
+Original copyright: Copyright (c) 2026 ppy Pty Ltd
+Full licence text: see LICENCE file</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Nuget">
+    <Title>standard (ruleset)</Title>
+    <PackageId>g0v0.osu.Game.Rulesets.Osu</PackageId>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup Label="Project References">
+    <ProjectReference Include="..\osu.Game\osu.Game.csproj" />
+  </ItemGroup>
+</Project>

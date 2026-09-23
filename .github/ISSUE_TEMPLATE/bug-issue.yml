@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a very clearly broken issue.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is only used for bug reports that are **exclusive** to the g0v0! client.
+
+        You may need to check for existing [issues](https://github.com/ppy/osu/issues) and [discussions](https://github.com/ppy/osu/discussions) at the upstream repository.
+
+        Remember, g0v0!-specific features are **not affiliated** with upstream, neither should you report their bugs there.
+
+        You can always contact the development team via other methods given on our website, especially if:
+
+        - You are uncertain whether it's only g0v0's issue or it also exists on lazer.
+        - You are using g0v0! on Linux, Android or iOS.
+        - You are afraid that you cannot describe the problem clearly via this form.
+
+        And we would be happy to help you out!
+
+  - type: dropdown
+    attributes:
+      label: Type
+      options:
+        - Crash to desktop
+        - Game behaviour
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Bug description
+      description: How did you find the bug? Any additional details that might help?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Screenshots or videos
+      description: Add screenshots or videos that show the bug here.
+      placeholder: Drag and drop the screenshots/videos into this box.
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Version
+      description: The version you encountered this bug on. This is shown at the bottom of the settings overlay.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        ## Logs
+
+        Attaching log files is required for **every** issue, regardless of whether you deem them required or not. See instructions below on how to find them.
+
+        ### Desktop platforms
+
+        If the game has not yet been closed since you found the bug:
+          1. Head on to game settings and click on "Export logs"
+          2. Click the notification to locate the file
+          3. Drag the generated `.zip` files into the github issue window
+
+        ### Mobile platforms
+
+        The places to find the logs on mobile platforms are as follows:
+          - *On Android*, navigate to `Android/data/top.g0v0.lazer/files/logs` using a file browser app.
+          - *On iOS*, connect your device to a PC and copy the `logs` directory from the app's document storage using iTunes. (https://support.apple.com/en-us/HT201301#copy-to-computer)
+
+  - type: textarea
+    attributes:
+      label: Logs
+      placeholder: Drag and drop the log files into this box.
+    validations:
+      required: true

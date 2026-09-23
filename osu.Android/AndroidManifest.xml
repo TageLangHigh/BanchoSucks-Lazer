@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="top.g0v0.lazer" android:installLocation="auto">
+	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="36" />
+	<application android:allowBackup="true"
+				 android:supportsRtl="true"
+				 android:label="g0v0!"
+				 android:icon="@mipmap/ic_launcher"
+				 android:roundIcon="@mipmap/ic_launcher">
+        <provider android:name="androidx.core.content.FileProvider"
+                  android:authorities="top.g0v0.lazer.fileprovider"
+                  android:grantUriPermissions="true"
+                  android:exported="false">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                       android:resource="@xml/filepaths" />
+        </provider>
+    </application>
+</manifest>

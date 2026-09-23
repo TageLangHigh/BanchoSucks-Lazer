@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "g0v0! Desktop": {
+      "commandName": "Project"
+    },
+    "g0v0! Tournament": {
+      "commandName": "Project",
+      "commandLineArgs": "--tournament"
+    }
+  }
+}

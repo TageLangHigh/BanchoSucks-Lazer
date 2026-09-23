@@ -1,0 +1,30 @@
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE-OSU file in the repository root for full licence text.
+
+using System;
+using MessagePack;
+using osu.Game.Online.Matchmaking.Events;
+using osu.Game.Online.Multiplayer.Countdown;
+using osu.Game.Online.Multiplayer.MatchTypes.TeamVersus;
+using osu.Game.Online.RankedPlay;
+
+namespace osu.Game.Online.Multiplayer
+{
+    /// <summary>
+    /// A request from a user to perform an action specific to the current match type.
+    /// </summary>
+    [Serializable]
+    [MessagePackObject]
+    // IMPORTANT: Add rules to SignalRUnionWorkaroundResolver for new derived types.
+    [Union(0, typeof(ChangeTeamRequest))]
+    [Union(1, typeof(StartMatchCountdownRequest))]
+    [Union(2, typeof(StopCountdownRequest))]
+    [Union(3, typeof(MatchmakingAvatarActionRequest))]
+    [Union(4, typeof(RankedPlayCardHandReplayRequest))]
+    [Union(5, typeof(SetLockStateRequest))]
+    [Union(6, typeof(RollRequest))]
+    [Union(7, typeof(ChangeSlotRequest))]
+    public abstract class MatchUserRequest
+    {
+    }
+}

@@ -1,0 +1,59 @@
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE-OSU file in the repository root for full licence text.
+
+using osu.Framework.Allocation;
+using osu.Framework.Graphics;
+using osu.Framework.Graphics.UserInterface;
+using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Localisation;
+using osu.Game.Overlays.Settings;
+using osu.Game.Rulesets.Taiko.Configuration;
+
+namespace osu.Game.Rulesets.Taiko
+{
+    public partial class TaikoSettingsSubsection : RulesetSettingsSubsection
+    {
+        public TaikoSettingsSubsection(TaikoRuleset ruleset)
+            : base(ruleset)
+        {
+        }
+
+        [BackgroundDependencyLoader]
+        private void load()
+        {
+            var config = (TaikoRulesetConfigManager)Config;
+
+            FormCheckBox rateAdjustedAnimations;
+            FormCheckBox hitAnimations;
+
+            Children = new Drawable[]
+            {
+                new SettingsItemV2(new FormEnumDropdown<TaikoTouchControlScheme>
+                {
+                    Caption = RulesetSettingsStrings.TouchControlScheme,
+                    Current = config.GetBindable<TaikoTouchControlScheme>(TaikoRulesetSetting.TouchControlScheme)
+                }),
+                new SettingsItemV2(hitAnimations = new FormCheckBox
+                {
+                    Caption = RulesetSettingsStrings.HitAnimations,
+                    HintText = RulesetSettingsStrings.HitAnimationsTaikoTooltip,
+                    Current = config.GetBindable<bool>(TaikoRulesetSetting.HitAnimations)
+                }),
+                new SettingsItemV2(rateAdjustedAnimations = new FormCheckBox
+                {
+                    Caption = RulesetSettingsStrings.RateAdjustedHitAnimation,
+                    HintText = RulesetSettingsStrings.RateAdjustedHitAnimationTooltip,
+                    Current = config.GetBindable<bool>(TaikoRulesetSetting.RateAdjustedHitAnimation)
+                })
+                {
+                    ApplyClassicDefault = c => ((IHasCurrentValue<bool>)c).Current.Value = false,
+                }
+            };
+
+            hitAnimations.Current.BindValueChanged(val =>
+            {
+                rateAdjustedAnimations.Current.Disabled = !val.NewValue;
+            }, true);
+        }
+    }
+}

@@ -1,0 +1,791 @@
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE-OSU file in the repository root for full licence text.
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Humanizer;
+using osu.Framework.Allocation;
+using osu.Framework.Bindables;
+using osu.Framework.Extensions;
+using osu.Framework.Extensions.IEnumerableExtensions;
+using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
+using osu.Framework.Graphics.UserInterface;
+using osu.Framework.Input;
+using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
+using osu.Framework.Utils;
+using osu.Game.Audio;
+using osu.Game.Graphics;
+using osu.Game.Graphics.UserInterface;
+using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Input.Bindings;
+using osu.Game.Localisation;
+using osu.Game.Rulesets.Edit;
+using osu.Game.Rulesets.Objects;
+using osu.Game.Rulesets.Objects.Drawables;
+using osu.Game.Rulesets.Objects.Types;
+using osu.Game.Screens.Edit.Components.TernaryButtons;
+using osu.Game.Skinning;
+using osu.Game.Utils;
+using osuTK;
+using osuTK.Graphics;
+using osuTK.Input;
+
+namespace osu.Game.Screens.Edit.Compose.Components.Timeline
+{
+    public partial class SamplePointPiece : HitObjectPointPiece, IHasPopover
+    {
+        public readonly HitObject HitObject;
+
+        [Resolved]
+        private EditorClock? editorClock { get; set; }
+
+        [Resolved]
+        private Editor? editor { get; set; }
+
+        [Resolved]
+        private TimelineBlueprintContainer? timelineBlueprintContainer { get; set; }
+
+        public SamplePointPiece(HitObject hitObject)
+        {
+            HitObject = hitObject;
+            Y = 2.5f;
+        }
+
+        public bool AlternativeColor { get; init; }
+
+        protected override Color4 GetRepresentingColour(OsuColour colours) => AlternativeColor ? colours.Pink2 : colours.Pink1;
+
+        protected virtual double GetTime() => HitObject is IHasRepeats r ? HitObject.StartTime + r.Duration / r.SpanCount() / 2 : HitObject.StartTime;
+
+        [BackgroundDependencyLoader]
+        private void load()
+        {
+            Label.AllowMultiline = false;
+            LabelContainer.AutoSizeAxes = Axes.None;
+            updateText();
+
+            if (editor != null)
+                editor.ShowSampleEditPopoverRequested += onShowSampleEditPopoverRequested;
+        }
+
+        private readonly Bindable<bool> contracted = new Bindable<bool>();
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            HitObject.DefaultsApplied += onDefaultsApplied;
+
+            if (timelineBlueprintContainer != null)
+                contracted.BindTo(timelineBlueprintContainer.SamplePointContracted);
+
+            contracted.BindValueChanged(v =>
+            {
+                if (v.NewValue)
+                {
+                    Label.FadeOut(200, Easing.OutQuint);
+                    LabelContainer.ResizeTo(new Vector2(12), 200, Easing.OutQuint);
+                    LabelContainer.CornerRadius = 6;
+                }
+                else
+                {
+                    Label.FadeIn(200, Easing.OutQuint);
+                    LabelContainer.ResizeTo(new Vector2(Label.Width, 16), 200, Easing.OutQuint);
+                    LabelContainer.CornerRadius = 8;
+                }
+            }, true);
+
+            FinishTransforms();
+        }
+
+        private void onDefaultsApplied(HitObject hitObject)
+        {
+            updateText();
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            base.Dispose(isDisposing);
+
+            if (editor != null)
+                editor.ShowSampleEditPopoverRequested -= onShowSampleEditPopoverRequested;
+
+            HitObject.DefaultsApplied -= onDefaultsApplied;
+        }
+
+        private void onShowSampleEditPopoverRequested(double time)
+        {
+            if (!Precision.AlmostEquals(time, GetTime())) return;
+
+            editorClock?.SeekSmoothlyTo(GetTime());
+            this.ShowPopover();
+        }
+
+        protected override bool OnClick(ClickEvent e)
+        {
+            this.ShowPopover();
+            return true;
+        }
+
+        private void updateText()
+        {
+            Label.Text = $"{abbreviateBank(GetBankValue(GetSamples()))}{GetSuffix(GetSamples())} {GetVolumeValue(GetSamples())}";
+
+            if (!contracted.Value)
+                LabelContainer.ResizeWidthTo(Label.Width, 200, Easing.OutQuint);
+        }
+
+        private static string? abbreviateBank(string? bank)
+        {
+            return bank switch
+            {
+                HitSampleInfo.BANK_NORMAL => @"N",
+                HitSampleInfo.BANK_SOFT => @"S",
+                HitSampleInfo.BANK_DRUM => @"D",
+                _ => bank
+            };
+        }
+
+        public static string? GetBankValue(IEnumerable<HitSampleInfo> samples)
+        {
+            return samples.FirstOrDefault(o => o.Name == HitSampleInfo.HIT_NORMAL)?.Bank;
+        }
+
+        public static string GetSuffix(IEnumerable<HitSampleInfo> samples)
+        {
+            var suffixes = samples.Select(o => o.Suffix).Distinct().ToList();
+
+            // having multiple values should never happen, but just for safety...
+            if (suffixes.Count != 1 || suffixes.Single() is not string commonSuffix)
+                return string.Empty;
+
+            return $@":{commonSuffix}";
+        }
+
+        public static string? GetAdditionBankValue(IEnumerable<HitSampleInfo> samples)
+        {
+            var firstAddition = samples.FirstOrDefault(o => o.Name != HitSampleInfo.HIT_NORMAL);
+            if (firstAddition == null)
+                return null;
+
+            return firstAddition.EditorAutoBank ? HitObjectComposer.HIT_BANK_AUTO : firstAddition.Bank;
+        }
+
+        public static int GetVolumeValue(ICollection<HitSampleInfo> samples)
+        {
+            return samples.Count == 0 ? 0 : samples.Max(o => o.Volume);
+        }
+
+        /// <summary>
+        /// Gets the samples to be edited by this sample point piece.
+        /// This could be the samples of the hit object itself, or of one of the nested hit objects. For example a slider repeat.
+        /// </summary>
+        /// <returns>The samples to be edited.</returns>
+        protected virtual IList<HitSampleInfo> GetSamples() => HitObject.Samples;
+
+        public virtual Popover GetPopover() => new SampleEditPopover(HitObject);
+
+        public partial class SampleEditPopover : OsuPopover
+        {
+            private readonly HitObject hitObject;
+
+            private FormDropdown<string> bank = null!;
+            private FormDropdown<string> additionBank = null!;
+            private FillFlowContainer<SampleSetTernaryButton>? sampleSetsFlow;
+            private FormDropdown<EditorBeatmapSkin.SampleSet>? sampleSetDropdown;
+            private VolumeControl volume = null!;
+            private SkinnableSound demoSample = null!;
+
+            private FillFlowContainer togglesCollection = null!;
+
+            private HitObject[] relevantObjects = null!;
+            private (HitObject hitObject, IList<HitSampleInfo> samples)[] allRelevantSamples = null!;
+
+            /// <summary>
+            /// Gets the sub-set of samples relevant to this sample point piece.
+            /// For example, to edit node samples this should return the samples at the index of the node.
+            /// </summary>
+            /// <param name="hitObjects">The hit objects to get the relevant samples from.</param>
+            /// <returns>The relevant list of samples.</returns>
+            protected virtual IEnumerable<(HitObject hitObject, IList<HitSampleInfo> samples)> GetRelevantSamples(HitObject[] hitObjects)
+            {
+                if (hitObjects.Length == 1)
+                {
+                    yield return (hitObjects[0], hitObjects[0].Samples);
+
+                    yield break;
+                }
+
+                foreach (var ho in hitObjects)
+                {
+                    yield return (ho, ho.Samples);
+
+                    if (ho is IHasRepeats hasRepeats)
+                    {
+                        foreach (var node in hasRepeats.NodeSamples)
+                            yield return (ho, node);
+                    }
+                }
+            }
+
+            [Resolved(canBeNull: true)]
+            private EditorBeatmap beatmap { get; set; } = null!;
+
+            public SampleEditPopover(HitObject hitObject)
+            {
+                this.hitObject = hitObject;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                FillFlowContainer flow;
+
+                Children = new Drawable[]
+                {
+                    flow = new FillFlowContainer
+                    {
+                        Width = 220,
+                        Direction = FillDirection.Vertical,
+                        AutoSizeAxes = Axes.Y,
+                        Spacing = new Vector2(0, 10),
+                        Children = new[]
+                        {
+                            togglesCollection = new FillFlowContainer
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                AutoSizeAxes = Axes.Y,
+                                Direction = FillDirection.Horizontal,
+                                Spacing = new Vector2(5, 5),
+                            },
+                            bank = new FormDropdown<string>
+                            {
+                                Caption = EditorStrings.NormalBank,
+                                Items = HitSampleInfo.ALL_BANKS,
+                            },
+                            additionBank = new FormDropdown<string>
+                            {
+                                Caption = EditorStrings.AdditionBank,
+                                Items = HitSampleInfo.ALL_BANKS,
+                            },
+                            createSampleSetContent(),
+                            volume = new VolumeControl
+                            {
+                                Caption = EditorStrings.SampleVolume,
+                                Current = new BindableInt(100)
+                                {
+                                    MinValue = DrawableHitObject.MINIMUM_SAMPLE_VOLUME,
+                                    MaxValue = 100,
+                                }
+                            }
+                        }
+                    },
+                    new EditorSkinProvidingContainer(beatmap)
+                    {
+                        Child = demoSample = new SkinnableSound()
+                    }
+                };
+
+                volume.TabbableContentContainer = flow;
+
+                // if the piece belongs to a currently selected object, assume that the user wants to change all selected objects.
+                // if the piece belongs to an unselected object, operate on that object alone, independently of the selection.
+                relevantObjects = (beatmap.SelectedHitObjects.Contains(hitObject) ? beatmap.SelectedHitObjects : hitObject.Yield()).ToArray();
+                allRelevantSamples = GetRelevantSamples(relevantObjects).ToArray();
+
+                // even if there are multiple objects selected, we can still display sample volume or bank if they all have the same value.
+                int? commonVolume = getCommonVolume();
+                volume.Current.Value = commonVolume ?? 100;
+                volume.IsMultipleValues = commonVolume == null;
+
+                updatePrimaryBankState();
+                bank.Current.BindValueChanged(val =>
+                {
+                    if (string.IsNullOrEmpty(val.NewValue))
+                        return;
+
+                    setBank(val.NewValue);
+                    playDemoSample();
+                });
+
+                updateAdditionBankState();
+                additionBank.Current.BindValueChanged(val =>
+                {
+                    if (string.IsNullOrEmpty(val.NewValue))
+                        return;
+
+                    setAdditionBank(val.NewValue);
+                    playDemoSample();
+                });
+
+                updateSampleSetState();
+
+                volume.Current.BindValueChanged(val =>
+                {
+                    setVolume(val.NewValue);
+                });
+
+                createStateBindables();
+                updateTernaryStates();
+                togglesCollection.AddRange(createTernaryButtons());
+            }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                ScheduleAfterChildren(() => volume.TakeFocus());
+            }
+
+            private Drawable createSampleSetContent()
+            {
+                if (beatmap.BeatmapSkin == null)
+                    return Empty().With(d => d.Alpha = 0);
+
+                var sampleSets = beatmap.BeatmapSkin.GetAvailableSampleSets().ToList();
+
+                if (sampleSets.Count == 0)
+                    return Empty().With(d => d.Alpha = 0);
+
+                sampleSets.Insert(0, new EditorBeatmapSkin.SampleSet(0, "User skin"));
+
+                if (sampleSets.Count < 20)
+                {
+                    sampleSetsFlow = new FillFlowContainer<SampleSetTernaryButton>
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        Spacing = new Vector2(5),
+                        ChildrenEnumerable = sampleSets.Select(set => new SampleSetTernaryButton(set) { Description = set.Name }),
+                    };
+
+                    foreach (var ternary in sampleSetsFlow)
+                    {
+                        ternary.Current.BindValueChanged(val =>
+                        {
+                            if (val.NewValue == TernaryState.True)
+                                setSampleSet(ternary.SampleSet);
+
+                            updateSampleSetState();
+                            playDemoSample();
+                        });
+                    }
+
+                    return sampleSetsFlow;
+                }
+
+                sampleSetDropdown = new FormDropdown<EditorBeatmapSkin.SampleSet>
+                {
+                    Caption = EditorStrings.SampleSet,
+                    Items = sampleSets,
+                };
+                sampleSetDropdown.Current.BindValueChanged(val =>
+                {
+                    setSampleSet(val.NewValue);
+                    updateSampleSetState();
+                    playDemoSample();
+                });
+
+                return sampleSetDropdown;
+            }
+
+            private string? getCommonBank() => allRelevantSamples.Select(h => GetBankValue(h.samples)).Distinct().Count() == 1
+                ? GetBankValue(allRelevantSamples.First().samples)
+                : null;
+
+            private string? getCommonAdditionBank()
+            {
+                string[] additionBanks = allRelevantSamples.Select(h => GetAdditionBankValue(h.samples)).Where(o => o is not null).Cast<string>().Distinct().ToArray();
+                return additionBanks.Length == 1 ? additionBanks[0] : null;
+            }
+
+            private int? getCommonVolume() => allRelevantSamples.Select(h => GetVolumeValue(h.samples)).Distinct().Count() == 1
+                ? GetVolumeValue(allRelevantSamples.First().samples)
+                : null;
+
+            private void updatePrimaryBankState()
+            {
+                string? commonBank = getCommonBank();
+                bank.Current.Value = !string.IsNullOrEmpty(commonBank) ? commonBank : "(multiple)";
+            }
+
+            private void updateAdditionBankState()
+            {
+                string? commonAdditionBank = getCommonAdditionBank();
+                additionBank.Current.Value = !string.IsNullOrEmpty(commonAdditionBank) ? commonAdditionBank : "(multiple)";
+
+                bool anyAdditions = allRelevantSamples.Any(o => o.samples.Any(s => s.Name != HitSampleInfo.HIT_NORMAL));
+                if (anyAdditions)
+                    additionBank.Show();
+                else
+                    additionBank.Hide();
+            }
+
+            private void updateSampleSetState()
+            {
+                HashSet<int> activeSets = new HashSet<int>();
+
+                foreach (var sample in allRelevantSamples.SelectMany(h => h.samples))
+                {
+                    if (sample.Suffix == null)
+                        activeSets.Add(sample.UseBeatmapSamples ? 1 : 0);
+                    else if (int.TryParse(sample.Suffix, out int suffix))
+                        activeSets.Add(suffix);
+                }
+
+                if (sampleSetsFlow != null)
+                {
+                    var onState = activeSets.Count > 1 ? TernaryState.Indeterminate : TernaryState.True;
+
+                    foreach (var ternary in sampleSetsFlow)
+                        ternary.Current.Value = activeSets.Contains(ternary.SampleSet.SampleSetIndex) ? onState : TernaryState.False;
+                }
+
+                if (sampleSetDropdown != null)
+                {
+                    sampleSetDropdown.Current.Value = activeSets.Count == 1
+                        ? sampleSetDropdown.Items.Single(i => i.SampleSetIndex == activeSets.Single())
+                        : new EditorBeatmapSkin.SampleSet(-1, "(multiple)");
+                }
+            }
+
+            private void playDemoSample() => Scheduler.AddOnce(() =>
+            {
+                demoSample.Samples = allRelevantSamples.First().samples.Cast<ISampleInfo>().ToArray();
+                demoSample.Play();
+            });
+
+            /// <summary>
+            /// Applies the given update action on all samples of <see cref="allRelevantSamples"/>
+            /// and invokes the necessary update notifiers for the beatmap and hit objects.
+            /// </summary>
+            /// <param name="updateAction">The action to perform on each element of <see cref="allRelevantSamples"/>.</param>
+            private void updateAllRelevantSamples(Action<HitObject, IList<HitSampleInfo>> updateAction)
+            {
+                beatmap.BeginChange();
+
+                foreach (var (relevantHitObject, relevantSamples) in GetRelevantSamples(relevantObjects))
+                {
+                    updateAction(relevantHitObject, relevantSamples);
+                    beatmap.Update(relevantHitObject);
+                }
+
+                beatmap.EndChange();
+            }
+
+            /// <remarks>
+            /// Should be kept in sync with <see cref="HitObjectComposer{T,T}.SetSampleBank"/>.
+            /// </remarks>
+            private void setBank(string newBank)
+            {
+                updateAllRelevantSamples((_, relevantSamples) =>
+                {
+                    for (int i = 0; i < relevantSamples.Count; i++)
+                    {
+                        if (relevantSamples[i].Name != HitSampleInfo.HIT_NORMAL && !relevantSamples[i].EditorAutoBank) continue;
+
+                        relevantSamples[i] = relevantSamples[i].With(newBank: newBank);
+                    }
+                });
+
+                updatePrimaryBankState();
+            }
+
+            /// <remarks>
+            /// Should be kept in sync with <see cref="HitObjectComposer{T,T}.SetSampleAdditionBank"/>.
+            /// </remarks>
+            private void setAdditionBank(string newBank)
+            {
+                updateAllRelevantSamples((_, relevantSamples) =>
+                {
+                    string normalBank = relevantSamples.FirstOrDefault(s => s.Name == HitSampleInfo.HIT_NORMAL)?.Bank ?? HitSampleInfo.BANK_SOFT;
+
+                    for (int i = 0; i < relevantSamples.Count; i++)
+                    {
+                        if (relevantSamples[i].Name == HitSampleInfo.HIT_NORMAL)
+                            continue;
+
+                        // Addition samples with bank set to auto should inherit the bank of the normal sample
+                        if (newBank == HitObjectComposer.HIT_BANK_AUTO)
+                        {
+                            relevantSamples[i] = relevantSamples[i].With(newBank: normalBank, newEditorAutoBank: true);
+                        }
+                        else
+                            relevantSamples[i] = relevantSamples[i].With(newBank: newBank, newEditorAutoBank: false);
+                    }
+                });
+
+                updateAdditionBankState();
+            }
+
+            private void setSampleSet(EditorBeatmapSkin.SampleSet newSampleSet)
+            {
+                updateAllRelevantSamples((_, relevantSamples) =>
+                {
+                    for (int i = 0; i < relevantSamples.Count; i++)
+                    {
+                        relevantSamples[i] = relevantSamples[i].With(
+                            newSuffix: newSampleSet.SampleSetIndex >= 2 ? newSampleSet.SampleSetIndex.ToString() : null,
+                            newUseBeatmapSamples: newSampleSet.SampleSetIndex >= 1);
+                    }
+                });
+            }
+
+            private void setVolume(int newVolume)
+            {
+                updateAllRelevantSamples((_, relevantSamples) =>
+                {
+                    for (int i = 0; i < relevantSamples.Count; i++)
+                    {
+                        relevantSamples[i] = relevantSamples[i].With(newVolume: newVolume);
+                    }
+                });
+                volume.IsMultipleValues = false;
+            }
+
+            #region hitsound toggles
+
+            private readonly Dictionary<string, Bindable<TernaryState>> selectionSampleStates = new Dictionary<string, Bindable<TernaryState>>();
+
+            private readonly List<string> banks = new List<string>();
+
+            private void createStateBindables()
+            {
+                foreach (string sampleName in HitSampleInfo.ALL_ADDITIONS)
+                {
+                    var bindable = new Bindable<TernaryState>
+                    {
+                        Description = sampleName.Replace("hit", string.Empty).Titleize()
+                    };
+
+                    bindable.ValueChanged += state =>
+                    {
+                        switch (state.NewValue)
+                        {
+                            case TernaryState.False:
+                                removeHitSample(sampleName);
+                                break;
+
+                            case TernaryState.True:
+                                addHitSample(sampleName);
+                                break;
+                        }
+
+                        playDemoSample();
+                    };
+
+                    selectionSampleStates[sampleName] = bindable;
+                }
+
+                banks.AddRange(HitSampleInfo.ALL_BANKS.Prepend(HitObjectComposer.HIT_BANK_AUTO));
+            }
+
+            private void updateTernaryStates()
+            {
+                foreach ((string sampleName, var bindable) in selectionSampleStates)
+                {
+                    bindable.Value = GetRelevantSamples(relevantObjects).GetTernaryState(h => h.samples.Any(s => s.Name == sampleName));
+                }
+            }
+
+            private IEnumerable<DrawableTernaryButton> createTernaryButtons()
+            {
+                foreach ((string sampleName, var bindable) in selectionSampleStates)
+                {
+                    yield return new DrawableTernaryButton<GlobalAction>(null)
+                    {
+                        Current = bindable,
+                        Description = string.Empty,
+                        CreateIcon = () => HitObjectComposer.GetIconForSample(sampleName),
+                        RelativeSizeAxes = Axes.None,
+                        Size = new Vector2(40, 40),
+                        Action = HitObjectComposer.GetActionForSample(sampleName),
+                        Hotkey = new Hotkey(HitObjectComposer.GetActionForSample(sampleName)),
+                    };
+                }
+            }
+
+            /// <remarks>
+            /// Should be kept in sync with <see cref="HitObjectComposer{T,T}.AddHitSample"/>.
+            /// </remarks>
+            private void addHitSample(string sampleName)
+            {
+                if (string.IsNullOrEmpty(sampleName))
+                    return;
+
+                updateAllRelevantSamples((h, relevantSamples) =>
+                {
+                    // Make sure there isn't already an existing sample
+                    if (relevantSamples.Any(s => s.Name == sampleName))
+                        return;
+
+                    // First try inheriting the sample info from the node samples instead of the samples of the hitobject
+                    var relevantSample = relevantSamples.FirstOrDefault(s => s.Name != HitSampleInfo.HIT_NORMAL) ?? relevantSamples.FirstOrDefault();
+                    relevantSamples.Add(relevantSample?.With(sampleName) ?? h.CreateHitSampleInfo(sampleName));
+                });
+
+                updateAdditionBankState();
+            }
+
+            private void removeHitSample(string sampleName)
+            {
+                if (string.IsNullOrEmpty(sampleName))
+                    return;
+
+                updateAllRelevantSamples((_, relevantSamples) =>
+                {
+                    for (int i = 0; i < relevantSamples.Count; i++)
+                    {
+                        if (relevantSamples[i].Name == sampleName)
+                            relevantSamples.RemoveAt(i--);
+                    }
+                });
+
+                updateAdditionBankState();
+            }
+
+            public override bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
+            {
+                if (e.Repeat)
+                    return base.OnPressed(e);
+
+                switch (e.Action)
+                {
+                    case GlobalAction.EditorToggleNormalNormalBank:
+                        setBank(HitSampleInfo.BANK_NORMAL);
+                        break;
+
+                    case GlobalAction.EditorToggleNormalSoftBank:
+                        setBank(HitSampleInfo.BANK_SOFT);
+                        break;
+
+                    case GlobalAction.EditorToggleNormalDrumBank:
+                        setBank(HitSampleInfo.BANK_DRUM);
+                        break;
+
+                    case GlobalAction.EditorToggleAdditionAutoBank:
+                        setAdditionBank(HitObjectComposer.HIT_BANK_AUTO);
+                        break;
+
+                    case GlobalAction.EditorToggleAdditionNormalBank:
+                        setAdditionBank(HitSampleInfo.BANK_NORMAL);
+                        break;
+
+                    case GlobalAction.EditorToggleAdditionSoftBank:
+                        setAdditionBank(HitSampleInfo.BANK_SOFT);
+                        break;
+
+                    case GlobalAction.EditorToggleAdditionDrumBank:
+                        setAdditionBank(HitSampleInfo.BANK_DRUM);
+                        break;
+                }
+
+                return base.OnPressed(e);
+            }
+
+            #endregion
+        }
+
+        internal partial class VolumeControl : FormSliderBar<int>
+        {
+            private bool isMultipleValues;
+
+            /// <summary>
+            /// This is a hack to allow the text box to show an indication that multiple slider velocity values are active
+            /// when the selection contains multiple objects with different velocities.
+            /// </summary>
+            public bool IsMultipleValues
+            {
+                get => isMultipleValues;
+                set
+                {
+                    if (isMultipleValues == value)
+                        return;
+
+                    isMultipleValues = value;
+                    updateLabelFormat();
+                }
+            }
+
+            private void updateLabelFormat()
+            {
+                LabelFormat = isMultipleValues
+                    ? static _ => "(multiple)"
+                    : v => LocalisableString.Interpolate($"{v / 100.0:P0}");
+                TextBox.PlaceholderText = isMultipleValues ? "(multiple)" : string.Empty;
+            }
+
+            public VolumeControl()
+            {
+                // The `IsMultipleValues` / `updateLabelFormat()` hack to jam an indicator of multiple active values does not work for tooltip
+                // because the tooltip machinery framework-side is too smart for it (the tooltip text is only regenerated on direct changes to `Current`).
+                // Just disable it to hide the skeleton. It's of little use anyhow.
+                TooltipFormat = _ => default;
+                TransferValueOnCommit = true;
+            }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+                updateLabelFormat();
+                TextBox.Focused.BindValueChanged(focused =>
+                {
+                    if (focused.NewValue && IsMultipleValues)
+                        TextBox.Text = string.Empty;
+                });
+            }
+
+            internal override FormNumberBox.InnerNumberBox CreateTextBox() => new VolumeTextBox();
+
+            private partial class VolumeTextBox : FormNumberBox.InnerNumberBox
+            {
+                public VolumeTextBox()
+                    : base(true)
+                {
+                }
+
+                public override bool OnPressed(KeyBindingPressEvent<PlatformAction> e)
+                {
+                    if (e.Action == PlatformAction.SelectBackwardWord || e.Action == PlatformAction.SelectForwardWord)
+                        return false;
+
+                    return base.OnPressed(e);
+                }
+
+                protected override bool OnKeyDown(KeyDownEvent e)
+                {
+                    // mappers wish to be able to use sample sound / bank toggles while this text box is focused
+                    // to facilitate this, only use standard text box handling for relevant inputs
+                    // and let all other inputs fall through unhandled so that overarching composer elements
+                    // can handle the hitsounding toggles
+                    switch (e.Key)
+                    {
+                        // inputting volume number
+                        case >= Key.Keypad0 and <= Key.Keypad9:
+                        case >= Key.Number0 and <= Key.Number9:
+                        // committing the number
+                        case Key.Enter:
+                        case Key.KeypadEnter:
+                        // releasing focus
+                        case Key.Escape:
+                            return base.OnKeyDown(e);
+
+                        default:
+                            return false;
+                    }
+                }
+
+                protected override void NotifyInputError()
+                {
+                    // base call intentionally suppressed.
+                    // as most keypresses are allowed to fall through this text box to allow other interactions via composer elements,
+                    // it feels wrong to have those fall-through inputs additionally flash this text box red as if something bad happened.
+                }
+            }
+        }
+    }
+}

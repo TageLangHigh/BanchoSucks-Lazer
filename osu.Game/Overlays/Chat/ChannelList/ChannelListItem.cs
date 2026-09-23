@@ -1,0 +1,243 @@
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE-OSU file in the repository root for full licence text.
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using osu.Framework.Allocation;
+using osu.Framework.Bindables;
+using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Shapes;
+using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
+using osu.Game.Graphics;
+using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Sprites;
+using osu.Game.Online.Chat;
+using osu.Game.Overlays.Chat.Listing;
+using osu.Game.Users.Drawables;
+using osuTK;
+using osuTK.Input;
+
+namespace osu.Game.Overlays.Chat.ChannelList
+{
+    public partial class ChannelListItem : OsuClickableContainer, IFilterable
+    {
+        public event Action<Channel>? OnRequestSelect;
+
+        public bool CanLeave { get; init; } = true;
+        public event Action<Channel>? OnRequestLeave;
+
+        public readonly Channel Channel;
+
+        public readonly BindableInt Mentions = new BindableInt();
+
+        public readonly BindableBool Unread = new BindableBool();
+
+        private Box hoverBox = null!;
+        private Box selectBox = null!;
+        private OsuSpriteText text = null!;
+        private ChannelListItemCloseButton? close;
+
+        private DelayedLoadWrapper loadWrapper = null!;
+
+        [Resolved]
+        private Bindable<Channel> selectedChannel { get; set; } = null!;
+
+        [Resolved]
+        private OverlayColourProvider colourProvider { get; set; } = null!;
+
+        public ChannelListItem(Channel channel)
+        {
+            Channel = channel;
+        }
+
+        [BackgroundDependencyLoader]
+        private void load()
+        {
+            Height = 25;
+            RelativeSizeAxes = Axes.X;
+
+            Child = loadWrapper = new DelayedLoadWrapper(() => new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                Children = new Drawable[]
+                {
+                    hoverBox = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = colourProvider.Background3,
+                        Alpha = 0f,
+                    },
+                    selectBox = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = colourProvider.Background4,
+                        Alpha = 0f,
+                    },
+                    new GridContainer
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Padding = new MarginPadding { Left = 10, Right = 10 },
+                        ColumnDimensions = new[]
+                        {
+                            new Dimension(GridSizeMode.AutoSize),
+                            new Dimension(),
+                            new Dimension(GridSizeMode.AutoSize),
+                            new Dimension(GridSizeMode.AutoSize),
+                        },
+                        Content = new[]
+                        {
+                            new Drawable?[]
+                            {
+                                createIcon(),
+                                text = new TruncatingSpriteText
+                                {
+                                    Anchor = Anchor.CentreLeft,
+                                    Origin = Anchor.CentreLeft,
+                                    Text = Channel.Name,
+                                    Font = OsuFont.MapleMono.With(size: 14, weight: FontWeight.SemiBold),
+                                    Colour = colourProvider.Light3,
+                                    Margin = new MarginPadding { Bottom = 2 },
+                                    RelativeSizeAxes = Axes.X,
+                                },
+                                createMentionPill(),
+                                close = createCloseButton(),
+                            }
+                        }
+                    }
+                }
+            }, timeBeforeLoad: 50);
+
+            Action = () => OnRequestSelect?.Invoke(Channel);
+
+            loadWrapper.DelayedLoadComplete += _ =>
+            {
+                loadWrapper.FadeInFromZero(300, Easing.OutQuint);
+                updateState();
+            };
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            selectedChannel.BindValueChanged(_ => updateState(), true);
+            Unread.BindValueChanged(_ => updateState(), true);
+        }
+
+        protected override bool OnHover(HoverEvent e)
+        {
+            updateState();
+            return base.OnHover(e);
+        }
+
+        protected override void OnHoverLost(HoverLostEvent e)
+        {
+            updateState();
+            base.OnHoverLost(e);
+        }
+
+        private UpdateableAvatar? createIcon()
+        {
+            if (Channel.Type != ChannelType.PM)
+                return null;
+
+            return new UpdateableAvatar(Channel.Users.First(), isInteractive: false)
+            {
+                Size = new Vector2(20),
+                Margin = new MarginPadding { Right = 5 },
+                Anchor = Anchor.CentreLeft,
+                Origin = Anchor.CentreLeft,
+                CornerRadius = 10,
+                Masking = true,
+            };
+        }
+
+        private ChannelListItemMentionPill? createMentionPill()
+        {
+            if (isSelector)
+                return null;
+
+            return new ChannelListItemMentionPill
+            {
+                Anchor = Anchor.CentreLeft,
+                Origin = Anchor.CentreLeft,
+                Margin = new MarginPadding { Right = 3 },
+                Mentions = { BindTarget = Mentions },
+            };
+        }
+
+        protected override bool OnMouseDown(MouseDownEvent e)
+        {
+            if (e.Button == MouseButton.Middle)
+            {
+                close?.TriggerClick();
+                return true;
+            }
+
+            return base.OnMouseDown(e);
+        }
+
+        private ChannelListItemCloseButton? createCloseButton()
+        {
+            if (isSelector || !CanLeave)
+                return null;
+
+            return new ChannelListItemCloseButton
+            {
+                Anchor = Anchor.CentreLeft,
+                Origin = Anchor.CentreLeft,
+                Margin = new MarginPadding { Right = 3 },
+                Action = () => OnRequestLeave?.Invoke(Channel),
+            };
+        }
+
+        private void updateState()
+        {
+            if (!loadWrapper.DelayedLoadCompleted)
+                return;
+
+            bool selected = selectedChannel.Value == Channel;
+
+            hoverBox.FadeTo(IsHovered ? 1 : 0, IsHovered ? 300 : 200, Easing.OutQuint);
+            close?.FadeTo(IsHovered ? 1 : 0, IsHovered ? 300 : 200, Easing.OutQuint);
+
+            if (selected)
+                selectBox.FadeIn(300, Easing.OutQuint);
+            else
+                selectBox.FadeOut(200, Easing.OutQuint);
+
+            if (Unread.Value || selected)
+                text.FadeColour(colourProvider.Content1, 300, Easing.OutQuint);
+            else
+                text.FadeColour(colourProvider.Light3, 200, Easing.OutQuint);
+        }
+
+        private bool isSelector => Channel is ChannelListing.ChannelListingChannel;
+
+        #region Filtering support
+
+        public IEnumerable<LocalisableString> FilterTerms => isSelector ? Enumerable.Empty<LocalisableString>() : [Channel.Name];
+
+        private bool matchingFilter = true;
+
+        public bool MatchingFilter
+        {
+            get => matchingFilter;
+            set
+            {
+                if (matchingFilter == value)
+                    return;
+
+                matchingFilter = value;
+                Alpha = matchingFilter ? 1 : 0;
+            }
+        }
+
+        public bool FilteringActive { get; set; }
+
+        #endregion
+    }
+}

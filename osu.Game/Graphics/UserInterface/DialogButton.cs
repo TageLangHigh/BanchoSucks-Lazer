@@ -1,0 +1,297 @@
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE-OSU file in the repository root for full licence text.
+
+using System;
+using osu.Framework;
+using osu.Framework.Extensions.Color4Extensions;
+using osu.Framework.Graphics;
+using osu.Framework.Graphics.Colour;
+using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Effects;
+using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
+using osu.Game.Graphics.Backgrounds;
+using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Sprites;
+using osuTK;
+using osuTK.Graphics;
+
+namespace osu.Game.Graphics.UserInterface
+{
+    public partial class DialogButton : OsuClickableContainer, IStateful<SelectionState>
+    {
+        private const float idle_width = 0.8f;
+        private const float hover_width = 0.9f;
+
+        private const float hover_duration = 400;
+        private const float click_duration = 200;
+
+        public event Action<SelectionState>? StateChanged;
+
+        private SelectionState state;
+
+        public SelectionState State
+        {
+            get => state;
+            set
+            {
+                if (state == value)
+                    return;
+
+                state = value;
+                StateChanged?.Invoke(value);
+            }
+        }
+
+        private LocalisableString text;
+
+        public LocalisableString Text
+        {
+            get => text;
+            set
+            {
+                text = value;
+                spriteText.Text = Text;
+            }
+        }
+
+        public float TextSize
+        {
+            get => spriteText.Font.Size;
+            set => spriteText.Font = spriteText.Font.With(size: value);
+        }
+
+        private Color4 buttonColour;
+
+        public Color4 ButtonColour
+        {
+            get => buttonColour;
+            set
+            {
+                buttonColour = value;
+                updateColour();
+            }
+        }
+
+        protected readonly Container ColourContainer;
+
+        private readonly Container glowContainer;
+        private readonly Box leftGlow;
+        private readonly Box centerGlow;
+        private readonly Box rightGlow;
+        private readonly SpriteText spriteText;
+        private Vector2 hoverSpacing => new Vector2(1.4f, 0f);
+
+        public DialogButton(HoverSampleSet sampleSet = HoverSampleSet.Button)
+            : base(sampleSet)
+        {
+            RelativeSizeAxes = Axes.X;
+
+            Children = new Drawable[]
+            {
+                glowContainer = new Container
+                {
+                    Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    RelativeSizeAxes = Axes.Both,
+                    Shear = OsuGame.SHEAR,
+                    Width = idle_width,
+                    Alpha = 0f,
+                    Children = new Drawable[]
+                    {
+                        leftGlow = new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Origin = Anchor.TopLeft,
+                            Anchor = Anchor.TopLeft,
+                            Width = 0.125f,
+                        },
+                        centerGlow = new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Origin = Anchor.Centre,
+                            Anchor = Anchor.Centre,
+                            Width = 0.75f,
+                        },
+                        rightGlow = new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Origin = Anchor.TopRight,
+                            Anchor = Anchor.TopRight,
+                            Width = 0.125f,
+                        },
+                    },
+                },
+                new Container
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Masking = true,
+                    Children = new Drawable[]
+                    {
+                        ColourContainer = new Container
+                        {
+                            CornerRadius = 5,
+                            RelativeSizeAxes = Axes.Both,
+                            Origin = Anchor.Centre,
+                            Anchor = Anchor.Centre,
+                            Width = idle_width,
+                            Masking = true,
+                            EdgeEffect = new EdgeEffectParameters
+                            {
+                                Type = EdgeEffectType.Shadow,
+                                Colour = Color4.Black.Opacity(0.05f),
+                                Radius = 6,
+                            },
+                            Colour = ButtonColour,
+                            Shear = OsuGame.SHEAR,
+                            Children = new Drawable[]
+                            {
+                                new Box
+                                {
+                                    EdgeSmoothness = new Vector2(2, 0),
+                                    RelativeSizeAxes = Axes.Both,
+                                },
+                                new Container
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Masking = true,
+                                    MaskingSmoothness = 0,
+                                    Children = new[]
+                                    {
+                                        new TrianglesV2
+                                        {
+                                            RelativeSizeAxes = Axes.Both,
+                                            Alpha = 0.1f,
+                                            Velocity = 0.7f,
+                                            Blending = BlendingParameters.Additive,
+                                            Shear = -OsuGame.SHEAR,
+                                            ClampAxes = Axes.Y
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                spriteText = new OsuSpriteText
+                {
+                    Text = Text,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                    Font = OsuFont.GetFont(size: 28, weight: FontWeight.Bold),
+                    Shadow = true,
+                    ShadowColour = new Color4(0, 0, 0, 0.1f),
+                    Colour = Color4.White,
+                },
+            };
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            StateChanged += selectionChanged;
+
+            Enabled.BindValueChanged(_ => updateColour(), true);
+        }
+
+        private void updateColour()
+        {
+            ColourContainer.Colour = Enabled.Value ? buttonColour : buttonColour.Darken(0.8f);
+            updateGlow();
+        }
+
+        private bool clickAnimating;
+
+        protected override bool OnClick(ClickEvent e)
+        {
+            if (Enabled.Value)
+            {
+                var flash = new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = ButtonColour,
+                    Blending = BlendingParameters.Additive,
+                    Alpha = 0.05f
+                };
+
+                ColourContainer.Add(flash);
+                flash.FadeOutFromOne(100).Expire();
+
+                clickAnimating = true;
+                ColourContainer.ResizeWidthTo(ColourContainer.Width * 1.05f, 100, Easing.OutQuint)
+                               .OnComplete(_ =>
+                               {
+                                   clickAnimating = false;
+                                   StateChanged?.Invoke(State);
+                               });
+            }
+
+            return base.OnClick(e);
+        }
+
+        protected override bool OnMouseDown(MouseDownEvent e)
+        {
+            ColourContainer.ResizeWidthTo(hover_width * 0.98f, click_duration * 4, Easing.OutQuad);
+            return base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseUp(MouseUpEvent e)
+        {
+            if (State == SelectionState.Selected)
+                ColourContainer.ResizeWidthTo(hover_width, click_duration, Easing.In);
+            base.OnMouseUp(e);
+        }
+
+        protected override bool OnHover(HoverEvent e)
+        {
+            base.OnHover(e);
+            State = SelectionState.Selected;
+
+            return true;
+        }
+
+        protected override void OnHoverLost(HoverLostEvent e)
+        {
+            base.OnHoverLost(e);
+            State = SelectionState.NotSelected;
+        }
+
+        private void selectionChanged(SelectionState newState)
+        {
+            if (clickAnimating)
+                return;
+
+            if (newState == SelectionState.Selected)
+            {
+                spriteText.TransformSpacingTo(hoverSpacing, hover_duration, Easing.OutQuint);
+                spriteText.ScaleTo(1.02f, hover_duration, Easing.OutQuint);
+                ColourContainer.ResizeWidthTo(hover_width, hover_duration, Easing.OutQuint);
+                glowContainer.ResizeWidthTo(hover_width * 1.08f, hover_duration, Easing.OutQuint);
+                glowContainer.FadeIn(hover_duration, Easing.OutQuint);
+            }
+            else
+            {
+                ColourContainer.ResizeWidthTo(idle_width, hover_duration / 2, Easing.OutQuint);
+                glowContainer.ResizeWidthTo(idle_width * 1.08f, hover_duration, Easing.OutQuint);
+
+                spriteText.TransformSpacingTo(Vector2.Zero, hover_duration / 2, Easing.OutQuint);
+                spriteText.ScaleTo(1, hover_duration / 2, Easing.OutQuint);
+                glowContainer.FadeOut(hover_duration / 2, Easing.OutQuint);
+            }
+        }
+
+        private void updateGlow()
+        {
+            Color4 col = ColourContainer.Colour;
+
+            leftGlow.Colour = ColourInfo.GradientHorizontal(new Color4(col.R, col.G, col.B, 0f), col);
+            centerGlow.Colour = col;
+            rightGlow.Colour = ColourInfo.GradientHorizontal(col, new Color4(col.R, col.G, col.B, 0f));
+        }
+    }
+}

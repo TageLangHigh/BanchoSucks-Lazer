@@ -1,0 +1,55 @@
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE-OSU file in the repository root for full licence text.
+
+using osu.Framework.Allocation;
+using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
+using osu.Game.Graphics;
+using osu.Game.Graphics.Containers;
+using osu.Game.Overlays;
+
+namespace osu.Game.Screens.Edit.Compose.Components
+{
+    public partial class EditorInspector : CompositeDrawable
+    {
+        protected OsuTextFlowContainer InspectorText = null!;
+
+        [Resolved]
+        protected EditorBeatmap EditorBeatmap { get; private set; } = null!;
+
+        [Resolved]
+        private OverlayColourProvider colourProvider { get; set; } = null!;
+
+        [BackgroundDependencyLoader]
+        private void load()
+        {
+            AutoSizeAxes = Axes.Y;
+            RelativeSizeAxes = Axes.X;
+
+            InternalChild = InspectorText = new OsuTextFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+            };
+        }
+
+        protected void AddHeader(string header)
+        {
+            InspectorText.AddParagraph($"{header}", s =>
+            {
+                s.Font = OsuFont.Style.Caption2;
+                s.Colour = colourProvider.Content2;
+            });
+        }
+
+        protected void AddValue(string value)
+        {
+            InspectorText.NewLine();
+            InspectorText.AddText(value, s =>
+            {
+                s.Font = OsuFont.Style.Caption2.With(weight: FontWeight.SemiBold);
+                s.Colour = colourProvider.Content1;
+            });
+        }
+    }
+}

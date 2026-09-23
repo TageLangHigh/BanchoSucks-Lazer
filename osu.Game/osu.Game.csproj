@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup Label="Project">
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Authors>ppy Pty Ltd &amp; GooGuTeam</Authors>
+    <Company>GooGuTeam</Company>
+    <Description>g0v0! -- free and open rhythm experience!
+
+A community project based on the osu!lazer codebase, originally developed by ppy Pty Ltd and modified/maintained by GooGuTeam.
+
+Resources are distributed via the g0v0.osu.Game.Resources package.</Description>
+    <Copyright>Copyright (c) 2026 ppy Pty Ltd, GooGuTeam</Copyright>
+    <PackageProjectUrl>https://github.com/GooGuTeam/g0v0</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/GooGuTeam/g0v0</RepositoryUrl>
+    <PackageReleaseNotes>g0v0! is a community project based on the osu!lazer codebase.
+Original code from https://github.com/ppy/osu (Copyright (c) ppy Pty Ltd), modified by GooGuTeam.
+Full licence text: see LICENCE and LICENCE-OSU.</PackageReleaseNotes>
+  </PropertyGroup>
+  <PropertyGroup Label="Nuget">
+    <Title>g0v0!</Title>
+    <PackageId>g0v0.osu.Game</PackageId>
+    <Version>2026.913.0</Version>
+    <G0V0ResourcesVersion Condition="'$(G0V0ResourcesVersion)' == ''">2026.913.0</G0V0ResourcesVersion>
+    <PackageIcon>icon.png</PackageIcon>
+    <IsPackable>true</IsPackable>
+    <PackageTags>g0v0 osu game rhythm</PackageTags>
+  </PropertyGroup>
+  <PropertyGroup Label="Build Configuration">
+    <SentryDsn Condition="'$(SentryDsn)' == ''"></SentryDsn>
+  </PropertyGroup>
+  <ItemGroup Label="Icon">
+    <None Include="..\assets\lazer-nuget.png">
+      <Pack>True</Pack>
+      <PackagePath>icon.png</PackagePath>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="'$(SentryDsn)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>OsuSentryDsn</_Parameter1>
+      <_Parameter2>$(SentryDsn)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup Label="Package References">
+    <!-- Resources are released separately from GooGuTeam/g0v0-resources and must stay aligned with the game package version. -->
+    <PackageReference Include="g0v0.osu.Game.Resources" Version="$(G0V0ResourcesVersion)" />
+    <!-- Held back due to licencing change stupidness. Silenced vulnerability does not affect us. -->
+    <PackageReference Include="AutoMapper" Version="13.0.1">
+      <NoWarn>NU1903</NoWarn>
+    </PackageReference>
+    <PackageReference Include="DiffPlex" Version="1.9.0" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
+    <!-- Held back due to .NET 9 requirement. See https://github.com/Humanizr/Humanizer?tab=readme-ov-file#supported-frameworks -->
+    <PackageReference Include="Humanizer" Version="2.14.1" />
+    <PackageReference Include="MessagePack" Version="3.1.7" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Toolkit.HighPerformance" Version="7.1.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="ppy.LocalisationAnalyser" Version="2026.611.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Realm" Version="20.1.0" />
+    <PackageReference Include="ppy.osu.Framework" Version="2026.901.0" />
+    <PackageReference Include="Sentry" Version="6.6.0" />
+    <PackageReference Include="SharpCompress" Version="0.49.1" />
+    <PackageReference Include="NUnit" Version="4.5.1" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+</Project>
