@@ -60,9 +60,9 @@ namespace osu.Game.Localisation
         public static LocalisableString CheckingForUpdates => new TranslatableString(getKey(@"checking_for_updates"), @"Checking for updates");
 
         /// <summary>
-        /// "Open g0v0! folder"
+        /// "Open BanchoSucks Lazer folder"
         /// </summary>
-        public static LocalisableString OpenOsuFolder => new TranslatableString(getKey(@"open_osu_folder"), @"Open g0v0! folder");
+        public static LocalisableString OpenOsuFolder => new TranslatableString(getKey(@"open_osu_folder"), @"Open BanchoSucks Lazer folder");
 
         /// <summary>
         /// "Export logs"
@@ -75,9 +75,9 @@ namespace osu.Game.Localisation
         public static LocalisableString ChangeFolderLocation => new TranslatableString(getKey(@"change_folder_location"), @"Change folder location...");
 
         /// <summary>
-        /// "Move your current data to a new folder, or point g0v0! to backed-up data at an existing location."
+        /// "Move your current data to a new folder, or point BanchoSucks Lazer to backed-up data at an existing location."
         /// </summary>
-        public static LocalisableString ChangeFolderLocationTooltip => new TranslatableString(getKey(@"change_folder_location_tooltip"), @"Move your current data to a new folder, or point g0v0! to backed-up data at an existing location.");
+        public static LocalisableString ChangeFolderLocationTooltip => new TranslatableString(getKey(@"change_folder_location_tooltip"), @"Move your current data to a new folder, or point BanchoSucks Lazer to backed-up data at an existing location.");
 
         /// <summary>
         /// "Run setup wizard"
@@ -100,13 +100,13 @@ namespace osu.Game.Localisation
         public static LocalisableString IssueReportDialogHeader => new TranslatableString(getKey(@"issue_report_dialog_header"), @"Reporting an issue");
 
         /// <summary>
-        /// "This will open the project's issue page on GitHub, where you can view and create issue reports (requires a GitHub account).
-        /// Before reporting an issue, we recommend searching for existing ones and exporting your client logs for future reference."
+        /// "This will open the Banchosucks Discord, where you can report bugs with a ticket.
+        /// Please describe what you did and what happened, and export your client logs first so you can attach them."
         /// </summary>
         public static LocalisableString IssueReportDialogText => new TranslatableString(getKey(@"issue_report_dialog_text"),
             """
-            This will open the project's issue page on GitHub, where you can view and create issue reports (requires a GitHub account).
-            Before reporting an issue, we recommend searching for existing ones and exporting your client logs for future reference.
+            This will open the Banchosucks Discord, where you can report bugs with a ticket.
+            Please describe what you did and what happened, and export your client logs first so you can attach them.
             """);
 
         /// <summary>

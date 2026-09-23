@@ -61,7 +61,8 @@ namespace osu.Game.Overlays.Notifications
 
                 return cleanUrl.ToLowerInvariant() switch
                 {
-                    @"lazer-api.g0v0.top" => OnlineSettingsStrings.OfficialServer,
+                    @"lazer-api.banchosucks.cc" => OnlineSettingsStrings.OfficialServer,
+                    @"lazer-api.g0v0.top" => @"g0v0 (g0v0.top)",
                     _ => cleanUrl
                 };
             }

@@ -49,7 +49,7 @@ namespace osu.Game.Overlays.Settings.Sections.General
                     TooltipText = GeneralSettingsStrings.ReportIssueTooltip,
                     BackgroundColour = colours.YellowDarker,
                     Action = () => dialogOverlay?.Push(new IssueReportDialog(() =>
-                        game?.OpenUrlExternally(@"https://github.com/GooGuTeam/g0v0/issues", LinkWarnMode.NeverWarn)
+                        game?.OpenUrlExternally(@"https://discord.gg/gqvcrF7H7x", LinkWarnMode.NeverWarn)
                     )),
                 },
             });

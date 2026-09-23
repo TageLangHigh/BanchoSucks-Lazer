@@ -17,7 +17,7 @@ namespace osu.Desktop
     [SupportedOSPlatform("windows")]
     internal static class NVAPI
     {
-        private const string osu_filename = "g0v0!.exe";
+        private const string osu_filename = "BanchoSucks-Lazer.exe";
 
         // This is a good reference:
         // https://github.com/errollw/Warp-and-Blend-Quadros/blob/master/WarpBlend-Quadros/UnwarpAll-Quadros/include/nvapi.h
@@ -26,8 +26,8 @@ namespace osu.Desktop
         public const int MAX_PHYSICAL_GPUS = 64;
         public const int UNICODE_STRING_MAX = 2048;
 
-        public const string APPLICATION_NAME = @"g0v0!";
-        public const string PROFILE_NAME = @"g0v0!";
+        public const string APPLICATION_NAME = @"BanchoSucks Lazer";
+        public const string PROFILE_NAME = @"BanchoSucks Lazer";
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate NvStatus EnumPhysicalGPUsDelegate([Out] IntPtr[] gpuHandles, out int gpuCount);
@@ -298,7 +298,7 @@ namespace osu.Desktop
 
             if (!isApplicationSpecific)
             {
-                // We don't want to interfere with the user's other settings, so let's create a separate config for g0v0!
+                // We don't want to interfere with the user's other settings, so let's create a separate config for BanchoSucks Lazer
                 if (!createProfile(out profileHandle))
                     return false;
             }

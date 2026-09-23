@@ -65,9 +65,9 @@ namespace osu.Game.Localisation
         public static LocalisableString ConfirmAbortMatchHeaderText => new TranslatableString(getKey(@"confirm_abort_match_header_text"), @"Are you sure you want to abort the match?");
 
         /// <summary>
-        /// "Are you sure you want to exit g0v0!?"
+        /// "Are you sure you want to exit BanchoSucks Lazer?"
         /// </summary>
-        public static LocalisableString ConfirmExitHeaderText => new TranslatableString(getKey(@"confirm_exit_header_text"), @"Are you sure you want to exit g0v0!?");
+        public static LocalisableString ConfirmExitHeaderText => new TranslatableString(getKey(@"confirm_exit_header_text"), @"Are you sure you want to exit BanchoSucks Lazer?");
 
         /// <summary>
         /// "Last chance to turn back"

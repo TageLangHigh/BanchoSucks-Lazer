@@ -36,8 +36,20 @@ Not affiliated with or endorsed by ppy Pty Ltd or GooGuTeam.
 Requires .NET SDK 10.0.100 or newer compatible feature band.
 
 ```powershell
-dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-win-x64-2026.913.1 -p:Version=2026.913.1 -p:AssemblyVersion=2026.913.1 -p:FileVersion=2026.913.1 -p:InformationalVersion=2026.913.1-banchosucks
+dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-win-x64-2026.913.2 -p:Version=2026.913.2 -p:AssemblyVersion=2026.913.2 -p:FileVersion=2026.913.2 -p:InformationalVersion=2026.913.2-banchosucks
 ```
 
 The server must allow the MD5 hash of the resulting osu.Game.dll in its client
 version list. This identifies the exact build; it does not prove trustworthiness.
+
+## Branding
+
+- `osu.Game/Resources/Textures/**` holds Banchosucks textures (menu logo, logo icon). They are
+  embedded and registered before the g0v0 resources package in `OsuGameBase`, so same-named
+  files win. Regenerate them from the website logo (circle, ring, dot; `#ff4964`).
+- `osu.Desktop/lazer.ico` is the Banchosucks icon (window, taskbar, file associations).
+- English texts come from `osu.Game/Localisation/*.cs`; other languages come from the g0v0
+  package and are rewritten at runtime in `ResourceManagerLocalisationStore` ("g0v0!" ->
+  "BanchoSucks Lazer").
+- Discord Rich Presence still uses g0v0's Discord application id (`osu.Desktop/DiscordRichPresence.cs`);
+  a Banchosucks Discord application with the `osu_logo_lazer` and `mode_*` assets is needed to change that.

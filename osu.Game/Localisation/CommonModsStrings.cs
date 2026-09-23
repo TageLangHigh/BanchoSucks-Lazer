@@ -100,9 +100,9 @@ namespace osu.Game.Localisation
         public static LocalisableString PerfectDescription => new TranslatableString(getKey(@"perfect_description"), @"SS or quit.");
 
         /// <summary>
-        /// "Score set on earlier g0v0! versions with the V2 scoring algorithm active."
+        /// "Score set on earlier BanchoSucks Lazer versions with the V2 scoring algorithm active."
         /// </summary>
-        public static LocalisableString ScoreV2Description => new TranslatableString(getKey(@"score_v2_description"), @"Score set on earlier g0v0! versions with the V2 scoring algorithm active.");
+        public static LocalisableString ScoreV2Description => new TranslatableString(getKey(@"score_v2_description"), @"Score set on earlier BanchoSucks Lazer versions with the V2 scoring algorithm active.");
 
         /// <summary>
         /// "Miss and fail."

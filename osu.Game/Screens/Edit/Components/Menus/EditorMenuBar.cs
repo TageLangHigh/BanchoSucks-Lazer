@@ -66,7 +66,7 @@ namespace osu.Game.Screens.Edit.Components.Menus
                 },
             });
 
-            text.AddText(@"g0v0!", t => t.Font = OsuFont.MapleMono);
+            text.AddText(@"BanchoSucks Lazer", t => t.Font = OsuFont.MapleMono);
             text.AddText(@"editor", t =>
             {
                 t.Font = OsuFont.MapleMono;

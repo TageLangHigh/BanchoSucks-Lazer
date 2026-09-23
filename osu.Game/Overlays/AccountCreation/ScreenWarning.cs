@@ -122,7 +122,7 @@ namespace osu.Game.Overlays.AccountCreation
 
             multiAccountExplanationText.AddText("Are you ");
             multiAccountExplanationText.AddText(api.ProvidedUsername, cp => cp.Colour = colours.BlueLight);
-            multiAccountExplanationText.AddText("? g0v0! has a policy of ");
+            multiAccountExplanationText.AddText("? BanchoSucks Lazer has a policy of ");
             multiAccountExplanationText.AddText("one account per person!", cp => cp.Colour = colours.Yellow);
             multiAccountExplanationText.AddText(" Please be aware that creating more than one account per person may result in ");
             multiAccountExplanationText.AddText("permanent deactivation of accounts", cp => cp.Colour = colours.Yellow);

@@ -70,7 +70,7 @@ using RuntimeInfo = osu.Framework.RuntimeInfo;
 namespace osu.Game
 {
     /// <summary>
-    /// The most basic <see cref="Game"/> that can be used to host g0v0! components and systems.
+    /// The most basic <see cref="Game"/> that can be used to host BanchoSucks Lazer components and systems.
     /// Unlike <see cref="OsuGame"/>, this class will not load any kind of UI, allowing it to be used
     /// for provide dependencies to test cases without interfering with them.
     /// </summary>
@@ -302,6 +302,9 @@ namespace osu.Game
                 VersionHash = $"{Version}-{RuntimeInfo.OS}".ComputeMD5Hash();
             }
 
+            // BanchoSucks branding overrides (osu.Game/Resources/**). Stores are searched in the order
+            // they were added, so this must come before the g0v0 resources for same-named files to win.
+            Resources.AddStore(new NamespacedResourceStore<byte[]>(new DllResourceStore(typeof(OsuGameBase).Assembly), @"Resources"));
             Resources.AddStore(new DllResourceStore(OsuResources.ResourceAssembly));
 
             dependencies.Cache(realm = new RealmAccess(Storage, CLIENT_DATABASE_FILENAME, Host.UpdateThread));
@@ -618,7 +621,7 @@ namespace osu.Game
         /// <exception cref="TimeoutException"></exception>
         public bool MigrateUserData(string path)
         {
-            Logger.Log($@"Migrating g0v0! data from ""{Storage.GetFullPath(string.Empty)}"" to ""{path}""...");
+            Logger.Log($@"Migrating BanchoSucks Lazer data from ""{Storage.GetFullPath(string.Empty)}"" to ""{path}""...");
 
             IDisposable realmBlocker = null;
 

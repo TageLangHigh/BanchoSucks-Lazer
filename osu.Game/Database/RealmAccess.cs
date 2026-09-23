@@ -281,7 +281,7 @@ namespace osu.Game.Database
                     if (realm.All<ScoreInfo>().Any())
                     {
                         Logger.Log(@"Recovery aborted as the existing database has scores set already.", LoggingTarget.Database);
-                        Logger.Log($@"To perform recovery, delete {OsuGameBase.CLIENT_DATABASE_FILENAME} while g0v0! is not running.", LoggingTarget.Database);
+                        Logger.Log($@"To perform recovery, delete {OsuGameBase.CLIENT_DATABASE_FILENAME} while BanchoSucks Lazer is not running.", LoggingTarget.Database);
                         return;
                     }
                 }
@@ -301,7 +301,7 @@ namespace osu.Game.Database
             }
             catch
             {
-                Logger.Log(@"Recovery aborted as the newer version could not be loaded by this g0v0! version.", LoggingTarget.Database);
+                Logger.Log(@"Recovery aborted as the newer version could not be loaded by this BanchoSucks Lazer version.", LoggingTarget.Database);
                 return;
             }
 
@@ -350,7 +350,7 @@ namespace osu.Game.Database
                 // This is the best way we can detect a schema version downgrade.
                 if (e.Message.StartsWith(@"Provided schema version", StringComparison.Ordinal))
                 {
-                    Logger.Error(e, "Your local database is too new to work with this version of g0v0!. Please close g0v0! and install the latest release to recover your data.");
+                    Logger.Error(e, "Your local database is too new to work with this version of BanchoSucks Lazer. Please close BanchoSucks Lazer and install the latest release to recover your data.");
 
                     // If a newer version database already exists, don't create another backup. We can presume that the first backup is the one we care about.
                     if (!storage.Exists(newerVersionFilename))
@@ -625,7 +625,7 @@ namespace osu.Game.Database
         /// Subscribe to a realm collection and begin watching for asynchronous changes.
         /// </summary>
         /// <remarks>
-        /// This adds g0v0! specific thread and managed state safety checks on top of <see cref="IRealmCollection{T}.SubscribeForNotifications"/>.
+        /// This adds BanchoSucks Lazer specific thread and managed state safety checks on top of <see cref="IRealmCollection{T}.SubscribeForNotifications"/>.
         ///
         /// In addition to the documented realm behaviour, we have the additional requirement of handling subscriptions over potential realm instance recycle.
         /// When this happens, callback events will be automatically fired:
@@ -812,7 +812,7 @@ namespace osu.Game.Database
 
         private RealmConfiguration getConfiguration(string? filename = null)
         {
-            // This is currently the only usage of temporary files at the g0v0! side.
+            // This is currently the only usage of temporary files at the BanchoSucks Lazer side.
             // If we use the temporary folder in more situations in the future, this should be moved to a higher level (helper method or OsuGameBase).
             string tempPathLocation = Path.Combine(Path.GetTempPath(), @"lazer");
             if (!Directory.Exists(tempPathLocation))

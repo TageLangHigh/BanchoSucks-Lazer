@@ -78,9 +78,11 @@ namespace osu.Game.Screens.Menu
                 },
             };
 
-            textFlow.AddText(DisclaimerStrings.TitlePart, t => t.Font = t.Font.With(Typeface.MapleMono, 30, FontWeight.Regular));
+            // Plain strings on purpose: the localised g0v0 texts live in the resources package
+            // and would otherwise override anything set here.
+            textFlow.AddText(@"this is ", t => t.Font = t.Font.With(Typeface.MapleMono, 30, FontWeight.Regular));
 
-            textFlow.AddText(@"g0v0!", t =>
+            textFlow.AddText(@"BanchoSucks Lazer", t =>
             {
                 t.Font = t.Font.With(Typeface.MapleMono, 30, FontWeight.Regular);
                 t.Colour = colours.G0V0ThemeColour;
@@ -91,31 +93,37 @@ namespace osu.Game.Screens.Menu
 
             textFlow.NewParagraph();
 
-            textFlow.AddText(DisclaimerStrings.BasedOnParagraph, formatRegular);
+            textFlow.AddText(@"the osu! lazer client for the Banchosucks private server, based on ", formatRegular);
+            textFlow.AddText(@"g0v0", t =>
+            {
+                t.Font = t.Font.With(Typeface.MapleMono, 20, FontWeight.Bold);
+                t.Colour = colours.Pink;
+            });
+            textFlow.AddText(@" and the ", formatRegular);
             textFlow.AddText(@"osu!lazer", t =>
             {
                 t.Font = t.Font.With(Typeface.MapleMono, 20, FontWeight.Bold);
                 t.Colour = colours.Pink;
             });
-            textFlow.AddText(DisclaimerStrings.OriginalCodeParagraph, formatRegular);
+            textFlow.AddText(@" codebase originally developed by ppy Pty Ltd.", formatRegular);
 
             textFlow.NewParagraph();
             textFlow.NewParagraph();
 
             textFlow.NewParagraph();
 
-            textFlow.AddText(DisclaimerStrings.CommunityProjectParagraph, formatBold);
+            textFlow.AddText(@"this is an unofficial community project and is not affiliated with, endorsed by or sponsored by ppy Pty Ltd, osu! or GooGuTeam.", formatBold);
 
             textFlow.NewParagraph();
 
-            textFlow.AddText(DisclaimerStrings.ReportGitHubParagraph, formatRegular);
+            textFlow.AddText(@"lazer on Banchosucks is still in testing. please report bugs with a ticket on our Discord:", formatRegular);
             textFlow.NewLine();
-            textFlow.AddText(@"https://github.com/GooGuTeam/g0v0", t =>
+            textFlow.AddText(@"https://discord.gg/gqvcrF7H7x", t =>
             {
                 t.Font = t.Font.With(Typeface.MapleMono, 20, FontWeight.Bold);
                 t.Colour = colours.Blue;
             });
-            iconColour = colours.Yellow;
+            iconColour = colours.G0V0ThemeColour;
         }
 
         protected override void LoadComplete()
