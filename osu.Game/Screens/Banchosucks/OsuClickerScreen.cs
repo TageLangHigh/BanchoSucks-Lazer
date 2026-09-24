@@ -15,14 +15,18 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input;
+using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Framework.Screens;
+using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Input.Bindings;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
@@ -33,7 +37,7 @@ namespace osu.Game.Screens.Banchosucks
     /// Banchosucks: osu! Clicker, a small idle clicker game in osu! style.
     /// </summary>
     /// <remarks>
-    /// Click the circle for PP, buy producers that earn PP on their own and mod upgrades that multiply
+    /// Click the circle or tap the osu!standard keys (the player's own bindings) for PP, buy producers that earn PP on their own and mod upgrades that multiply
     /// clicks or production. A bonus spinner shows up every one to two and a half minutes. Progress is
     /// kept in banchosucks/osu-clicker.json in the game's storage; while the game is closed producers
     /// keep working at half speed for up to eight hours.
@@ -44,6 +48,16 @@ namespace osu.Game.Screens.Banchosucks
         private const double offline_rate = 0.5;
         private const double offline_cap_seconds = 8 * 3600;
         private const double cost_growth = 1.15;
+
+        // osu!standard key bindings are stored under the ruleset short name; OsuAction.LeftButton = 0, OsuAction.RightButton = 1
+        private const string osu_ruleset = "osu";
+        private const int osu_left_button = 0;
+        private const int osu_right_button = 1;
+
+        private static readonly InputKey[] default_tap_keys = { InputKey.Z, InputKey.X };
+
+        // every InputKey a keyboard can produce; mouse buttons in the osu! bindings are covered by clicking the circle
+        private static readonly HashSet<InputKey> keyboard_keys = Enum.GetValues<Key>().Select(KeyCombination.FromKey).Where(k => k != InputKey.None).ToHashSet();
 
         private static readonly Producer[] producers =
         {
@@ -74,6 +88,12 @@ namespace osu.Game.Screens.Banchosucks
         [Resolved]
         private OsuColour colours { get; set; } = null!;
 
+        [Resolved]
+        private RealmAccess realm { get; set; } = null!;
+
+        [Resolved]
+        private ReadableKeyCombinationProvider keyCombinationProvider { get; set; } = null!;
+
         private readonly Random random = new Random();
         private ClickerState state = new ClickerState();
         private Storage saveStorage = null!;
@@ -85,6 +105,14 @@ namespace osu.Game.Screens.Banchosucks
         private OsuSpriteText messageText = null!;
         private Container floatingLayer = null!;
         private double nextBonusAt;
+
+        private ClickerCircle circle = null!;
+        private OsuSpriteText bpmText = null!;
+        private OsuSpriteText bpmDetailText = null!;
+        private readonly TapBpmMeter bpmMeter = new TapBpmMeter();
+        private InputKey[] tapKeys = default_tap_keys;
+        private string tapKeysText = "Z / X";
+        private IDisposable? keyBindingSubscription;
 
         // recalculated after loading and after every purchase instead of every frame
         private double clickMultiplier = 1;
@@ -201,7 +229,7 @@ namespace osu.Game.Screens.Banchosucks
                                             },
                                         },
                                     },
-                                    new ClickerCircle(colours.Pink)
+                                    circle = new ClickerCircle(colours.Pink)
                                     {
                                         Anchor = Anchor.Centre,
                                         Origin = Anchor.Centre,
@@ -216,6 +244,21 @@ namespace osu.Game.Screens.Banchosucks
                                         Spacing = new Vector2(0, 4),
                                         Children = new Drawable[]
                                         {
+                                            bpmText = new OsuSpriteText
+                                            {
+                                                Anchor = Anchor.TopCentre,
+                                                Origin = Anchor.TopCentre,
+                                                Font = OsuFont.GetFont(size: 34, weight: FontWeight.Bold),
+                                                Text = "0 BPM",
+                                            },
+                                            bpmDetailText = new OsuSpriteText
+                                            {
+                                                Anchor = Anchor.TopCentre,
+                                                Origin = Anchor.TopCentre,
+                                                Font = OsuFont.GetFont(size: 14, weight: FontWeight.SemiBold),
+                                                Colour = colours.Gray9,
+                                                Margin = new MarginPadding { Bottom = 8 },
+                                            },
                                             messageText = new OsuSpriteText
                                             {
                                                 Anchor = Anchor.TopCentre,
@@ -268,6 +311,14 @@ namespace osu.Game.Screens.Banchosucks
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            bpmMeter.Best = state.BestBpm;
+
+            // follows changes made in the settings while the game is open
+            keyBindingSubscription = realm.RegisterForNotifications(
+                r => r.All<RealmKeyBinding>().Where(b => b.RulesetName == osu_ruleset && b.Variant == 0),
+                (bindings, _) => updateTapKeys(bindings));
+
             scheduleBonus();
             Scheduler.AddDelayed(save, 15_000, true);
         }
@@ -284,20 +335,58 @@ namespace osu.Game.Screens.Banchosucks
             rateText.Text = $"{format(perSecond)} PP pro Sekunde · {format(clickValue)} PP pro Klick";
             statsText.Text = $"{state.Clicks:N0} Klicks · insgesamt {format(state.TotalEarned)} PP verdient";
 
+            double tapsPerSecond = bpmMeter.TapsPerSecond(Time.Current);
+            bpmText.Text = $"{tapsPerSecond * 15:0} BPM";
+            bpmText.Colour = tapsPerSecond > 0 && tapsPerSecond * 15 >= state.BestBpm ? colours.Yellow : Color4.White;
+            bpmDetailText.Text = $"{tapsPerSecond:0.0} Taps/s · Rekord {state.BestBpm:0} BPM · Tasten {tapKeysText}";
+
+            // a record is announced once the stream is over
+            if (tapsPerSecond == 0 && Math.Round(bpmMeter.Best) > state.BestBpm)
+            {
+                state.BestBpm = Math.Round(bpmMeter.Best);
+                showMessage($"Neuer BPM-Rekord: {state.BestBpm:0} BPM!");
+            }
+
             if (Time.Current >= nextBonusAt)
                 spawnBonus();
         }
 
         protected override bool OnKeyDown(KeyDownEvent e)
         {
-            // Z / X click like in gameplay
-            if (!e.Repeat && (e.Key == Key.Z || e.Key == Key.X))
+            // the keys the player taps circles with in osu!standard
+            if (tapKeys.Contains(KeyCombination.FromKey(e.Key)))
             {
-                onCircleClicked(null);
+                if (!e.Repeat)
+                {
+                    circle.Press();
+                    onCircleClicked(null);
+                }
+
                 return true;
             }
 
             return base.OnKeyDown(e);
+        }
+
+        protected override void OnKeyUp(KeyUpEvent e)
+        {
+            if (tapKeys.Contains(KeyCombination.FromKey(e.Key)))
+                circle.Release();
+
+            base.OnKeyUp(e);
+        }
+
+        private void updateTapKeys(IEnumerable<RealmKeyBinding> bindings)
+        {
+            var combinations = bindings.Where(b => b.ActionInt == osu_left_button || b.ActionInt == osu_right_button)
+                                       .Select(b => b.KeyCombination)
+                                       .Where(c => c.Keys.Length == 1 && keyboard_keys.Contains(c.Keys[0]))
+                                       .ToArray();
+
+            tapKeys = combinations.Length > 0 ? combinations.Select(c => c.Keys[0]).Distinct().ToArray() : default_tap_keys;
+            tapKeysText = combinations.Length > 0
+                ? string.Join(" / ", combinations.Select(c => keyCombinationProvider.GetReadableString(c)).Distinct())
+                : "Z / X";
         }
 
         private void onCircleClicked(Vector2? screenPosition)
@@ -306,6 +395,7 @@ namespace osu.Game.Screens.Banchosucks
             state.Points += value;
             state.TotalEarned += value;
             state.Clicks++;
+            bpmMeter.Tap(Time.Current);
             clickSample?.Play();
 
             Vector2 position = screenPosition ?? floatingLayer.ToScreenSpace(floatingLayer.DrawSize / 2);
@@ -418,7 +508,7 @@ namespace osu.Game.Screens.Banchosucks
             {
                 string path = saveStorage.GetFullPath(save_file);
                 if (!File.Exists(path))
-                    return "Klick den Kreis (oder drück Z / X) und kauf dir rechts Gebäude.";
+                    return "Klick den Kreis oder tippe mit deinen osu!-Tasten und kauf dir rechts Gebäude.";
 
                 state = JsonSerializer.Deserialize<ClickerState>(File.ReadAllText(path)) ?? new ClickerState();
                 recalculate();
@@ -446,6 +536,7 @@ namespace osu.Game.Screens.Banchosucks
             try
             {
                 state.SavedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                state.BestBpm = Math.Max(state.BestBpm, Math.Round(bpmMeter.Best));
                 string path = saveStorage.GetFullPath(save_file, true);
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 File.WriteAllText(path, JsonSerializer.Serialize(state));
@@ -475,6 +566,12 @@ namespace osu.Game.Screens.Banchosucks
             base.OnSuspending(e);
         }
 
+        protected override void Dispose(bool isDisposing)
+        {
+            keyBindingSubscription?.Dispose();
+            base.Dispose(isDisposing);
+        }
+
         // ------------------------------------------------------------------ data
 
         private record Producer(string Id, string Name, string Description, double BaseCost, double PerSecond);
@@ -494,6 +591,7 @@ namespace osu.Game.Screens.Banchosucks
             public Dictionary<string, int> Producers { get; set; } = new Dictionary<string, int>();
             public HashSet<string> Upgrades { get; set; } = new HashSet<string>();
             public long SavedAt { get; set; }
+            public double BestBpm { get; set; }
         }
 
         // ------------------------------------------------------------------ drawables
@@ -576,22 +674,22 @@ namespace osu.Game.Screens.Banchosucks
 
             public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => body.ReceivePositionalInputAt(screenSpacePos);
 
+            public void Press() => body.ScaleTo(0.94f, 40, Easing.OutQuint);
+
+            public void Release() => body.ScaleTo(1f, 400, Easing.OutElastic);
+
+            // counts on press like a hit circle, which also makes the BPM counter fair for mouse tapping
             protected override bool OnMouseDown(MouseDownEvent e)
             {
-                body.ScaleTo(0.94f, 60, Easing.OutQuint);
-                return base.OnMouseDown(e);
+                Press();
+                Clicked?.Invoke(e.ScreenSpaceMousePosition);
+                return true;
             }
 
             protected override void OnMouseUp(MouseUpEvent e)
             {
-                body.ScaleTo(1f, 400, Easing.OutElastic);
+                Release();
                 base.OnMouseUp(e);
-            }
-
-            protected override bool OnClick(ClickEvent e)
-            {
-                Clicked?.Invoke(e.ScreenSpaceMousePosition);
-                return true;
             }
         }
 

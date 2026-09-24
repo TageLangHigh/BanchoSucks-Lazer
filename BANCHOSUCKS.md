@@ -81,4 +81,6 @@ and restart the app container.
   in `<game data>/banchosucks-renderer/`. Antivirus programs sometimes quarantine its
   ffmpeg; the client then says so.
 - **Minigames** (main menu > Play > Minispiele): `osu.Game/Screens/Banchosucks/`, currently
-  "osu! Clicker", an idle clicker saved in `<game data>/banchosucks/osu-clicker.json`.
+  "osu! Clicker", an idle clicker saved in `<game data>/banchosucks/osu-clicker.json`. It takes
+  the osu!standard tap keys from the player's key bindings and shows the tapping speed as stream BPM
+  (taps per second * 15, `TapBpmMeter`).
