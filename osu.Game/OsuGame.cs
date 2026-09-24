@@ -1163,6 +1163,9 @@ namespace osu.Game
             ScreenStack.ScreenPushed += screenPushed;
             ScreenStack.ScreenExited += screenExited;
 
+            // Banchosucks: keeps the chosen input / update rate applied
+            loadComponentSingleFile(new BanchosucksInputRateManager(), Add);
+
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {
                 Anchor = Anchor.BottomRight,
