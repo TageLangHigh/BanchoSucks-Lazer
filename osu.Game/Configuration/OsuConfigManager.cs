@@ -127,6 +127,7 @@ namespace osu.Game.Configuration
 
             // Graphics
             SetDefault(OsuSetting.ShowFpsDisplay, false);
+            SetDefault(OsuSetting.BanchosucksInputRate, BanchosucksInputRate.Default);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -490,6 +491,11 @@ namespace osu.Game.Configuration
         /// <summary>
         /// Disables automatic updates for the GU version.
         /// </summary>
-        DisableAutomaticUpdates
+        DisableAutomaticUpdates,
+
+        /// <summary>
+        /// Banchosucks: how often input is read and processed (see <see cref="BanchosucksInputRate"/>).
+        /// </summary>
+        BanchosucksInputRate
     }
 }

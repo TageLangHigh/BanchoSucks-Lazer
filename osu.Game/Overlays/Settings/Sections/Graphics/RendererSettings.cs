@@ -57,6 +57,15 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Keywords = new[] { @"fps", @"framerate" },
                 },
+                new SettingsItemV2(new FormEnumDropdown<BanchosucksInputRate>
+                {
+                    Caption = "Eingaberate / Input rate",
+                    HintText = "Wie oft pro Sekunde Maus, Tablet und Tastatur gelesen und verarbeitet werden. Höhere Werte können die Latenz bei schnellen Mäusen und Tablets leicht senken, kosten aber deutlich mehr CPU-Leistung. / How often per second input is read and processed; higher values cost more CPU.",
+                    Current = osuConfig.GetBindable<BanchosucksInputRate>(OsuSetting.BanchosucksInputRate),
+                })
+                {
+                    Keywords = new[] { @"input", @"polling", @"hz", @"latency", @"eingabe", @"tablet" },
+                },
                 new SettingsItemV2(new FormEnumDropdown<ExecutionMode>
                 {
                     Caption = GraphicsSettingsStrings.ThreadingMode,
