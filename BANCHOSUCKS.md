@@ -39,8 +39,19 @@ Requires .NET SDK 10.0.100 or newer compatible feature band.
 dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-win-x64-2026.913.3 -p:Version=2026.913.3 -p:AssemblyVersion=2026.913.3 -p:FileVersion=2026.913.3 -p:InformationalVersion=2026.913.3-banchosucks
 ```
 
+Linux x64 (portable tarball; built the same way, cross-published from Windows works):
+
+```powershell
+dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r linux-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-linux-x64-2026.913.3 -p:PublishSingleFile=false -p:PublishTrimmed=false -p:Version=2026.913.3 -p:AssemblyVersion=2026.913.3 -p:FileVersion=2026.913.3 -p:InformationalVersion=2026.913.3-banchosucks
+```
+
+Players extract the tarball and run `./BanchoSucks-Lazer` (needs a desktop with
+OpenGL, PulseAudio/PipeWire; Ubuntu 22.04+, Fedora, Arch are fine).
+
 The server must allow the MD5 hash of the resulting osu.Game.dll in its client
 version list. This identifies the exact build; it does not prove trustworthiness.
+Register each platform's hash with `register-client-build.py <md5> <version> <Windows|Linux>`
+and restart the app container.
 
 ## Branding
 
