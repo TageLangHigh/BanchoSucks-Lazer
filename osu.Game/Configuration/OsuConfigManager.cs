@@ -127,7 +127,10 @@ namespace osu.Game.Configuration
 
             // Graphics
             SetDefault(OsuSetting.ShowFpsDisplay, false);
-            SetDefault(OsuSetting.BanchosucksInputRate, BanchosucksInputRate.Default);
+            SetDefault(OsuSetting.BanchosucksInputRate, BanchosucksThreadRate.Default);
+            SetDefault(OsuSetting.BanchosucksAudioRate, BanchosucksThreadRate.Default);
+            SetDefault(OsuSetting.BanchosucksMenuOpacity, 1.0f, 0.2f, 1.0f, 0.05f);
+            SetDefault(OsuSetting.BanchosucksDiscordAppId, string.Empty);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -494,8 +497,23 @@ namespace osu.Game.Configuration
         DisableAutomaticUpdates,
 
         /// <summary>
-        /// Banchosucks: how often input is read and processed (see <see cref="BanchosucksInputRate"/>).
+        /// Banchosucks: how often input is read and processed (see <see cref="BanchosucksThreadRate"/>).
         /// </summary>
-        BanchosucksInputRate
+        BanchosucksInputRate,
+
+        /// <summary>
+        /// Banchosucks: how often the audio thread updates (track position, effects); not the sample rate.
+        /// </summary>
+        BanchosucksAudioRate,
+
+        /// <summary>
+        /// Banchosucks: opacity of menu screens (1 = normal); gameplay and the editor always stay opaque.
+        /// </summary>
+        BanchosucksMenuOpacity,
+
+        /// <summary>
+        /// Banchosucks: Discord application id last received from the server (banchosucks_client plugin), used for Rich Presence.
+        /// </summary>
+        BanchosucksDiscordAppId
     }
 }

@@ -57,14 +57,23 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Keywords = new[] { @"fps", @"framerate" },
                 },
-                new SettingsItemV2(new FormEnumDropdown<BanchosucksInputRate>
+                new SettingsItemV2(new FormEnumDropdown<BanchosucksThreadRate>
                 {
                     Caption = "Eingaberate / Input rate",
                     HintText = "Wie oft pro Sekunde Maus, Tablet und Tastatur gelesen und verarbeitet werden. Höhere Werte können die Latenz bei schnellen Mäusen und Tablets leicht senken, kosten aber deutlich mehr CPU-Leistung. / How often per second input is read and processed; higher values cost more CPU.",
-                    Current = osuConfig.GetBindable<BanchosucksInputRate>(OsuSetting.BanchosucksInputRate),
+                    Current = osuConfig.GetBindable<BanchosucksThreadRate>(OsuSetting.BanchosucksInputRate),
                 })
                 {
                     Keywords = new[] { @"input", @"polling", @"hz", @"latency", @"eingabe", @"tablet" },
+                },
+                new SettingsItemV2(new FormEnumDropdown<BanchosucksThreadRate>
+                {
+                    Caption = "Audio-Rate / Audio thread rate",
+                    HintText = "Wie oft pro Sekunde der Audio-Thread Songposition und Effekte aktualisiert. Das ist nicht die Klangqualität (Abtastrate), die bleibt unverändert. Höhere Werte kosten mehr CPU-Leistung. / How often per second the audio thread updates; not the sample rate.",
+                    Current = osuConfig.GetBindable<BanchosucksThreadRate>(OsuSetting.BanchosucksAudioRate),
+                })
+                {
+                    Keywords = new[] { @"audio", @"hz", @"latency", @"thread" },
                 },
                 new SettingsItemV2(new FormEnumDropdown<ExecutionMode>
                 {

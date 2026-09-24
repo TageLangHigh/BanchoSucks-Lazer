@@ -6,11 +6,11 @@ using System.ComponentModel;
 namespace osu.Game.Configuration
 {
     /// <summary>
-    /// Banchosucks: how often per second input is read from the operating system
-    /// and processed by the game. osu!framework uses 1000 Hz for both; higher
-    /// values can shave a little latency off fast mice and tablets at the cost of CPU time.
+    /// Banchosucks: update rate of a framework thread (input or audio). osu!framework
+    /// runs both at 1000 Hz; higher values can shave a little latency off fast mice,
+    /// tablets and track timing at the cost of CPU time.
     /// </summary>
-    public enum BanchosucksInputRate
+    public enum BanchosucksThreadRate
     {
         [Description("1000 Hz (Standard)")]
         Default = 1000,

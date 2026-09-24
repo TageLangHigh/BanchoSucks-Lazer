@@ -42,6 +42,17 @@ namespace osu.Game.Overlays.Settings.Sections.UserInterface
                     DisplayAsPercentage = true,
                     LabelFormat = v => v == 0 ? CommonStrings.Disabled : FormSliderBar<float>.DefaultLabelFormat(v, true),
                 }),
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = "Menü-Deckkraft / Menu opacity",
+                    HintText = "Wie durchsichtig die Oberfläche in Menüs und in der Songauswahl ist, damit mehr vom Hintergrund zu sehen ist. Während einer Map und im Editor bleibt alles voll sichtbar. / How opaque menus are; gameplay and the editor are never affected.",
+                    Current = config.GetBindable<float>(OsuSetting.BanchosucksMenuOpacity),
+                    DisplayAsPercentage = true,
+                    KeyboardStep = 0.05f,
+                })
+                {
+                    Keywords = [@"transparent", @"transparency", @"opacity", @"deckkraft", @"durchsichtig", @"menu"],
+                },
                 new SettingsItemV2(new FormSliderBar<double>
                 {
                     Caption = UserInterfaceStrings.HoldToConfirmActivationTime,

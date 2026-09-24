@@ -2,7 +2,10 @@
 // See the LICENCE-OSU file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using DiscordRPC;
 using DiscordRPC.Message;
 using Newtonsoft.Json;
@@ -29,9 +32,22 @@ namespace osu.Desktop
 {
     internal partial class DiscordRichPresence : Component
     {
+        /// <summary>
+        /// Discord application built into the client, used until the server names the Banchosucks one.
+        /// </summary>
         private const string client_id = "1216669957799018608";
 
-        private DiscordRpcClient client = null!;
+        /// <summary>
+        /// Banchosucks: server endpoint (banchosucks_client plugin) with the Discord application id and Rich Presence images.
+        /// </summary>
+        private const string remote_config_path = @"/api/plugins/banchosucks_client/config";
+
+        private const string default_website_url = @"https://banchosucks.cc";
+
+        private DiscordRpcClient? client;
+        private string activeClientId = string.Empty;
+        private Bindable<string> savedClientId = null!;
+        private BanchosucksClientConfig? remoteConfig;
 
         [Resolved]
         private IBindable<RulesetInfo> ruleset { get; set; } = null!;
@@ -75,7 +91,23 @@ namespace osu.Desktop
             userStatus = config.GetBindable<UserStatus>(OsuSetting.UserOnlineStatus);
             userActivity = session.GetBindable<UserActivity?>(Static.UserOnlineActivity);
 
-            client = new DiscordRpcClient(client_id)
+            // Banchosucks: start with the Discord application the server named last time, the built-in one otherwise
+            savedClientId = config.GetBindable<string>(OsuSetting.BanchosucksDiscordAppId);
+            createClient(string.IsNullOrEmpty(savedClientId.Value) ? client_id : savedClientId.Value);
+        }
+
+        private void createClient(string id)
+        {
+            if (client != null)
+            {
+                client.OnReady -= onReady;
+                client.OnJoin -= onJoin;
+                client.Dispose();
+            }
+
+            activeClientId = id;
+
+            client = new DiscordRpcClient(id)
             {
                 // SkipIdenticalPresence allows us to fire SetPresence at any point and leave it to the underlying implementation
                 // to check whether a difference has actually occurred before sending a command to Discord (with a minor caveat that's handled in onReady).
@@ -103,6 +135,72 @@ namespace osu.Desktop
             client.Initialize();
         }
 
+        /// <summary>
+        /// Banchosucks: asks the server for the Discord application id and the Rich Presence images, so both can change without a new client build.
+        /// </summary>
+        private void fetchRemoteConfig()
+        {
+            var request = new OsuJsonWebRequest<BanchosucksClientConfig>($@"{api.Endpoints.APIUrl}{remote_config_path}");
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await request.PerformAsync().ConfigureAwait(false);
+                    var response = request.ResponseObject;
+                    Schedule(() => applyRemoteConfig(response));
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"Could not load the Banchosucks client config: {e.Message}", LoggingTarget.Network);
+                }
+                finally
+                {
+                    request.Dispose();
+                }
+            });
+        }
+
+        private void applyRemoteConfig(BanchosucksClientConfig? config)
+        {
+            if (config == null)
+                return;
+
+            remoteConfig = config;
+
+            string serverId = config.DiscordAppId?.Trim() ?? string.Empty;
+            bool validId = serverId.Length > 0 && serverId.All(char.IsAsciiDigit);
+
+            savedClientId.Value = validId ? serverId : string.Empty;
+
+            string wanted = validId ? serverId : client_id;
+            if (wanted != activeClientId)
+                createClient(wanted);
+
+            schedulePresenceUpdate();
+        }
+
+        private string websiteUrl
+        {
+            get
+            {
+                string? url = remoteConfig?.WebsiteUrl;
+                return !string.IsNullOrEmpty(url) && url.StartsWith(@"https://", StringComparison.Ordinal) ? url.TrimEnd('/') : default_website_url;
+            }
+        }
+
+        /// <summary>
+        /// Banchosucks: absolute url of a Rich Presence image from the server config (Discord loads images by url), or null.
+        /// </summary>
+        private string? remoteImage(string name)
+        {
+            if (remoteConfig?.DiscordImages == null || !remoteConfig.DiscordImages.TryGetValue(name, out string? path) || string.IsNullOrEmpty(path))
+                return null;
+
+            string url = path.StartsWith('/') ? api.Endpoints.APIUrl + path : path;
+            return url.Length <= 256 ? url : null;
+        }
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
@@ -116,15 +214,17 @@ namespace osu.Desktop
 
             multiplayerClient.RoomUpdated += onRoomUpdated;
             statisticsProvider.StatisticsUpdated += onStatisticsUpdated;
+
+            fetchRemoteConfig();
         }
 
-        private void onReady(object _, ReadyMessage __)
+        private void onReady(object sender, ReadyMessage __)
         {
             Logger.Log("Discord RPC Client ready.", LoggingTarget.Network, LogLevel.Debug);
 
             // when RPC is lost and reconnected, we have to clear presence state for updatePresence to work (see DiscordRpcClient.SkipIdenticalPresence).
-            if (client.CurrentPresence != null)
-                client.SetPresence(null);
+            if (sender is DiscordRpcClient readyClient && readyClient.CurrentPresence != null)
+                readyClient.SetPresence(null);
 
             schedulePresenceUpdate();
         }
@@ -140,7 +240,7 @@ namespace osu.Desktop
             presenceUpdateDelegate?.Cancel();
             presenceUpdateDelegate = Scheduler.AddDelayed(() =>
             {
-                if (!client.IsInitialized)
+                if (client == null || !client.IsInitialized)
                     return;
 
                 if (!api.IsLoggedIn || userStatus.Value == UserStatus.Offline || privacyMode.Value == DiscordRichPresenceMode.Off)
@@ -167,26 +267,25 @@ namespace osu.Desktop
                 presence.State = clampLength(userActivity.Value.GetStatus(hideIdentifiableInformation));
                 presence.Details = clampLength(userActivity.Value.GetDetails(hideIdentifiableInformation) ?? string.Empty);
 
+                var buttons = new List<Button>();
+
                 if (userActivity.Value.GetBeatmapID(hideIdentifiableInformation) is int beatmapId && beatmapId > 0)
                 {
-                    presence.Buttons = new[]
+                    buttons.Add(new Button
                     {
-                        new Button
-                        {
-                            Label = "View beatmap",
-                            Url = $@"{api.Endpoints.WebsiteUrl}/beatmaps/{beatmapId}?mode={ruleset.Value.ShortName}"
-                        }
-                    };
+                        Label = "Beatmap ansehen",
+                        Url = $@"{api.Endpoints.WebsiteUrl}/beatmaps/{beatmapId}?mode={ruleset.Value.ShortName}"
+                    });
                 }
-                else
-                {
-                    presence.Buttons = null;
-                }
+
+                buttons.Add(websiteButton());
+                presence.Buttons = buttons.ToArray();
             }
             else
             {
                 presence.State = "Idle";
                 presence.Details = string.Empty;
+                presence.Buttons = new[] { websiteButton() };
             }
 
             // user party
@@ -210,7 +309,7 @@ namespace osu.Desktop
                     Password = room.Settings.Password,
                 };
 
-                if (client.HasRegisteredUriScheme)
+                if (client?.HasRegisteredUriScheme == true)
                     presence.Secrets.JoinSecret = JsonConvert.SerializeObject(roomSecret);
 
                 // discord cannot handle both secrets and buttons at the same time, so we need to choose something.
@@ -223,20 +322,29 @@ namespace osu.Desktop
                 presence.Secrets.JoinSecret = null;
             }
 
-            // game images:
+            // game images (Banchosucks: logo and mode icons come from the server by url, the built-in asset keys are the fallback)
+            presence.Assets.LargeImageKey = remoteImage(@"logo") ?? @"osu_logo_lazer";
+
             // large image tooltip
             if (privacyMode.Value == DiscordRichPresenceMode.Limited)
-                presence.Assets.LargeImageText = string.Empty;
+                presence.Assets.LargeImageText = @"BanchoSucks Lazer";
             else
             {
                 var statistics = statisticsProvider.GetStatisticsFor(ruleset.Value);
-                presence.Assets.LargeImageText = $"{user.Value.Username}" + (statistics?.GlobalRank > 0 ? $" (rank #{statistics.GlobalRank:N0})" : string.Empty);
+                presence.Assets.LargeImageText = clampLength($"BanchoSucks Lazer · {user.Value.Username}" + (statistics?.GlobalRank > 0 ? $" (Rang #{statistics.GlobalRank:N0})" : string.Empty));
             }
 
             // small image
-            presence.Assets.SmallImageKey = ruleset.Value.IsLegacyRuleset() ? $"mode_{ruleset.Value.OnlineID}" : "mode_custom";
+            string modeKey = ruleset.Value.IsLegacyRuleset() ? $"mode_{ruleset.Value.OnlineID}" : "mode_custom";
+            presence.Assets.SmallImageKey = remoteImage(modeKey) ?? modeKey;
             presence.Assets.SmallImageText = ruleset.Value.Name;
         }
+
+        private Button websiteButton() => new Button
+        {
+            Label = "Auf Banchosucks spielen",
+            Url = websiteUrl,
+        };
 
         private void onJoin(object sender, JoinMessage args) => Scheduler.AddOnce(() =>
         {
@@ -333,8 +441,20 @@ namespace osu.Desktop
             if (statisticsProvider.IsNotNull())
                 statisticsProvider.StatisticsUpdated -= onStatisticsUpdated;
 
-            client.Dispose();
+            client?.Dispose();
             base.Dispose(isDisposing);
+        }
+
+        private class BanchosucksClientConfig
+        {
+            [JsonProperty(@"discord_app_id")]
+            public string? DiscordAppId { get; set; }
+
+            [JsonProperty(@"discord_images")]
+            public Dictionary<string, string>? DiscordImages { get; set; }
+
+            [JsonProperty(@"website_url")]
+            public string? WebsiteUrl { get; set; }
         }
 
         private class RoomSecret
