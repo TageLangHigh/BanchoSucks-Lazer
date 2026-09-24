@@ -83,4 +83,10 @@ and restart the app container.
 - **Minigames** (main menu > Play > Minispiele): `osu.Game/Screens/Banchosucks/`, currently
   "osu! Clicker", an idle clicker saved in `<game data>/banchosucks/osu-clicker.json`. It takes
   the osu!standard tap keys from the player's key bindings and shows the tapping speed as stream BPM
-  (taps per second * 15, `TapBpmMeter`).
+  (taps per second * 15, `TapBpmMeter`). Files: `ClickerBalance.cs` (numbers, save format),
+  `ClickerDrawables.cs` (circle with orbiting cursors and hit bursts, combo counter, bonus
+  spinner, shop rows with the real osu! mod icons), `ClickerLeaderboard.cs` ("Rangliste" tab).
+  Logged-in players send their progress every minute to the lazer plugin `banchosucks_clicker`
+  (`/api/plugins/banchosucks_clicker/submit`, leaderboard by PP or tapping BPM). The plugin
+  repeats the numbers from `ClickerBalance.cs` for its plausibility checks, so change both
+  together.

@@ -11,6 +11,7 @@ using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
@@ -23,10 +24,13 @@ using osu.Framework.Platform;
 using osu.Framework.Screens;
 using osu.Game.Database;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
-using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Input.Bindings;
+using osu.Game.Online.API;
+using osu.Game.Rulesets;
+using osu.Game.Rulesets.UI;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
@@ -37,17 +41,18 @@ namespace osu.Game.Screens.Banchosucks
     /// Banchosucks: osu! Clicker, a small idle clicker game in osu! style.
     /// </summary>
     /// <remarks>
-    /// Click the circle or tap the osu!standard keys (the player's own bindings) for PP, buy producers that earn PP on their own and mod upgrades that multiply
-    /// clicks or production. A bonus spinner shows up every one to two and a half minutes. Progress is
-    /// kept in banchosucks/osu-clicker.json in the game's storage; while the game is closed producers
-    /// keep working at half speed for up to eight hours.
+    /// Click the circle or tap the osu!standard keys (the player's own bindings) for PP, buy producers that earn
+    /// PP on their own and mod upgrades that multiply clicks or production. A bonus spinner shows up every one to
+    /// two and a half minutes. Progress is kept in banchosucks/osu-clicker.json in the game's storage; while the
+    /// game is closed producers keep working at half speed for up to eight hours. Logged-in players send their
+    /// progress to the lazer server (plugin banchosucks_clicker) for the leaderboard.
     /// </remarks>
     public partial class OsuClickerScreen : OsuScreen
     {
         private const string save_file = "osu-clicker.json";
-        private const double offline_rate = 0.5;
-        private const double offline_cap_seconds = 8 * 3600;
-        private const double cost_growth = 1.15;
+        private const double submit_interval = 60_000;
+        private const double first_submit_delay = 10_000;
+        private const float side_panel_width = 490;
 
         // osu!standard key bindings are stored under the ruleset short name; OsuAction.LeftButton = 0, OsuAction.RightButton = 1
         private const string osu_ruleset = "osu";
@@ -59,28 +64,8 @@ namespace osu.Game.Screens.Banchosucks
         // every InputKey a keyboard can produce; mouse buttons in the osu! bindings are covered by clicking the circle
         private static readonly HashSet<InputKey> keyboard_keys = Enum.GetValues<Key>().Select(KeyCombination.FromKey).Where(k => k != InputKey.None).ToHashSet();
 
-        private static readonly Producer[] producers =
-        {
-            new Producer("cursor", "Cursor-Trail", "Ein zweiter Cursor klickt ab und zu mit.", 15, 0.1),
-            new Producer("taiko", "Taiko-Trommel", "Don und Kat, ganz von allein.", 100, 1),
-            new Producer("catch", "Obstkorb", "Fängt Früchte und damit PP.", 1_100, 8),
-            new Producer("mania", "Mania-Tastatur", "Sieben Tasten, null Pause.", 12_000, 47),
-            new Producer("mapper", "Mapper", "Mappt rund um die Uhr neue Farm-Maps.", 130_000, 260),
-            new Producer("nominator", "Nominator", "Rankt Maps am Fließband.", 1_400_000, 1_400),
-            new Producer("tournament", "Turnier", "Ganze Teams spielen für dich.", 20_000_000, 7_800),
-            new Producer("server", "Banchosucks-Server", "Ein eigener Server nur für deine PP.", 330_000_000, 44_000),
-        };
-
-        private static readonly Upgrade[] upgrades =
-        {
-            new Upgrade("tablet", "Grafiktablett", "Klicks bringen doppelt so viel.", 100, click: 2),
-            new Upgrade("relax", "Relax", "Jeder Klick bringt zusätzlich 1 % deiner PP pro Sekunde.", 10_000, clickShare: 0.01),
-            new Upgrade("hardrock", "Hard Rock", "Klicks bringen dreimal so viel.", 50_000, click: 3),
-            new Upgrade("doubletime", "Double Time", "Alle Gebäude produzieren doppelt.", 200_000, production: 2),
-            new Upgrade("hidden", "Hidden", "Alle Gebäude produzieren noch einmal doppelt.", 5_000_000, production: 2),
-            new Upgrade("flashlight", "Flashlight", "Jeder Klick bringt zusätzlich 5 % deiner PP pro Sekunde.", 50_000_000, clickShare: 0.05),
-            new Upgrade("perfect", "Perfect", "Alle Gebäude produzieren dreimal so viel.", 500_000_000, production: 3),
-        };
+        private static readonly ClickerProducer[] producers = ClickerBalance.PRODUCERS;
+        private static readonly ClickerUpgrade[] upgrades = ClickerBalance.UPGRADES;
 
         [Resolved]
         private Storage storage { get; set; } = null!;
@@ -94,25 +79,44 @@ namespace osu.Game.Screens.Banchosucks
         [Resolved]
         private ReadableKeyCombinationProvider keyCombinationProvider { get; set; } = null!;
 
+        [Resolved]
+        private IAPIProvider api { get; set; } = null!;
+
+        [Resolved]
+        private RulesetStore rulesets { get; set; } = null!;
+
         private readonly Random random = new Random();
         private ClickerState state = new ClickerState();
         private Storage saveStorage = null!;
         private Sample? clickSample;
+        private Sample? comboBreakSample;
+        private Sample? bonusSample;
 
         private OsuSpriteText pointsText = null!;
         private OsuSpriteText rateText = null!;
         private OsuSpriteText statsText = null!;
         private OsuSpriteText messageText = null!;
-        private Container floatingLayer = null!;
-        private double nextBonusAt;
-
-        private ClickerCircle circle = null!;
         private OsuSpriteText bpmText = null!;
         private OsuSpriteText bpmDetailText = null!;
+        private Container floatingLayer = null!;
+        private Box flash = null!;
+        private ClickerCircle circle = null!;
+        private ClickerComboCounter comboCounter = null!;
+        private ClickerBuildingStrip buildingStrip = null!;
+        private ClickerLeaderboardPanel leaderboard = null!;
+        private Container shopContent = null!;
+        private ClickerTabButton shopTab = null!;
+        private ClickerTabButton leaderboardTab = null!;
+
         private readonly TapBpmMeter bpmMeter = new TapBpmMeter();
         private InputKey[] tapKeys = default_tap_keys;
         private string tapKeysText = "Z / X";
         private IDisposable? keyBindingSubscription;
+
+        private double nextBonusAt;
+        private double lastTapTime = double.MinValue;
+        private int comboColourIndex;
+        private double lastSubmittedTotal = -1;
 
         // recalculated after loading and after every purchase instead of every frame
         private double clickMultiplier = 1;
@@ -131,53 +135,41 @@ namespace osu.Game.Screens.Banchosucks
             perSecond = producers.Sum(p => ownedCount(p) * p.PerSecond) * productionMultiplier;
         }
 
-        private bool owned(Upgrade upgrade) => state.Upgrades.Contains(upgrade.Id);
-        private int ownedCount(Producer producer) => state.Producers.GetValueOrDefault(producer.Id);
-        private double cost(Producer producer) => Math.Ceiling(producer.BaseCost * Math.Pow(cost_growth, ownedCount(producer)));
+        private bool owned(ClickerUpgrade upgrade) => state.Upgrades.Contains(upgrade.Id);
+        private int ownedCount(ClickerProducer producer) => state.Producers.GetValueOrDefault(producer.Id);
+        private double cost(ClickerProducer producer) => Math.Ceiling(producer.BaseCost * Math.Pow(ClickerBalance.COST_GROWTH, ownedCount(producer)));
+
+        private static string format(double value) => ClickerFormat.Number(value);
 
         [BackgroundDependencyLoader]
         private void load(AudioManager audio)
         {
             saveStorage = storage.GetStorageForDirectory("banchosucks");
             clickSample = audio.Samples.Get(@"Gameplay/normal-hitnormal");
+            comboBreakSample = audio.Samples.Get(@"Gameplay/combobreak");
+            bonusSample = audio.Samples.Get(@"Gameplay/spinnerbonus");
             string? welcome = loadState();
 
-            var shop = new FillFlowContainer
-            {
-                RelativeSizeAxes = Axes.X,
-                AutoSizeAxes = Axes.Y,
-                Direction = FillDirection.Vertical,
-                Spacing = new Vector2(0, 6),
-                Padding = new MarginPadding(16),
-            };
-
-            shop.Add(sectionHeader("Gebäude"));
-            foreach (var producer in producers)
-            {
-                shop.Add(new ShopRow(producer.Name, producer.Description,
-                    () => $"{ownedCount(producer)}× · {format(producer.PerSecond * productionMultiplier)} PP/s pro Stück",
-                    () => $"{format(cost(producer))} PP",
-                    () => state.Points >= cost(producer),
-                    () => buyProducer(producer)));
-            }
-
-            shop.Add(sectionHeader("Upgrades"));
-            foreach (var upgrade in upgrades)
-            {
-                shop.Add(new ShopRow(upgrade.Name, upgrade.Description,
-                    () => owned(upgrade) ? "aktiv" : "einmalig",
-                    () => owned(upgrade) ? "gekauft" : $"{format(upgrade.Cost)} PP",
-                    () => !owned(upgrade) && state.Points >= upgrade.Cost,
-                    () => buyUpgrade(upgrade)));
-            }
+            Color4 pink = colours.Pink;
+            Color4 purple = Color4Extensions.FromHex("6b3fa0");
 
             InternalChildren = new Drawable[]
             {
+                // background: dark gradient over the menu background, drifting triangles and a glow behind the circle
                 new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = Color4.Black,
-                    Alpha = 0.35f,
+                    Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex("1d1026").Opacity(0.88f), Color4Extensions.FromHex("0b0910").Opacity(0.94f)),
+                },
+                new Triangles
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    ColourLight = pink,
+                    ColourDark = purple,
+                    TriangleScale = 3,
+                    Velocity = 0.35f,
+                    // Triangles ignores the alpha of its colours, so it is dimmed as a whole
+                    Alpha = 0.12f,
                 },
                 new GridContainer
                 {
@@ -186,7 +178,7 @@ namespace osu.Game.Screens.Banchosucks
                     ColumnDimensions = new[]
                     {
                         new Dimension(),
-                        new Dimension(GridSizeMode.Absolute, 470),
+                        new Dimension(GridSizeMode.Absolute, side_panel_width),
                     },
                     Content = new[]
                     {
@@ -195,8 +187,34 @@ namespace osu.Game.Screens.Banchosucks
                             new Container
                             {
                                 RelativeSizeAxes = Axes.Both,
+                                Padding = new MarginPadding { Right = 30 },
                                 Children = new Drawable[]
                                 {
+                                    new CircularContainer
+                                    {
+                                        Anchor = Anchor.Centre,
+                                        Origin = Anchor.Centre,
+                                        Y = 20,
+                                        Size = new Vector2(ClickerCircle.SIZE * 1.9f),
+                                        Masking = true,
+                                        EdgeEffect = new EdgeEffectParameters
+                                        {
+                                            Type = EdgeEffectType.Glow,
+                                            Colour = pink.Opacity(0.12f),
+                                            Radius = 140,
+                                        },
+                                        Child = new Box
+                                        {
+                                            RelativeSizeAxes = Axes.Both,
+                                            Colour = pink.Opacity(0.05f),
+                                        },
+                                    },
+                                    flash = new Box
+                                    {
+                                        RelativeSizeAxes = Axes.Both,
+                                        Colour = Color4.White,
+                                        Alpha = 0,
+                                    },
                                     new FillFlowContainer
                                     {
                                         Anchor = Anchor.TopCentre,
@@ -212,13 +230,15 @@ namespace osu.Game.Screens.Banchosucks
                                                 Origin = Anchor.TopCentre,
                                                 Text = "osu! Clicker",
                                                 Font = OsuFont.GetFont(size: 22, weight: FontWeight.Bold),
-                                                Colour = colours.Pink,
+                                                Colour = pink,
                                             },
                                             pointsText = new OsuSpriteText
                                             {
                                                 Anchor = Anchor.TopCentre,
                                                 Origin = Anchor.TopCentre,
-                                                Font = OsuFont.GetFont(size: 54, weight: FontWeight.Black),
+                                                Font = OsuFont.GetFont(size: 58, weight: FontWeight.Black),
+                                                Colour = ColourInfo.GradientVertical(Color4.White, pink.Lighten(0.6f)),
+                                                Shadow = true,
                                             },
                                             rateText = new OsuSpriteText
                                             {
@@ -227,13 +247,25 @@ namespace osu.Game.Screens.Banchosucks
                                                 Font = OsuFont.GetFont(size: 18, weight: FontWeight.SemiBold),
                                                 Colour = colours.Gray9,
                                             },
+                                            buildingStrip = new ClickerBuildingStrip
+                                            {
+                                                Anchor = Anchor.TopCentre,
+                                                Origin = Anchor.TopCentre,
+                                                Margin = new MarginPadding { Top = 8 },
+                                            },
                                         },
                                     },
-                                    circle = new ClickerCircle(colours.Pink)
+                                    circle = new ClickerCircle(pink)
                                     {
                                         Anchor = Anchor.Centre,
                                         Origin = Anchor.Centre,
-                                        Clicked = onCircleClicked,
+                                        Y = 20,
+                                        Clicked = tap,
+                                    },
+                                    comboCounter = new ClickerComboCounter
+                                    {
+                                        Anchor = Anchor.BottomLeft,
+                                        Origin = Anchor.BottomLeft,
                                     },
                                     new FillFlowContainer
                                     {
@@ -250,6 +282,7 @@ namespace osu.Game.Screens.Banchosucks
                                                 Origin = Anchor.TopCentre,
                                                 Font = OsuFont.GetFont(size: 34, weight: FontWeight.Bold),
                                                 Text = "0 BPM",
+                                                Shadow = true,
                                             },
                                             bpmDetailText = new OsuSpriteText
                                             {
@@ -284,18 +317,80 @@ namespace osu.Game.Screens.Banchosucks
                                 RelativeSizeAxes = Axes.Both,
                                 Masking = true,
                                 CornerRadius = 16,
+                                EdgeEffect = new EdgeEffectParameters
+                                {
+                                    Type = EdgeEffectType.Shadow,
+                                    Colour = Color4.Black.Opacity(0.35f),
+                                    Radius = 24,
+                                },
                                 Children = new Drawable[]
                                 {
                                     new Box
                                     {
                                         RelativeSizeAxes = Axes.Both,
-                                        Colour = Color4.Black,
-                                        Alpha = 0.55f,
+                                        Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex("241a2c").Opacity(0.92f), Color4Extensions.FromHex("15111a").Opacity(0.95f)),
                                     },
-                                    new OsuScrollContainer
+                                    new GridContainer
                                     {
                                         RelativeSizeAxes = Axes.Both,
-                                        Child = shop,
+                                        RowDimensions = new[]
+                                        {
+                                            new Dimension(GridSizeMode.Absolute, 54),
+                                            new Dimension(),
+                                        },
+                                        Content = new[]
+                                        {
+                                            new Drawable[]
+                                            {
+                                                new Container
+                                                {
+                                                    RelativeSizeAxes = Axes.Both,
+                                                    Children = new Drawable[]
+                                                    {
+                                                        new Box
+                                                        {
+                                                            RelativeSizeAxes = Axes.Both,
+                                                            Colour = Color4.Black.Opacity(0.25f),
+                                                        },
+                                                        new FillFlowContainer
+                                                        {
+                                                            RelativeSizeAxes = Axes.Both,
+                                                            Direction = FillDirection.Horizontal,
+                                                            Spacing = new Vector2(18, 0),
+                                                            Padding = new MarginPadding { Horizontal = 18 },
+                                                            Children = new Drawable[]
+                                                            {
+                                                                shopTab = new ClickerTabButton("Shop", FontAwesome.Solid.ShoppingCart, pink, () => showTab(false)),
+                                                                leaderboardTab = new ClickerTabButton("Rangliste", FontAwesome.Solid.Trophy, colours.Yellow, () => showTab(true)),
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                            new Drawable[]
+                                            {
+                                                new Container
+                                                {
+                                                    RelativeSizeAxes = Axes.Both,
+                                                    Children = new Drawable[]
+                                                    {
+                                                        shopContent = new Container
+                                                        {
+                                                            RelativeSizeAxes = Axes.Both,
+                                                            Child = new OsuScrollContainer
+                                                            {
+                                                                RelativeSizeAxes = Axes.Both,
+                                                                Child = createShop(),
+                                                            },
+                                                        },
+                                                        leaderboard = new ClickerLeaderboardPanel
+                                                        {
+                                                            Alpha = 0,
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        },
                                     },
                                 },
                             },
@@ -308,11 +403,80 @@ namespace osu.Game.Screens.Banchosucks
                 messageText.Delay(8000).FadeOut(1000);
         }
 
+        private Drawable createShop()
+        {
+            var shop = new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 6),
+                Padding = new MarginPadding(14),
+            };
+
+            shop.Add(sectionHeader("Gebäude"));
+
+            foreach (var producer in producers)
+            {
+                shop.Add(new ClickerShopRow(ClickerShopRow.CreateIcon(producer.Icon, producer.Colour), producer.Colour, producer.Name, producer.Description,
+                    () => $"{ownedCount(producer)}× · {format(producer.PerSecond * productionMultiplier)} PP/s pro Stück",
+                    () => $"{format(cost(producer))} PP",
+                    () => state.Points >= cost(producer),
+                    () => buyProducer(producer),
+                    () => ownedCount(producer) > 0 ? ownedCount(producer).ToString("N0") : string.Empty));
+            }
+
+            shop.Add(sectionHeader("Upgrades"));
+
+            // mod upgrades show the real osu! mod icons
+            Ruleset? osu = rulesets.GetRuleset(osu_ruleset)?.CreateInstance();
+
+            foreach (var upgrade in upgrades)
+            {
+                Drawable icon = ClickerShopRow.CreateIcon(upgrade.Icon, colours.Yellow.Darken(0.3f));
+
+                if (upgrade.ModAcronym != null && osu?.CreateModFromAcronym(upgrade.ModAcronym) is { } mod)
+                {
+                    icon = new ModIcon(mod, showTooltip: false, showExtendedInformation: false)
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Scale = new Vector2(0.62f),
+                    };
+                }
+
+                shop.Add(new ClickerShopRow(icon, colours.Yellow, upgrade.Name, upgrade.Description,
+                    () => owned(upgrade) ? "aktiv" : "einmalig",
+                    () => owned(upgrade) ? "gekauft" : $"{format(upgrade.Cost)} PP",
+                    () => !owned(upgrade) && state.Points >= upgrade.Cost,
+                    () => buyUpgrade(upgrade)));
+            }
+
+            return shop;
+        }
+
+        private void showTab(bool showLeaderboard)
+        {
+            shopTab.Active = !showLeaderboard;
+            leaderboardTab.Active = showLeaderboard;
+
+            shopContent.FadeTo(showLeaderboard ? 0 : 1, 200, Easing.OutQuint);
+            leaderboard.FadeTo(showLeaderboard ? 1 : 0, 200, Easing.OutQuint);
+
+            if (showLeaderboard)
+            {
+                submitProgress();
+                leaderboard.Refresh();
+            }
+        }
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
 
+            shopTab.Active = true;
             bpmMeter.Best = state.BestBpm;
+            updateVisuals();
 
             // follows changes made in the settings while the game is open
             keyBindingSubscription = realm.RegisterForNotifications(
@@ -321,6 +485,11 @@ namespace osu.Game.Screens.Banchosucks
 
             scheduleBonus();
             Scheduler.AddDelayed(save, 15_000, true);
+            Scheduler.AddDelayed(() =>
+            {
+                submitProgress();
+                Scheduler.AddDelayed(submitProgress, submit_interval, true);
+            }, first_submit_delay);
         }
 
         protected override void Update()
@@ -333,7 +502,7 @@ namespace osu.Game.Screens.Banchosucks
 
             pointsText.Text = $"{format(state.Points)} PP";
             rateText.Text = $"{format(perSecond)} PP pro Sekunde · {format(clickValue)} PP pro Klick";
-            statsText.Text = $"{state.Clicks:N0} Klicks · insgesamt {format(state.TotalEarned)} PP verdient";
+            statsText.Text = $"{state.Clicks:N0} Klicks · Max-Combo {state.BestCombo:N0} · insgesamt {format(state.TotalEarned)} PP verdient";
 
             double tapsPerSecond = bpmMeter.TapsPerSecond(Time.Current);
             bpmText.Text = $"{tapsPerSecond * 15:0} BPM";
@@ -345,6 +514,14 @@ namespace osu.Game.Screens.Banchosucks
             {
                 state.BestBpm = Math.Round(bpmMeter.Best);
                 showMessage($"Neuer BPM-Rekord: {state.BestBpm:0} BPM!");
+            }
+
+            // combo breaks after a second without a tap
+            if (comboCounter.Current > 0 && Time.Current - lastTapTime > ClickerBalance.COMBO_TIMEOUT_MS)
+            {
+                if (comboCounter.Current >= 20)
+                    comboBreakSample?.Play();
+                comboCounter.Break();
             }
 
             if (Time.Current >= nextBonusAt)
@@ -359,7 +536,7 @@ namespace osu.Game.Screens.Banchosucks
                 if (!e.Repeat)
                 {
                     circle.Press();
-                    onCircleClicked(null);
+                    tap(null);
                 }
 
                 return true;
@@ -389,20 +566,34 @@ namespace osu.Game.Screens.Banchosucks
                 : "Z / X";
         }
 
-        private void onCircleClicked(Vector2? screenPosition)
+        private void tap(Vector2? screenPosition)
         {
             double value = clickValue;
             state.Points += value;
             state.TotalEarned += value;
             state.Clicks++;
             bpmMeter.Tap(Time.Current);
+            lastTapTime = Time.Current;
             clickSample?.Play();
 
-            Vector2 position = screenPosition ?? floatingLayer.ToScreenSpace(floatingLayer.DrawSize / 2);
-            spawnFloating(position, $"+{format(value)}", Color4.White);
+            comboCounter.Increment();
+            state.BestCombo = Math.Max(state.BestCombo, comboCounter.Current);
+
+            Color4 comboColour = ClickerBalance.COMBO_COLOURS[comboColourIndex++ % ClickerBalance.COMBO_COLOURS.Length];
+            circle.Hit(comboColour);
+
+            if (comboCounter.Current % 100 == 0)
+            {
+                circle.Kiai();
+                flash.FadeTo(0.12f, 40).Then().FadeOut(500, Easing.OutQuint);
+                showMessage($"{comboCounter.Current}x Combo!");
+            }
+
+            Vector2 position = screenPosition ?? circle.ToScreenSpace(circle.DrawSize / 2 + new Vector2((float)random.NextDouble() * 220 - 110, -20 - (float)random.NextDouble() * 60));
+            spawnFloating(position, $"+{format(value)}", comboColour, 26);
         }
 
-        private void buyProducer(Producer producer)
+        private void buyProducer(ClickerProducer producer)
         {
             double price = cost(producer);
             if (state.Points < price)
@@ -411,9 +602,10 @@ namespace osu.Game.Screens.Banchosucks
             state.Points -= price;
             state.Producers[producer.Id] = ownedCount(producer) + 1;
             recalculate();
+            updateVisuals();
         }
 
-        private void buyUpgrade(Upgrade upgrade)
+        private void buyUpgrade(ClickerUpgrade upgrade)
         {
             if (owned(upgrade) || state.Points < upgrade.Cost)
                 return;
@@ -422,6 +614,12 @@ namespace osu.Game.Screens.Banchosucks
             state.Upgrades.Add(upgrade.Id);
             recalculate();
             showMessage($"{upgrade.Name} aktiviert!");
+        }
+
+        private void updateVisuals()
+        {
+            circle.SetCursorCount(ownedCount(producers[0]));
+            buildingStrip.SetCounts(producers.Select(p => (p, ownedCount(p))));
         }
 
         private void scheduleBonus() => nextBonusAt = Time.Current + 60_000 + random.NextDouble() * 90_000;
@@ -433,7 +631,7 @@ namespace osu.Game.Screens.Banchosucks
             var bonus = new BonusSpinner(colours.Yellow)
             {
                 RelativePositionAxes = Axes.Both,
-                Position = new Vector2(0.15f + (float)random.NextDouble() * 0.7f, 0.25f + (float)random.NextDouble() * 0.5f),
+                Position = new Vector2(0.12f + (float)random.NextDouble() * 0.76f, 0.25f + (float)random.NextDouble() * 0.5f),
             };
 
             bonus.Clicked = () =>
@@ -441,27 +639,30 @@ namespace osu.Game.Screens.Banchosucks
                 double reward = Math.Max(clickValue * 25, perSecond * 60);
                 state.Points += reward;
                 state.TotalEarned += reward;
-                spawnFloating(bonus.ScreenSpaceDrawQuad.Centre, $"Spinner-Bonus! +{format(reward)}", colours.Yellow);
-                bonus.FadeOut(150).Expire();
+                bonusSample?.Play();
+                spawnFloating(bonus.ScreenSpaceDrawQuad.Centre, $"Spinner-Bonus! +{format(reward)}", colours.Yellow, 32);
+                bonus.ScaleTo(1.5f, 200, Easing.OutQuint).FadeOut(200).Expire();
             };
 
             floatingLayer.Add(bonus);
             bonus.Delay(12_000).FadeOut(500).Expire();
         }
 
-        private void spawnFloating(Vector2 screenPosition, string text, Color4 colour)
+        private void spawnFloating(Vector2 screenPosition, string text, Color4 colour, float size)
         {
             var sprite = new OsuSpriteText
             {
                 Text = text,
                 Origin = Anchor.Centre,
                 Position = floatingLayer.ToLocalSpace(screenPosition),
-                Font = OsuFont.GetFont(size: 26, weight: FontWeight.Bold),
+                Font = OsuFont.GetFont(size: size, weight: FontWeight.Black),
                 Colour = colour,
+                Shadow = true,
             };
 
             floatingLayer.Add(sprite);
-            sprite.MoveToOffset(new Vector2((float)random.NextDouble() * 40 - 20, -90), 900, Easing.OutQuint)
+            sprite.ScaleTo(0.6f).ScaleTo(1f, 200, Easing.OutBack)
+                  .MoveToOffset(new Vector2((float)random.NextDouble() * 40 - 20, -100), 900, Easing.OutQuint)
                   .FadeOut(900, Easing.InQuint)
                   .Expire();
         }
@@ -477,27 +678,41 @@ namespace osu.Game.Screens.Banchosucks
         {
             Text = text,
             Font = OsuFont.GetFont(size: 24, weight: FontWeight.Bold),
-            Margin = new MarginPadding { Top = 8, Bottom = 2 },
+            Margin = new MarginPadding { Top = 8, Bottom = 2, Left = 4 },
         };
 
-        private static string format(double value)
+        // ------------------------------------------------------------------ leaderboard
+
+        private ClickerSubmission createSubmission() => new ClickerSubmission
         {
-            if (value < 10)
-                return value.ToString("0.#");
-            if (value < 1_000_000)
-                return Math.Floor(value).ToString("N0");
+            TotalEarned = Math.Floor(state.TotalEarned),
+            Clicks = state.Clicks,
+            BestBpm = Math.Max(state.BestBpm, Math.Round(bpmMeter.Best, 1)),
+            BestCombo = state.BestCombo,
+            Producers = state.Producers.Where(p => p.Value > 0).ToDictionary(p => p.Key, p => p.Value),
+            Upgrades = state.Upgrades.ToList(),
+        };
 
-            string[] units = { "Mio", "Mrd", "Bio", "Brd", "Trio" };
-            int unit = -1;
-            value /= 1000;
+        private void submitProgress()
+        {
+            if (api.State.Value != APIState.Online || state.TotalEarned < 1 || Math.Floor(state.TotalEarned) == lastSubmittedTotal)
+                return;
 
-            while (value >= 1000 && unit < units.Length - 1)
+            var request = new SubmitClickerScoreRequest(createSubmission());
+            lastSubmittedTotal = request.Submission.TotalEarned;
+
+            request.Success += response =>
             {
-                value /= 1000;
-                unit++;
-            }
+                if (IsDisposed)
+                    return;
 
-            return unit < 0 ? $"{value:0.##} Tsd" : $"{value:0.##} {units[unit]}";
+                if (response.Accepted)
+                    leaderboard.SetOwnRanks(response.RankPp, response.RankBpm);
+                else
+                    Logger.Log($"osu! Clicker progress not accepted: {response.Reason}", LoggingTarget.Network);
+            };
+
+            api.Queue(request);
         }
 
         // ------------------------------------------------------------------ saving
@@ -517,7 +732,7 @@ namespace osu.Game.Screens.Banchosucks
                 if (away < 60 || perSecond <= 0)
                     return null;
 
-                double earned = Math.Min(away, offline_cap_seconds) * perSecond * offline_rate;
+                double earned = Math.Min(away, ClickerBalance.OFFLINE_CAP_SECONDS) * perSecond * ClickerBalance.OFFLINE_RATE;
                 state.Points += earned;
                 state.TotalEarned += earned;
                 return $"Willkommen zurück! Deine Gebäude haben in der Zwischenzeit {format(earned)} PP gesammelt.";
@@ -556,6 +771,7 @@ namespace osu.Game.Screens.Banchosucks
         public override bool OnExiting(ScreenExitEvent e)
         {
             save();
+            submitProgress();
             this.FadeOut(200);
             return base.OnExiting(e);
         }
@@ -570,262 +786,6 @@ namespace osu.Game.Screens.Banchosucks
         {
             keyBindingSubscription?.Dispose();
             base.Dispose(isDisposing);
-        }
-
-        // ------------------------------------------------------------------ data
-
-        private record Producer(string Id, string Name, string Description, double BaseCost, double PerSecond);
-
-        private record Upgrade(string Id, string Name, string Description, double Cost, double click = 1, double production = 1, double clickShare = 0)
-        {
-            public double Click => click;
-            public double Production => production;
-            public double ClickShare => clickShare;
-        }
-
-        private class ClickerState
-        {
-            public double Points { get; set; }
-            public double TotalEarned { get; set; }
-            public long Clicks { get; set; }
-            public Dictionary<string, int> Producers { get; set; } = new Dictionary<string, int>();
-            public HashSet<string> Upgrades { get; set; } = new HashSet<string>();
-            public long SavedAt { get; set; }
-            public double BestBpm { get; set; }
-        }
-
-        // ------------------------------------------------------------------ drawables
-
-        private partial class ClickerCircle : CompositeDrawable
-        {
-            public Action<Vector2?>? Clicked;
-
-            private readonly CircularContainer body;
-            private readonly CircularContainer approach;
-
-            public ClickerCircle(Color4 colour)
-            {
-                Size = new Vector2(300);
-
-                InternalChildren = new Drawable[]
-                {
-                    approach = new CircularContainer
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                        RelativeSizeAxes = Axes.Both,
-                        Masking = true,
-                        BorderThickness = 6,
-                        BorderColour = colour,
-                        Alpha = 0,
-                        Child = new Box
-                        {
-                            RelativeSizeAxes = Axes.Both,
-                            Alpha = 0,
-                            AlwaysPresent = true,
-                        },
-                    },
-                    body = new CircularContainer
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                        RelativeSizeAxes = Axes.Both,
-                        Masking = true,
-                        BorderThickness = 14,
-                        BorderColour = Color4.White,
-                        EdgeEffect = new EdgeEffectParameters
-                        {
-                            Type = EdgeEffectType.Glow,
-                            Colour = colour.Opacity(0.6f),
-                            Radius = 30,
-                        },
-                        Children = new Drawable[]
-                        {
-                            new Box
-                            {
-                                RelativeSizeAxes = Axes.Both,
-                                Colour = colour,
-                            },
-                            new OsuSpriteText
-                            {
-                                Anchor = Anchor.Centre,
-                                Origin = Anchor.Centre,
-                                Text = "osu!",
-                                Font = OsuFont.GetFont(size: 96, weight: FontWeight.Black),
-                            },
-                        },
-                    },
-                };
-            }
-
-            protected override void LoadComplete()
-            {
-                base.LoadComplete();
-
-                // an approach circle closing in, again and again
-                Scheduler.AddDelayed(() =>
-                {
-                    approach.ScaleTo(1.6f).FadeTo(0)
-                            .ScaleTo(1f, 900)
-                            .FadeTo(0.8f, 250)
-                            .Then().FadeOut(150);
-                }, 1100, true);
-            }
-
-            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => body.ReceivePositionalInputAt(screenSpacePos);
-
-            public void Press() => body.ScaleTo(0.94f, 40, Easing.OutQuint);
-
-            public void Release() => body.ScaleTo(1f, 400, Easing.OutElastic);
-
-            // counts on press like a hit circle, which also makes the BPM counter fair for mouse tapping
-            protected override bool OnMouseDown(MouseDownEvent e)
-            {
-                Press();
-                Clicked?.Invoke(e.ScreenSpaceMousePosition);
-                return true;
-            }
-
-            protected override void OnMouseUp(MouseUpEvent e)
-            {
-                Release();
-                base.OnMouseUp(e);
-            }
-        }
-
-        private partial class BonusSpinner : CompositeDrawable
-        {
-            public Action? Clicked;
-
-            private readonly CircularContainer disc;
-
-            public BonusSpinner(Color4 colour)
-            {
-                Size = new Vector2(90);
-                Origin = Anchor.Centre;
-
-                InternalChild = disc = new CircularContainer
-                {
-                    RelativeSizeAxes = Axes.Both,
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    Masking = true,
-                    BorderThickness = 6,
-                    BorderColour = Color4.White,
-                    EdgeEffect = new EdgeEffectParameters
-                    {
-                        Type = EdgeEffectType.Glow,
-                        Colour = colour.Opacity(0.7f),
-                        Radius = 20,
-                    },
-                    Children = new Drawable[]
-                    {
-                        new Box
-                        {
-                            RelativeSizeAxes = Axes.Both,
-                            Colour = colour,
-                        },
-                        new SpriteIcon
-                        {
-                            Anchor = Anchor.Centre,
-                            Origin = Anchor.Centre,
-                            Size = new Vector2(40),
-                            Icon = FontAwesome.Solid.Sync,
-                            Colour = Color4.Black.Opacity(0.7f),
-                        },
-                    },
-                };
-            }
-
-            protected override void LoadComplete()
-            {
-                base.LoadComplete();
-                this.FadeInFromZero(300).ScaleTo(0.5f).ScaleTo(1f, 500, Easing.OutElastic);
-                disc.Spin(1200, RotationDirection.Clockwise);
-            }
-
-            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => disc.ReceivePositionalInputAt(screenSpacePos);
-
-            protected override bool OnClick(ClickEvent e)
-            {
-                Clicked?.Invoke();
-                Clicked = null;
-                return true;
-            }
-        }
-
-        private partial class ShopRow : CompositeDrawable
-        {
-            private readonly Func<string> detail;
-            private readonly Func<string> buttonText;
-            private readonly Func<bool> enabled;
-            private readonly OsuSpriteText detailText;
-            private readonly RoundedButton button;
-            private string lastDetail = string.Empty;
-            private string lastButtonText = string.Empty;
-
-            public ShopRow(string title, string description, Func<string> detail, Func<string> buttonText, Func<bool> enabled, Action action)
-            {
-                this.detail = detail;
-                this.buttonText = buttonText;
-                this.enabled = enabled;
-
-                RelativeSizeAxes = Axes.X;
-                Height = 72;
-
-                InternalChildren = new Drawable[]
-                {
-                    new FillFlowContainer
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Padding = new MarginPadding { Right = 150 },
-                        Direction = FillDirection.Vertical,
-                        Spacing = new Vector2(0, 2),
-                        Children = new Drawable[]
-                        {
-                            new OsuSpriteText
-                            {
-                                Text = title,
-                                Font = OsuFont.GetFont(size: 19, weight: FontWeight.Bold),
-                            },
-                            new TruncatingSpriteText
-                            {
-                                Text = description,
-                                Font = OsuFont.GetFont(size: 13),
-                                RelativeSizeAxes = Axes.X,
-                                Alpha = 0.75f,
-                            },
-                            detailText = new OsuSpriteText
-                            {
-                                Font = OsuFont.GetFont(size: 14, weight: FontWeight.SemiBold),
-                                Colour = new Color4(255, 102, 170, 255),
-                            },
-                        },
-                    },
-                    button = new RoundedButton
-                    {
-                        Anchor = Anchor.CentreRight,
-                        Origin = Anchor.CentreRight,
-                        Width = 140,
-                        Action = action,
-                    },
-                };
-            }
-
-            protected override void Update()
-            {
-                base.Update();
-
-                string newDetail = detail();
-                if (newDetail != lastDetail)
-                    detailText.Text = lastDetail = newDetail;
-
-                string newButtonText = buttonText();
-                if (newButtonText != lastButtonText)
-                    button.Text = lastButtonText = newButtonText;
-
-                button.Enabled.Value = enabled();
-            }
         }
     }
 }
