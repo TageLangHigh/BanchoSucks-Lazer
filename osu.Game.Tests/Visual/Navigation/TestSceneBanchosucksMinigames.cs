@@ -15,6 +15,7 @@ using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Input.Bindings;
+using osu.Game.Online.API;
 using osu.Game.Screens.Banchosucks;
 using osu.Game.Screens.Menu;
 using osuTK.Input;
@@ -99,6 +100,67 @@ namespace osu.Game.Tests.Visual.Navigation
             var binding = r.All<RealmKeyBinding>().First(b => b.RulesetName == "osu" && b.Variant == 0 && b.ActionInt == 0);
             binding.KeyCombination = new KeyCombination(key);
         });
+
+        [Test]
+        public void TestLeaderboardAndSubmission()
+        {
+            ClickerSubmission? submitted = null;
+
+            AddStep("delete old save", () => clickerStorage.Delete("osu-clicker.json"));
+            AddStep("fake clicker server", () => ((DummyAPIAccess)API).HandleRequest = request =>
+            {
+                switch (request)
+                {
+                    case SubmitClickerScoreRequest submit:
+                        submitted = submit.Submission;
+                        submit.TriggerSuccess(new ClickerSubmitResponse { Accepted = true, RankPp = 2, RankBpm = 1 });
+                        return true;
+
+                    case GetClickerLeaderboardRequest board:
+                        board.TriggerSuccess(new ClickerLeaderboardResponse
+                        {
+                            Sort = board.Sort,
+                            Total = 2,
+                            Entries =
+                            {
+                                new ClickerLeaderboardEntry { Rank = 1, UserId = 1001, Username = "Hodenlos", CountryCode = "DE", TotalEarned = 123_456_789, BestBpm = 230, Buildings = 80 },
+                                new ClickerLeaderboardEntry { Rank = 2, UserId = API.LocalUser.Value.OnlineID, Username = API.LocalUser.Value.Username, CountryCode = "DE", TotalEarned = 42, BestBpm = 180 },
+                            },
+                        });
+                        return true;
+                }
+
+                return false;
+            });
+
+            AddStep("open clicker", () => Game.ScreenStack.Push(new OsuClickerScreen()));
+            AddUntilStep("clicker open", () => Game.ScreenStack.CurrentScreen is OsuClickerScreen screen && screen.IsLoaded);
+            AddRepeatStep("press Z", () => InputManager.Key(Key.Z), 15);
+
+            AddStep("open leaderboard tab", () =>
+            {
+                InputManager.MoveMouseTo(clicker.ChildrenOfType<OsuSpriteText>().First(t => t.Text.ToString() == "Rangliste"));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("other player listed", () => hasText("Hodenlos"));
+            AddUntilStep("value formatted", () => hasText("123,46 Mio PP") || hasText("123.46 Mio PP"));
+            AddAssert("progress submitted", () => submitted != null && submitted.TotalEarned >= 15 && submitted.Clicks == 15);
+
+            AddStep("sort by BPM", () =>
+            {
+                InputManager.MoveMouseTo(clicker.ChildrenOfType<OsuSpriteText>().First(t => t.Text.ToString() == "Tapping-BPM"));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("BPM values shown", () => hasText("230 BPM"));
+
+            AddStep("buy cursor trail via shop", () =>
+            {
+                InputManager.MoveMouseTo(clicker.ChildrenOfType<OsuSpriteText>().First(t => t.Text.ToString() == "Shop"));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("shop visible again", () => clicker.ChildrenOfType<RoundedButton>().Any(b => b.IsPresent));
+            AddStep("clean up request handler", () => ((DummyAPIAccess)API).HandleRequest = null);
+        }
 
         [Test]
         public void TestMenuOpacity()

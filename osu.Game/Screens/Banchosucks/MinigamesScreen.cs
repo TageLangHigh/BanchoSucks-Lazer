@@ -58,7 +58,7 @@ namespace osu.Game.Screens.Banchosucks
                         Spacing = new Vector2(20),
                         Children = new Drawable[]
                         {
-                            new GameTile("osu! Clicker", "Klick den Kreis, sammle PP, kauf dir Taiko-Trommeln und Mapper.", FontAwesome.Solid.MousePointer,
+                            new GameTile("osu! Clicker", "Klick den Kreis, sammle PP, kauf dir Taiko-Trommeln und Mapper. Mit Rangliste für PP und Tapping-BPM.", FontAwesome.Solid.MousePointer,
                                 colours.Pink, () => this.Push(new OsuClickerScreen())),
                         },
                     },
