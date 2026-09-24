@@ -88,6 +88,9 @@ namespace osu.Game.Online.Leaderboards
         [Resolved]
         private ScoreManager scoreManager { get; set; } = null!;
 
+        [Resolved(canBeNull: true)]
+        private BanchosucksReplayRenderer replayRenderer { get; set; }
+
         public LeaderboardScore(ScoreInfo score, int? rank, bool isOnlineScope = true, bool highlightFriend = true)
         {
             Score = score;
@@ -461,6 +464,9 @@ namespace osu.Game.Online.Leaderboards
 
                 if (Score.OnlineID > 0)
                     items.Add(new OsuMenuItem(CommonStrings.CopyLink, MenuItemType.Standard, () => game?.CopyToClipboard($@"{api.Endpoints.WebsiteUrl}/scores/{Score.OnlineID}")));
+
+                if (replayRenderer != null && BanchosucksReplayRenderer.CanRender(Score))
+                    items.Add(new OsuMenuItem("Als Video rendern", MenuItemType.Standard, () => replayRenderer.Render(Score)));
 
                 if (Score.Files.Count > 0)
                 {

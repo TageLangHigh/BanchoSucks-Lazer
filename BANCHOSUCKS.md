@@ -62,5 +62,23 @@ and restart the app container.
 - English texts come from `osu.Game/Localisation/*.cs`; other languages come from the g0v0
   package and are rewritten at runtime in `ResourceManagerLocalisationStore` ("g0v0!" ->
   "BanchoSucks Lazer").
-- Discord Rich Presence still uses g0v0's Discord application id (`osu.Desktop/DiscordRichPresence.cs`);
-  a Banchosucks Discord application with the `osu_logo_lazer` and `mode_*` assets is needed to change that.
+- Discord Rich Presence (`osu.Desktop/DiscordRichPresence.cs`) reads
+  `/api/plugins/banchosucks_client/config` from the lazer server at startup: the Discord
+  application id (Discord shows its name as "Spielt ..."), logo and mode icon urls, and the
+  website for the "Auf Banchosucks spielen" button. The last id is kept in
+  `OsuSetting.BanchosucksDiscordAppId`; without one the built-in g0v0 id is used.
+
+## Banchosucks features
+
+- **Input / audio rate** (Graphics > Renderer): 1000 to 8000 Hz for the input and audio threads,
+  kept applied by `osu.Game/Graphics/BanchosucksThreadRateManager.cs`.
+- **Menu opacity** (User Interface > General): alpha of menu screens; gameplay and the editor
+  always stay opaque (`OsuGame.applyMenuOpacity`).
+- **Render replays as video** (right-click a score on the song select leaderboard):
+  `osu.Game/Scoring/BanchosucksReplayRenderer.cs` renders with danser-go on the player's PC.
+  danser-go (GPL-3.0, bundles FFmpeg) is not shipped with the client. It is downloaded from
+  its GitHub release only after the player agrees, checked against a pinned SHA-256 and kept
+  in `<game data>/banchosucks-renderer/`. Antivirus programs sometimes quarantine its
+  ffmpeg; the client then says so.
+- **Minigames** (main menu > Play > Minispiele): `osu.Game/Screens/Banchosucks/`, currently
+  "osu! Clicker", an idle clicker saved in `<game data>/banchosucks/osu-clicker.json`.

@@ -1163,8 +1163,15 @@ namespace osu.Game
             ScreenStack.ScreenPushed += screenPushed;
             ScreenStack.ScreenExited += screenExited;
 
-            // Banchosucks: keeps the chosen input / update rate applied
-            loadComponentSingleFile(new BanchosucksInputRateManager(), Add);
+            // Banchosucks: menu screens can be see-through; gameplay and the editor always stay opaque
+            menuOpacity = LocalConfig.GetBindable<float>(OsuSetting.BanchosucksMenuOpacity);
+            menuOpacity.BindValueChanged(_ => applyMenuOpacity(ScreenStack.CurrentScreen));
+
+            // Banchosucks: keeps the chosen input / update / audio thread rates applied
+            loadComponentSingleFile(new BanchosucksThreadRateManager(), Add);
+
+            // Banchosucks: renders replays to video on this PC with danser-go (downloaded after the player agreed)
+            loadComponentSingleFile(new BanchosucksReplayRenderer(), Add, true);
 
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {
@@ -1778,8 +1785,25 @@ namespace osu.Game
             overlayContent.X = horizontalOffsetAdjust * 1.2f;
         }
 
+        private Bindable<float> menuOpacity;
+
+        /// <summary>
+        /// Banchosucks: applies the menu opacity setting through the screen's colour alpha, which multiplies with
+        /// (and so never fights) the alpha the screens animate themselves during transitions.
+        /// </summary>
+        private void applyMenuOpacity(IScreen screen)
+        {
+            if (screen is not Drawable drawable || menuOpacity == null)
+                return;
+
+            float opacity = screen is Player || screen is Editor ? 1f : menuOpacity.Value;
+            drawable.Colour = new Color4(1f, 1f, 1f, opacity);
+        }
+
         protected virtual void ScreenChanged([CanBeNull] IOsuScreen current, [CanBeNull] IOsuScreen newScreen)
         {
+            applyMenuOpacity(newScreen);
+
             SentrySdk.ConfigureScope(scope =>
             {
                 scope.Contexts[@"screen stack"] = new

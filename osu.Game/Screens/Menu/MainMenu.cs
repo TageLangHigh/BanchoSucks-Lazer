@@ -162,6 +162,7 @@ namespace osu.Game.Screens.Menu
                             OnQuickPlay = loadQuickPlay,
                             OnRankedPlay = loadRankedPlay,
                             OnPlaylists = () => this.Push(new Playlists()),
+                            OnMinigames = () => this.Push(new osu.Game.Screens.Banchosucks.MinigamesScreen()),
                             OnDailyChallenge = room =>
                             {
                                 if (statics.Get<bool>(Static.DailyChallengeIntroPlayed))
