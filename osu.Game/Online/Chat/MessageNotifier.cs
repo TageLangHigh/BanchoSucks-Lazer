@@ -3,6 +3,7 @@
 
 #nullable disable
 
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -22,6 +23,8 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Resources.Localisation.Web;
+using osu.Game.Screens.Banchosucks;
+using osu.Game.Screens.Play;
 
 namespace osu.Game.Online.Chat
 {
@@ -44,6 +47,16 @@ namespace osu.Game.Online.Chat
 
         [Resolved]
         private GameHost host { get; set; }
+
+        // this file has nullable reference types disabled; both may legitimately be absent (tests)
+        [Resolved(CanBeNull = true)]
+        private IDialogOverlay dialogOverlay { get; set; }
+
+        [Resolved(CanBeNull = true)]
+        private ILocalUserPlayInfo localUserInfo { get; set; }
+
+        // Banchosucks: id of the newest announcement shown, so a batch of old unread ones does not stack dialogs
+        private long lastAnnouncementId;
 
         private Bindable<bool> notifyOnUsername;
         private Bindable<bool> notifyOnPrivateMessage;
@@ -99,6 +112,10 @@ namespace osu.Game.Online.Chat
             if (channel == null)
                 return;
 
+            // Banchosucks: announcements pop up as a dialog even when the chat is open
+            if (checkForAnnouncement(channel, messages))
+                return;
+
             // Only send notifications if ChatOverlay or the target channel aren't visible, or if the window is unfocused
             if (chatOverlay.IsPresent && channelManager.CurrentChannel.Value == channel && host.IsActive.Value)
                 return;
@@ -119,6 +136,41 @@ namespace osu.Game.Online.Chat
 
                 checkForMentions(channel, message);
             }
+        }
+
+        /// <summary>
+        /// Banchosucks: shows the newest unread announcement from BanchoBot (see <see cref="AnnouncementDialog"/>) as a
+        /// dialog, deferred until the player is not in gameplay. Returns whether one was found.
+        /// </summary>
+        private bool checkForAnnouncement(Channel channel, IEnumerable<Message> messages)
+        {
+            if (dialogOverlay == null || channel.Type != ChannelType.PM)
+                return false;
+
+            var announcement = messages
+                               .Where(m => m.Id > channel.LastReadId && m.Id > lastAnnouncementId)
+                               .Where(m => m.Sender.Username == "BanchoBot" && m.Content.StartsWith(AnnouncementDialog.MARKER, StringComparison.Ordinal))
+                               .MaxBy(m => m.Id);
+
+            if (announcement == null)
+                return false;
+
+            lastAnnouncementId = announcement.Id;
+            channelManager.MarkChannelAsRead(channel);
+            showAnnouncement(announcement.Content.Substring(AnnouncementDialog.MARKER.Length).Trim());
+            return true;
+        }
+
+        private void showAnnouncement(string text)
+        {
+            if (localUserInfo?.PlayingState.Value != LocalUserPlayingState.NotPlaying)
+            {
+                // never interrupt a play; try again once the player is back in a menu
+                Scheduler.AddDelayed(() => showAnnouncement(text), 1000);
+                return;
+            }
+
+            dialogOverlay?.Push(new AnnouncementDialog(text));
         }
 
         /// <summary>
