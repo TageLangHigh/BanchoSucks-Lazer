@@ -30,7 +30,10 @@ namespace osu.Game.Screens.Banchosucks
 
         private const int max_orbit_cursors = 60;
 
-        public Action<Vector2?>? Clicked;
+        /// <summary>
+        /// Called on every press with the screen position; returns false when the tap was ignored (input lock).
+        /// </summary>
+        public Func<Vector2?, bool>? Clicked;
 
         private readonly Color4 colour;
         private readonly CircularContainer body;
@@ -249,8 +252,9 @@ namespace osu.Game.Screens.Banchosucks
         // counts on press like a hit circle, which also makes the BPM counter fair for mouse tapping
         protected override bool OnMouseDown(MouseDownEvent e)
         {
-            Press();
-            Clicked?.Invoke(e.ScreenSpaceMousePosition);
+            if (Clicked?.Invoke(e.ScreenSpaceMousePosition) != false)
+                Press();
+
             return true;
         }
 

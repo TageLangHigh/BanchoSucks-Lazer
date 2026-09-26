@@ -36,6 +36,9 @@ namespace osu.Game.Screens.Banchosucks
         [JsonProperty("best_bpm")]
         public double BestBpm { get; set; }
 
+        [JsonProperty("bpm_epoch")]
+        public int BpmEpoch { get; set; }
+
         [JsonProperty("best_combo")]
         public int BestCombo { get; set; }
 

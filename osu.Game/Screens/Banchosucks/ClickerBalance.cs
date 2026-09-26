@@ -27,6 +27,14 @@ namespace osu.Game.Screens.Banchosucks
         /// </summary>
         public const double COMBO_TIMEOUT_MS = 1000;
 
+        /// <summary>
+        /// BPM records only count on the server when the client sends this epoch or newer (<c>bpm_epoch</c>).
+        /// Epoch 2 came with the input lock (keyboard and mouse can no longer be tapped at the same time);
+        /// every record from before was reset. Raise it together with <c>BPM_EPOCH</c> in
+        /// server/lazer/plugins/banchosucks_clicker/__init__.py of the website repository.
+        /// </summary>
+        public const int BPM_EPOCH = 2;
+
         public static readonly ClickerProducer[] PRODUCERS =
         {
             new ClickerProducer("cursor", "Cursor-Trail", "Ein zweiter Cursor klickt ab und zu mit.", 15, 0.1, FontAwesome.Solid.MousePointer, Color4Extensions.FromHex("ff66ab")),
@@ -79,6 +87,12 @@ namespace osu.Game.Screens.Banchosucks
         public HashSet<string> Upgrades { get; set; } = new HashSet<string>();
         public long SavedAt { get; set; }
         public double BestBpm { get; set; }
+
+        /// <summary>
+        /// <see cref="ClickerBalance.BPM_EPOCH"/> the record was set under; 0 in saves from before the input lock.
+        /// </summary>
+        public int BpmEpoch { get; set; }
+
         public int BestCombo { get; set; }
     }
 

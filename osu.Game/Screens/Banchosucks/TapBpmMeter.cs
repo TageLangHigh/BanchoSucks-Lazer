@@ -17,9 +17,13 @@ namespace osu.Game.Screens.Banchosucks
         /// </summary>
         public const int MIN_TAPS_FOR_RECORD = 10;
 
+        /// <summary>
+        /// A pause longer than this ends the stream. The input lock in <see cref="OsuClickerScreen"/> uses the same gap.
+        /// </summary>
+        public const double IDLE_MS = 1000;
+
         private const int min_taps = 4;
         private const int max_taps = 20;
-        private const double idle_ms = 1000;
 
         private readonly List<double> taps = new List<double>();
 
@@ -31,7 +35,7 @@ namespace osu.Game.Screens.Banchosucks
         public void Tap(double time)
         {
             // a pause starts a new stream
-            if (taps.Count > 0 && time - taps[^1] > idle_ms)
+            if (taps.Count > 0 && time - taps[^1] > IDLE_MS)
                 taps.Clear();
 
             taps.Add(time);
@@ -48,7 +52,7 @@ namespace osu.Game.Screens.Banchosucks
         /// </summary>
         public double TapsPerSecond(double time)
         {
-            if (taps.Count < min_taps || time - taps[^1] > idle_ms)
+            if (taps.Count < min_taps || time - taps[^1] > IDLE_MS)
                 return 0;
 
             return tapsPerSecond();

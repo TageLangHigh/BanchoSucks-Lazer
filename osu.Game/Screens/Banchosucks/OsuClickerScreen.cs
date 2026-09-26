@@ -115,6 +115,19 @@ namespace osu.Game.Screens.Banchosucks
 
         private double nextBonusAt;
         private double lastTapTime = double.MinValue;
+
+        // the input kind that started the current tap stream owns it until the stream pauses;
+        // taps from the other kind are ignored (keyboard and mouse at once doubled the BPM)
+        private TapSource streamOwner = TapSource.None;
+
+        private const string bpm_reset_message = "Die BPM-Rekorde wurden zurückgesetzt: Tastatur und Maus zählen nicht mehr gleichzeitig. Neuer Rekord ab jetzt!";
+
+        private enum TapSource
+        {
+            None,
+            Keyboard,
+            Mouse,
+        }
         private int comboColourIndex;
         private double lastSubmittedTotal = -1;
 
@@ -260,7 +273,7 @@ namespace osu.Game.Screens.Banchosucks
                                         Anchor = Anchor.Centre,
                                         Origin = Anchor.Centre,
                                         Y = 20,
-                                        Clicked = tap,
+                                        Clicked = position => tap(position, TapSource.Mouse),
                                     },
                                     comboCounter = new ClickerComboCounter
                                     {
@@ -533,11 +546,8 @@ namespace osu.Game.Screens.Banchosucks
             // the keys the player taps circles with in osu!standard
             if (tapKeys.Contains(KeyCombination.FromKey(e.Key)))
             {
-                if (!e.Repeat)
-                {
+                if (!e.Repeat && tap(null, TapSource.Keyboard))
                     circle.Press();
-                    tap(null);
-                }
 
                 return true;
             }
@@ -566,8 +576,16 @@ namespace osu.Game.Screens.Banchosucks
                 : "Z / X";
         }
 
-        private void tap(Vector2? screenPosition)
+        /// <summary>
+        /// Counts a tap. Returns false when it was ignored because the other input kind owns the current stream.
+        /// </summary>
+        private bool tap(Vector2? screenPosition, TapSource source)
         {
+            if (streamOwner != TapSource.None && source != streamOwner && Time.Current - lastTapTime <= TapBpmMeter.IDLE_MS)
+                return false;
+
+            streamOwner = source;
+
             double value = clickValue;
             state.Points += value;
             state.TotalEarned += value;
@@ -591,6 +609,7 @@ namespace osu.Game.Screens.Banchosucks
 
             Vector2 position = screenPosition ?? circle.ToScreenSpace(circle.DrawSize / 2 + new Vector2((float)random.NextDouble() * 220 - 110, -20 - (float)random.NextDouble() * 60));
             spawnFloating(position, $"+{format(value)}", comboColour, 26);
+            return true;
         }
 
         private void buyProducer(ClickerProducer producer)
@@ -688,6 +707,7 @@ namespace osu.Game.Screens.Banchosucks
             TotalEarned = Math.Floor(state.TotalEarned),
             Clicks = state.Clicks,
             BestBpm = Math.Max(state.BestBpm, Math.Round(bpmMeter.Best, 1)),
+            BpmEpoch = state.BpmEpoch,
             BestCombo = state.BestCombo,
             Producers = state.Producers.Where(p => p.Value > 0).ToDictionary(p => p.Key, p => p.Value),
             Upgrades = state.Upgrades.ToList(),
@@ -723,27 +743,47 @@ namespace osu.Game.Screens.Banchosucks
             {
                 string path = saveStorage.GetFullPath(save_file);
                 if (!File.Exists(path))
+                {
+                    applyBpmEpoch();
                     return "Klick den Kreis oder tippe mit deinen osu!-Tasten und kauf dir rechts Gebäude.";
+                }
 
                 state = JsonSerializer.Deserialize<ClickerState>(File.ReadAllText(path)) ?? new ClickerState();
+                bool bpmReset = applyBpmEpoch();
                 recalculate();
 
                 double away = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - state.SavedAt;
                 if (away < 60 || perSecond <= 0)
-                    return null;
+                    return bpmReset ? bpm_reset_message : null;
 
                 double earned = Math.Min(away, ClickerBalance.OFFLINE_CAP_SECONDS) * perSecond * ClickerBalance.OFFLINE_RATE;
                 state.Points += earned;
                 state.TotalEarned += earned;
-                return $"Willkommen zurück! Deine Gebäude haben in der Zwischenzeit {format(earned)} PP gesammelt.";
+                return bpmReset ? bpm_reset_message : $"Willkommen zurück! Deine Gebäude haben in der Zwischenzeit {format(earned)} PP gesammelt.";
             }
             catch (Exception e)
             {
                 Logger.Error(e, "osu! Clicker save could not be read, starting fresh");
                 state = new ClickerState();
+                applyBpmEpoch();
                 recalculate();
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Brings the save to the current <see cref="ClickerBalance.BPM_EPOCH"/>. Records from an older epoch
+        /// were set under rules that allowed keyboard and mouse at once, so they start over.
+        /// </summary>
+        private bool applyBpmEpoch()
+        {
+            if (state.BpmEpoch >= ClickerBalance.BPM_EPOCH)
+                return false;
+
+            bool hadRecord = state.BestBpm > 0;
+            state.BestBpm = 0;
+            state.BpmEpoch = ClickerBalance.BPM_EPOCH;
+            return hadRecord;
         }
 
         private void save()
