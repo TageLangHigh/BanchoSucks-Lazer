@@ -26,8 +26,10 @@ git rev-parse -q --verify "refs/tags/v$V-banchosucks" >/dev/null || { echo "tag 
 if [[ $PUBLISH -eq 1 ]]; then
   echo "==> publish win-x64 $V"
   rm -rf "$PUB"
-  dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o "$PUB" \
-    -p:Version=$V -p:AssemblyVersion=$V -p:FileVersion=$V -p:InformationalVersion=$V-banchosucks >"$ART/publish-$V.log"
+  # low priority and at most two build processes: the game servers share these four cores,
+  # a full-speed build made the website crawl for players (2026-09-26)
+  nice -n 19 ionice -c 3 dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o "$PUB" \
+    -m:2 -p:Version=$V -p:AssemblyVersion=$V -p:FileVersion=$V -p:InformationalVersion=$V-banchosucks >"$ART/publish-$V.log"
 else
   [[ -f "$PUB/BanchoSucks-Lazer.exe" ]] || { echo "no publish output in $PUB"; exit 1; }
 fi
@@ -37,7 +39,7 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 vpk download github --repoUrl "https://github.com/$REPO" -o "$OUT" -c win >/dev/null 2>&1 || echo "    none yet (first Velopack release)"
 
 echo "==> vpk pack"
-vpk '[win]' pack -u BanchoSucksLazer -v "$V" -p "$PUB" -e BanchoSucks-Lazer.exe -o "$OUT" -c win \
+nice -n 19 ionice -c 3 vpk '[win]' pack -u BanchoSucksLazer -v "$V" -p "$PUB" -e BanchoSucks-Lazer.exe -o "$OUT" -c win \
   --packTitle "BanchoSucks Lazer" --packAuthors "banchosucks.cc" -i osu.Desktop/lazer.ico -s assets/lazer-nuget.png
 ls -la "$OUT" | awk 'NR>1{printf "    %8.0f KB  %s\n", $5/1024, $9}'
 
