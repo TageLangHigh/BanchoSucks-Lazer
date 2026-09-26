@@ -155,7 +155,7 @@ namespace osu.Game.Online.Chat
             if (announcement == null)
                 return false;
 
-            lastAnnouncementId = announcement.Id;
+            lastAnnouncementId = announcement.Id ?? lastAnnouncementId;
             channelManager.MarkChannelAsRead(channel);
             showAnnouncement(announcement.Content.Substring(AnnouncementDialog.MARKER.Length).Trim());
             return true;
