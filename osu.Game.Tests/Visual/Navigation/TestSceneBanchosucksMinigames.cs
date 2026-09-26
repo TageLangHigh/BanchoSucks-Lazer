@@ -48,12 +48,25 @@ namespace osu.Game.Tests.Visual.Navigation
             AddUntilStep("clicker open", () => Game.ScreenStack.CurrentScreen is OsuClickerScreen screen && screen.IsLoaded);
 
             AddRepeatStep("press Z", () => InputManager.Key(Key.Z), 20);
+            AddUntilStep("20 PP", () => hasText("20 PP"));
+
+            // input lock: while a keyboard stream is going, mouse clicks are ignored
+            AddStep("press Z and click the circle at once", () =>
+            {
+                InputManager.Key(Key.Z);
+                InputManager.MoveMouseTo(clicker.ChildrenOfType<Drawable>().First(d => d.GetType().Name == "ClickerCircle"));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("21 PP", () => hasText("21 PP"));
+            AddAssert("mouse click ignored during the keyboard stream", () => !hasText("22 PP"));
+
+            AddUntilStep("stream paused", () => hasText("0 BPM"));
             AddStep("click circle", () =>
             {
                 InputManager.MoveMouseTo(clicker.ChildrenOfType<Drawable>().First(d => d.GetType().Name == "ClickerCircle"));
                 InputManager.Click(MouseButton.Left);
             });
-            AddUntilStep("21 PP", () => hasText("21 PP"));
+            AddUntilStep("22 PP", () => hasText("22 PP"));
             AddAssert("default osu! keys shown", () => hasTextContaining("Tasten Z / X"));
             AddAssert("tapping speed measured", () => hasTextContaining(" BPM · Tasten"));
 
@@ -145,6 +158,7 @@ namespace osu.Game.Tests.Visual.Navigation
             AddUntilStep("other player listed", () => hasText("Hodenlos"));
             AddUntilStep("value formatted", () => hasText("123,46 Mio PP") || hasText("123.46 Mio PP"));
             AddAssert("progress submitted", () => submitted != null && submitted.TotalEarned >= 15 && submitted.Clicks == 15);
+            AddAssert("submission carries the BPM epoch", () => submitted != null && submitted.BpmEpoch == 2);
 
             AddStep("sort by BPM", () =>
             {
