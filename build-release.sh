@@ -62,8 +62,11 @@ except urllib.error.HTTPError:
     notes = open(os.path.join(out, "..", f"notes-{v}.md")).read() if os.path.exists(os.path.join(out, "..", f"notes-{v}.md")) else f"BanchoSucks Lazer {v}"
     rel = api("POST", f"https://api.github.com/repos/{repo}/releases", json.dumps({"tag_name": tag, "name": f"BanchoSucks Lazer {v}", "body": notes}).encode())
 have = {a["name"] for a in rel.get("assets", [])}
+# only what this pack produced (assets.win.json); the previous full package downloaded for the delta stays local
+produced = {e["RelativeFileName"] for e in json.load(open(os.path.join(out, "assets.win.json")))} if os.path.exists(os.path.join(out, "assets.win.json")) else None
 for name in sorted(os.listdir(out)):
     if name in have or name.endswith(".log"): continue
+    if produced is not None and name not in produced and not name.endswith(".json") and name != "RELEASES": continue
     path = os.path.join(out, name); data = open(path, "rb").read()
     api("POST", f"https://uploads.github.com/repos/{repo}/releases/{rel['id']}/assets?name={name}", data, "application/octet-stream")
     print(f"    uploaded {name} ({len(data)//1048576} MB)")
