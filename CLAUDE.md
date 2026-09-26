@@ -67,23 +67,24 @@ Für den Client heißt das zusätzlich:
 
 ## 4. Release bauen
 
-Ein Release wird nur aus einem gepushten Commit gebaut, damit zu jeder Zip der passende Quelltext
-gehört. Reihenfolge:
+Ein Release wird nur aus einem gepushten Commit gebaut, damit zu jeder Datei der passende Quelltext
+gehört. Der Client aktualisiert sich selbst über Velopack aus unseren GitHub-Releases
+(`osu.Desktop/Updater/VelopackUpdateManager.cs`, packId `BanchoSucksLazer`, Kanal `win`); deshalb
+müssen die Velopack-Dateien (Setup.exe, *.nupkg, releases.win.json, Portable.zip) am Release hängen,
+eine nackte Zip reicht nicht mehr. Reihenfolge:
 
 1. Committen, `git push server main`, `git push origin main`.
 2. Tests: `dotnet test osu.Game.Tests -c Release --filter "FullyQualifiedName~Banchosucks"`.
-3. Tag `vJJJJ.MMTT.N-banchosucks` auf genau diesen Commit setzen und zu `server` und `origin`
-   pushen. Derzeit heißt die Version 2026.913.N (913 stammt von der g0v0-Basis), N zählt hoch.
-4. Bauen, mit `V` als Version ohne `v` und ohne Endung:
-   `dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o ../artifacts/BanchoSucks-Lazer-win-x64-$V -p:Version=$V -p:AssemblyVersion=$V -p:FileVersion=$V -p:InformationalVersion=$V-banchosucks`
-   und dasselbe mit `-r linux-x64` und zusätzlich `-p:PublishSingleFile=false -p:PublishTrimmed=false`.
-5. Den MD5 von `osu.Game.dll` auf dem Server registrieren, sonst lehnt der Server den Client ab:
-   `python3 /home/lidl/g0v0-server/register-client-build.py <md5> $V-banchosucks Windows`
-   (bei einem anderen Linux-Hash zusätzlich mit `Linux`), danach im Ordner
-   `/home/lidl/g0v0-server` den Befehl `docker compose -p g0v0 -f compose.lazer.yml restart app`.
-6. Packen: Windows als Zip, Linux als tar.gz mit `--mode='u+rwx,go+rx' --owner=0 --group=0`,
-   damit der Starter ausführbar bleibt.
-7. Das Release auf GitHub im Browser aus dem gepushten Tag anlegen und beide Dateien hochladen.
+3. Tag `vJJJJ.MMTT.N-banchosucks` auf genau diesen Commit, zu `server` und `origin` pushen
+   (erst den Tag pushen, dann das Release anlegen, sonst erzeugt GitHub einen falschen Tag).
+4. Auf dem Server (Linux, .NET 10 SDK, `dotnet tool install -g vpk --version 1.2.0`):
+   `./build-release.sh JJJJ.MMTT.N` baut win-x64, holt die vorigen Velopack-Pakete für Delta-Updates,
+   packt mit vpk und lädt alles ans GitHub-Release (Token in `~/.config/github-token`, nie ausgeben).
+   Release-Notizen vorher nach `../artifacts/notes-JJJJ.MMTT.N.md` legen.
+5. Den MD5 von `osu.Game.dll` registrieren (das Skript druckt den Befehl), dann die Lazer-App mit
+   Ankündigung neu starten (`maintenance.py --minutes 1 --restart lazer`).
+6. Auf Windows bauen geht weiterhin mit dem `dotnet publish` aus dem Skript plus `vpk [win] pack`
+   mit denselben Parametern; ohne Velopack-Pakete bekommen die Spieler kein Update angeboten.
 
 Lizenz: `LICENCE`, `LICENCE-OSU` und `BANCHOSUCKS.md` bleiben im Repo. Den Client nie als
 offiziellen osu!-Client ausgeben.

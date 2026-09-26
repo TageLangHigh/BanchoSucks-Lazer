@@ -8,14 +8,18 @@ under the /lazer prefix of the main Banchosucks site; the client's links point t
 Lazer web interface: https://lazer.banchosucks.cc
 API: https://lazer-api.banchosucks.cc
 
-Extract the entire ZIP, then run BanchoSucks-Lazer.exe. Accounts are created on
+Install with BanchoSucksLazer-win-Setup.exe (installs to %LocalAppData%\BanchoSucksLazer and
+adds a start menu entry). From then on the game updates itself like osu!stable: it checks our
+GitHub releases on start and every 30 minutes, downloads the update in the background and
+shows a notification; clicking it restarts into the new version. Game data and settings are
+not touched by updates. Accounts are created on
 https://banchosucks.cc/register and work on both the stable and the lazer server
 (the in-game register button opens that page). No server URL needs to be entered.
 Keep the Custom API Server URL setting empty to use the built-in endpoints.
 
 Game data is stored separately in %APPDATA%/banchosucks-lazer.
-This edition does not automatically replace itself with upstream updates.
-Updates are installed manually. The executable is not code-signed.
+Updates come only from https://github.com/TageLangHigh/BanchoSucks-Lazer/releases, never from
+upstream. The executable and the installer are not code-signed (SmartScreen warns once).
 
 This is a server-configured fork, not a completely new game or visual theme.
 Existing game artwork and most interface strings are from g0v0.

@@ -31,8 +31,8 @@
 
 ### Update source
 
-- Desktop update checks and mobile update notifications point to the **GooGuTeam/osu** GitHub repository.
-- A new **Disable automatic updates** option is available in the update settings.
+- Desktop update checks point to the **TageLangHigh/BanchoSucks-Lazer** GitHub releases (Velopack
+  packages built by `build-release.sh`). Updates are always on, as in osu!stable.
 
 ### Error reporting
 

@@ -47,13 +47,6 @@ namespace osu.Game.Overlays.Settings.Sections.General
 
             bool isDesktop = RuntimeInfo.IsDesktop;
 
-            Add(new SettingsCheckbox
-            {
-                LabelText = "Disable automatic updates (GU)",
-                Current = config.GetBindable<bool>(OsuSetting.DisableAutomaticUpdates),
-                Keywords = new[] { "update", "automatic", "disable", "gu" },
-            });
-
             // For simplicity, hide the concept of release streams from mobile users.
             if (isDesktop)
             {

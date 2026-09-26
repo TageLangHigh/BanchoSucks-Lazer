@@ -240,7 +240,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.EditorSubmissionLoadInBrowserAfterSubmission, true);
 
             // GU specific settings
-            SetDefault(OsuSetting.DisableAutomaticUpdates, true);
+            SetDefault(OsuSetting.DisableAutomaticUpdates, false); // Banchosucks: kept for old configs, no longer read
 
             SetDefault(OsuSetting.WasSupporter, false);
 
