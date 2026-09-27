@@ -36,6 +36,8 @@ Für den Client heißt das zusätzlich:
   gemeinsame Quelle. `origin` ist GitHub (TageLangHigh/BanchoSucks-Lazer) und nur für Releases.
   `upstream` ist GooGuTeam/g0v0 und wird nur gelesen.
 - Vor der Arbeit: `git pull server main`. Julians Claude kann Änderungen auf den Hub gepusht haben.
+- Commits tragen nur Lidl oder Julian als Autor. Keine `Co-Authored-By`-Zeilen von KI-Assistenten,
+  in keinem unserer Repos (Regel von Julian, 27.09.2026).
 - Kleine Commits auf Deutsch, mit dem Warum. Zügig pushen, erst `git push server main`, dann
   `git push origin main`. Beide müssen danach auf denselben Commit zeigen.
 - Nie force-pushen, nie die Historie umschreiben (kein Rebase oder Amend von gepushten Commits).
