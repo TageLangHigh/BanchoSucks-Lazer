@@ -10,6 +10,12 @@ namespace osu.Game.Screens.Banchosucks
     /// Banchosucks: measures tapping speed like osu! tapping tests do, as the BPM of a 1/4 stream
     /// (taps per second * 15, so 12 taps per second are 180 BPM).
     /// </summary>
+    /// <remarks>
+    /// Taps that would push the stream above <see cref="MaxBpm"/> are refused (<see cref="Tap"/> returns false) and
+    /// leave the stream untouched, so an autoclicker set faster than 500 BPM earns nothing at all. The cap is judged
+    /// on the window of recent taps rather than on a single gap, because tap times are quantised to frames
+    /// (a real 450 BPM stream arrives as 17/33 ms gaps at 60 fps).
+    /// </remarks>
     public class TapBpmMeter
     {
         /// <summary>
@@ -18,7 +24,7 @@ namespace osu.Game.Screens.Banchosucks
         public const int MIN_TAPS_FOR_RECORD = 10;
 
         /// <summary>
-        /// A pause longer than this ends the stream. The input lock in <see cref="OsuClickerScreen"/> uses the same gap.
+        /// A pause longer than this ends the stream. The input lock in the clicker uses the same gap.
         /// </summary>
         public const double IDLE_MS = 1000;
 
@@ -28,23 +34,56 @@ namespace osu.Game.Screens.Banchosucks
         private readonly List<double> taps = new List<double>();
 
         /// <summary>
+        /// Streams faster than this are refused; 0 disables the cap.
+        /// </summary>
+        public double MaxBpm { get; set; } = 500;
+
+        /// <summary>
         /// Highest BPM of a stream with at least <see cref="MIN_TAPS_FOR_RECORD"/> taps.
         /// </summary>
         public double Best { get; set; }
 
-        public void Tap(double time)
+        /// <summary>
+        /// Taps refused by the cap since the meter was created.
+        /// </summary>
+        public int Refused { get; private set; }
+
+        /// <summary>
+        /// Registers a tap. Returns false when the tap was refused because the stream exceeds <see cref="MaxBpm"/>.
+        /// A refused tap still enters the window, so a stream that stays too fast keeps being refused instead of
+        /// being thinned out to the cap; it can never set a record.
+        /// </summary>
+        public bool Tap(double time)
         {
             // a pause starts a new stream
             if (taps.Count > 0 && time - taps[^1] > IDLE_MS)
                 taps.Clear();
+
+            bool refused = false;
+
+            if (MaxBpm > 0 && taps.Count >= min_taps)
+            {
+                double span = time - taps[Math.Max(taps.Count - max_taps + 1, 0)];
+                int count = Math.Min(taps.Count, max_taps - 1) + 1;
+                double bpm = span > 0 ? (count - 1) * 1000 / span * 15 : double.PositiveInfinity;
+                refused = bpm > MaxBpm;
+            }
 
             taps.Add(time);
 
             if (taps.Count > max_taps)
                 taps.RemoveRange(0, taps.Count - max_taps);
 
+            if (refused)
+            {
+                Refused++;
+                return false;
+            }
+
             if (taps.Count >= MIN_TAPS_FOR_RECORD)
-                Best = Math.Max(Best, tapsPerSecond() * 15);
+                Best = Math.Max(Best, Math.Min(tapsPerSecond() * 15, MaxBpm > 0 ? MaxBpm : double.MaxValue));
+
+            return true;
         }
 
         /// <summary>

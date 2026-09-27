@@ -5,13 +5,16 @@ using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
 using osu.Framework.Screens;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
 
@@ -22,6 +25,14 @@ namespace osu.Game.Screens.Banchosucks
     /// </summary>
     public partial class MinigamesScreen : OsuScreen
     {
+        private const double affordable_check_interval = 1000;
+
+        // absent in plain test scenes; the game always provides it
+        [Resolved(CanBeNull = true)]
+        private ClickerEngine? engine { get; set; }
+
+        private GameTile clickerTile = null!;
+
         [BackgroundDependencyLoader]
         private void load(OsuColour colours)
         {
@@ -38,14 +49,14 @@ namespace osu.Game.Screens.Banchosucks
                     {
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.TopCentre,
-                        Text = "Minispiele",
+                        Text = ClickerStrings.Text("Minigames", "Minispiele"),
                         Font = OsuFont.GetFont(size: 48, weight: FontWeight.Bold),
                     },
                     new OsuSpriteText
                     {
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.TopCentre,
-                        Text = "Kleine Spiele für zwischendurch, nur auf Banchosucks.",
+                        Text = ClickerStrings.Text("Small games for in between, only on Banchosucks.", "Kleine Spiele für zwischendurch, nur auf Banchosucks."),
                         Font = OsuFont.GetFont(size: 18),
                         Colour = colours.Gray9,
                     },
@@ -58,12 +69,22 @@ namespace osu.Game.Screens.Banchosucks
                         Spacing = new Vector2(20),
                         Children = new Drawable[]
                         {
-                            new GameTile("osu! Clicker", "Klick den Kreis, sammle PP, kauf dir Taiko-Trommeln und Mapper. Mit Rangliste für PP und Tapping-BPM.", FontAwesome.Solid.MousePointer,
-                                colours.Pink, () => this.Push(new OsuClickerScreen())),
+                            clickerTile = new GameTile("osu! Clicker",
+                                ClickerStrings.Text("Click the circle, collect PP, buy taiko drums and mappers. With prestige tree, medals and leaderboards.",
+                                    "Klick den Kreis, sammle PP, kauf dir Taiko-Trommeln und Mapper. Mit Prestige-Baum, Medaillen und Ranglisten."),
+                                FontAwesome.Solid.MousePointer, colours.Pink, () => this.Push(new OsuClickerScreen())),
                         },
                     },
                 },
             };
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            // the tile pulses while something in the shop is affordable
+            Scheduler.AddDelayed(() => clickerTile.Pulsing = engine?.AnythingAffordable() == true, affordable_check_interval, true);
         }
 
         public override void OnEntering(ScreenTransitionEvent e)
@@ -93,13 +114,23 @@ namespace osu.Game.Screens.Banchosucks
         private partial class GameTile : OsuClickableContainer
         {
             private readonly Container content;
+            private readonly Box glow;
+            private readonly Color4 colour;
+            private bool pulsing;
 
-            public GameTile(string title, string description, IconUsage icon, Color4 colour, System.Action open)
+            public GameTile(LocalisableString title, LocalisableString description, IconUsage icon, Color4 colour, System.Action open)
             {
+                this.colour = colour;
                 Size = new Vector2(280, 320);
                 Action = open;
                 Masking = true;
                 CornerRadius = 20;
+                EdgeEffect = new EdgeEffectParameters
+                {
+                    Type = EdgeEffectType.Glow,
+                    Colour = colour.Opacity(0),
+                    Radius = 30,
+                };
 
                 Children = new Drawable[]
                 {
@@ -107,6 +138,12 @@ namespace osu.Game.Screens.Banchosucks
                     {
                         RelativeSizeAxes = Axes.Both,
                         Colour = colour.Darken(1.2f).Opacity(0.85f),
+                    },
+                    glow = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = colour,
+                        Alpha = 0,
                     },
                     content = new Container
                     {
@@ -165,6 +202,33 @@ namespace osu.Game.Screens.Banchosucks
                         },
                     },
                 };
+            }
+
+            /// <summary>
+            /// A subtle glow loop that says "there is something to buy".
+            /// </summary>
+            public bool Pulsing
+            {
+                get => pulsing;
+                set
+                {
+                    if (pulsing == value)
+                        return;
+
+                    pulsing = value;
+                    glow.ClearTransforms();
+
+                    if (value)
+                    {
+                        this.FadeEdgeEffectTo(colour.Opacity(0.5f), 500, Easing.OutQuint);
+                        glow.Loop(g => g.FadeTo(0.22f, 800, Easing.InOutSine).Then().FadeTo(0.06f, 800, Easing.InOutSine));
+                    }
+                    else
+                    {
+                        this.FadeEdgeEffectTo(colour.Opacity(0), 500, Easing.OutQuint);
+                        glow.FadeOut(400, Easing.OutQuint);
+                    }
+                }
             }
 
             protected override bool OnHover(HoverEvent e)

@@ -24,6 +24,7 @@ using osu.Game.Overlays.Notifications;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osu.Game.Screens.Ranking;
 
 namespace osu.Game.Screens.Play
@@ -54,6 +55,11 @@ namespace osu.Game.Screens.Play
         [Resolved(canBeNull: true)]
         [CanBeNull]
         private INotificationOverlay notifications { get; set; }
+
+        // Banchosucks: the osu! Clicker rewards passed maps that were submitted online ("Encore")
+        [Resolved(canBeNull: true)]
+        [CanBeNull]
+        private ClickerEngine clickerEngine { get; set; }
 
         [Resolved]
         protected RulesetHashCache RulesetHashCache { get; private set; } = null!;
@@ -331,6 +337,9 @@ namespace osu.Game.Screens.Play
 
                 scoreSubmissionSource.SetResult(true);
                 Logger.Log($"Score submission completed! (token:{token.Value} id:{s.ID})");
+
+                // Banchosucks: Encore for the osu! Clicker
+                clickerEngine?.OnScoreSubmitted(score.ScoreInfo);
             };
 
             request.Failure += e =>

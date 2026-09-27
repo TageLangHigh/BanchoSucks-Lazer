@@ -4,18 +4,28 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using osu.Framework.Allocation;
+using osu.Framework.Audio;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
+using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
+using osu.Framework.Input;
 using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Overlays.Dialog;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
 
@@ -43,6 +53,7 @@ namespace osu.Game.Screens.Banchosucks
         private readonly Container bursts;
         private readonly Random random = new Random();
         private int orbitCount = -1;
+        private bool boosted;
 
         public ClickerCircle(Color4 colour)
         {
@@ -194,6 +205,20 @@ namespace osu.Game.Screens.Banchosucks
             }
         }
 
+        /// <summary>
+        /// Lights the circle up like a kiai section while an ability is active.
+        /// </summary>
+        public void SetBoosted(bool value)
+        {
+            if (boosted == value)
+                return;
+
+            boosted = value;
+            halo.FadeEdgeEffectTo(value ? colour.Lighten(0.3f).Opacity(0.95f) : colour.Opacity(0.55f), 300, Easing.OutQuint);
+            halo.ScaleTo(value ? 1.12f : 1f, 300, Easing.OutQuint);
+            body.BorderColour = value ? colour.Lighten(0.8f) : Color4.White;
+        }
+
         public void Press() => body.ScaleTo(0.94f, 40, Easing.OutQuint);
 
         public void Release() => body.ScaleTo(1f, 400, Easing.OutElastic);
@@ -243,7 +268,7 @@ namespace osu.Game.Screens.Banchosucks
         /// </summary>
         public void Kiai()
         {
-            halo.ScaleTo(1.25f, 80, Easing.OutQuint).Then().ScaleTo(1f, 700, Easing.OutQuint);
+            halo.ScaleTo(1.25f, 80, Easing.OutQuint).Then().ScaleTo(boosted ? 1.12f : 1f, 700, Easing.OutQuint);
             body.FlashColour(Color4.White, 400, Easing.OutQuint);
         }
 
@@ -266,7 +291,7 @@ namespace osu.Game.Screens.Banchosucks
     }
 
     /// <summary>
-    /// The bonus spinner that appears every one to two and a half minutes.
+    /// The bonus spinner that appears every one to two and a half minutes; a kiai spinner is worth five times as much.
     /// </summary>
     internal partial class BonusSpinner : CompositeDrawable
     {
@@ -275,7 +300,7 @@ namespace osu.Game.Screens.Banchosucks
         private readonly Container disc;
         private readonly SpriteIcon icon;
 
-        public BonusSpinner(Color4 colour)
+        public BonusSpinner(Color4 colour, bool kiai = false)
         {
             Size = new Vector2(120);
             Origin = Anchor.Centre;
@@ -324,6 +349,20 @@ namespace osu.Game.Screens.Banchosucks
                     Shadow = true,
                 },
             };
+
+            if (kiai)
+            {
+                AddInternal(new OsuSpriteText
+                {
+                    Anchor = Anchor.TopCentre,
+                    Origin = Anchor.BottomCentre,
+                    Y = -6,
+                    Text = "Kiai!",
+                    Font = OsuFont.GetFont(size: 15, weight: FontWeight.Black, italics: true),
+                    Colour = colour.Lighten(0.5f),
+                    Shadow = true,
+                });
+            }
         }
 
         protected override void LoadComplete()
@@ -341,6 +380,618 @@ namespace osu.Game.Screens.Banchosucks
             Clicked?.Invoke();
             Clicked = null;
             return true;
+        }
+    }
+
+    /// <summary>
+    /// A slider event: press the start circle, then keep a mouse button held and follow the ball along the path.
+    /// The reward scales with the share of the travel time the cursor stayed inside the follow circle, which an
+    /// autoclicker cannot do.
+    /// </summary>
+    internal partial class ClickerSliderEvent : CompositeDrawable
+    {
+        public const float RADIUS = 30;
+
+        private const float follow_scale = 2.2f;
+        private const double idle_lifetime = 8000;
+
+        /// <summary>
+        /// Called once with the tracking accuracy (0..1) when the ball reaches the end.
+        /// </summary>
+        public Action<double>? Completed;
+
+        public bool Started => !double.IsNaN(startTime);
+        public bool Finished { get; private set; }
+
+        private readonly Vector2[] vertices;
+        private readonly double durationMs;
+        private readonly Color4 colour;
+        private readonly SmoothPath outerPath;
+        private readonly SmoothPath innerPath;
+        private readonly CircularContainer startCircle;
+        private readonly CircularContainer ball;
+        private readonly CircularContainer follow;
+        private readonly OsuSpriteText label;
+
+        private InputManager? inputManager;
+        private double startTime = double.NaN;
+        private double trackedTime;
+        private double totalTime;
+
+        /// <param name="vertices">The path in local coordinates (at least two points, all further than <see cref="RADIUS"/> from the top-left).</param>
+        /// <param name="durationMs">Travel time of the ball.</param>
+        /// <param name="colour">Accent colour of the slider.</param>
+        public ClickerSliderEvent(Vector2[] vertices, double durationMs, Color4 colour)
+        {
+            this.vertices = vertices;
+            this.durationMs = durationMs;
+            this.colour = colour;
+
+            float maxX = vertices.Max(v => v.X);
+            float maxY = vertices.Max(v => v.Y);
+            Size = new Vector2(maxX + RADIUS * follow_scale, maxY + RADIUS * follow_scale);
+
+            InternalChildren = new Drawable[]
+            {
+                outerPath = new SmoothPath
+                {
+                    PathRadius = RADIUS,
+                    Vertices = vertices,
+                    Colour = Color4.White.Opacity(0.85f),
+                },
+                innerPath = new SmoothPath
+                {
+                    PathRadius = RADIUS - 5,
+                    Vertices = vertices,
+                    Colour = colour.Darken(0.55f),
+                },
+                follow = new CircularContainer
+                {
+                    Origin = Anchor.Centre,
+                    Position = vertices[0],
+                    Size = new Vector2(RADIUS * 2 * follow_scale),
+                    Masking = true,
+                    BorderThickness = 3,
+                    BorderColour = Color4.White.Opacity(0.6f),
+                    Alpha = 0,
+                    Child = new Box { RelativeSizeAxes = Axes.Both, Alpha = 0, AlwaysPresent = true },
+                },
+                ball = new CircularContainer
+                {
+                    Origin = Anchor.Centre,
+                    Position = vertices[0],
+                    Size = new Vector2(RADIUS * 2),
+                    Masking = true,
+                    BorderThickness = 5,
+                    BorderColour = Color4.White,
+                    Alpha = 0,
+                    Child = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = ColourInfo.GradientVertical(colour.Lighten(0.5f), colour),
+                    },
+                },
+                startCircle = new CircularContainer
+                {
+                    Origin = Anchor.Centre,
+                    Position = vertices[0],
+                    Size = new Vector2(RADIUS * 2),
+                    Masking = true,
+                    BorderThickness = 6,
+                    BorderColour = Color4.White,
+                    EdgeEffect = new EdgeEffectParameters
+                    {
+                        Type = EdgeEffectType.Glow,
+                        Colour = colour.Opacity(0.8f),
+                        Radius = 22,
+                    },
+                    Children = new Drawable[]
+                    {
+                        new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = ColourInfo.GradientVertical(colour.Lighten(0.4f), colour.Darken(0.3f)),
+                        },
+                        new SpriteIcon
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Size = new Vector2(22),
+                            Icon = FontAwesome.Solid.HandPointer,
+                            Colour = Color4.Black.Opacity(0.7f),
+                        },
+                    },
+                },
+                label = new OsuSpriteText
+                {
+                    Origin = Anchor.BottomCentre,
+                    Position = vertices[0] + new Vector2(0, -RADIUS - 8),
+                    Text = ClickerStrings.Pick("Slider! Hold and follow the ball", "Slider! Halten und dem Ball folgen"),
+                    Font = OsuFont.GetFont(size: 15, weight: FontWeight.Black),
+                    Colour = colour.Lighten(0.4f),
+                    Shadow = true,
+                },
+            };
+
+            // the paths are laid out so that a vertex sits at its own local coordinates
+            outerPath.OriginPosition = outerPath.PositionInBoundingBox(Vector2.Zero);
+            innerPath.OriginPosition = innerPath.PositionInBoundingBox(Vector2.Zero);
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            inputManager = GetContainingInputManager();
+            this.FadeInFromZero(300);
+            startCircle.Loop(s => s.ScaleTo(1.08f, 500, Easing.InOutSine).Then().ScaleTo(1f, 500, Easing.InOutSine));
+
+            // an untouched slider goes away on its own
+            Scheduler.AddDelayed(() =>
+            {
+                if (!Started)
+                    this.FadeOut(500).Expire();
+            }, idle_lifetime);
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            if (!Started || Finished)
+                return;
+
+            double progress = Math.Clamp((Time.Current - startTime) / durationMs, 0, 1);
+            Vector2 position = pointAt((float)progress);
+            ball.Position = position;
+            follow.Position = position;
+
+            var mouse = inputManager?.CurrentState.Mouse;
+
+            if (mouse != null)
+            {
+                float radius = follow.ScreenSpaceDrawQuad.Width / 2;
+                bool inside = mouse.Buttons.HasAnyButtonPressed && Vector2.Distance(mouse.Position, ball.ScreenSpaceDrawQuad.Centre) <= radius;
+
+                follow.BorderColour = inside ? colour.Lighten(0.6f) : Color4.White.Opacity(0.6f);
+                if (inside)
+                    trackedTime += Time.Elapsed;
+            }
+
+            totalTime += Time.Elapsed;
+
+            if (progress >= 1)
+                finish(totalTime > 0 ? trackedTime / totalTime : 0);
+        }
+
+        private Vector2 pointAt(float t)
+        {
+            float f = t * (vertices.Length - 1);
+            int index = Math.Clamp((int)f, 0, vertices.Length - 2);
+            return Vector2.Lerp(vertices[index], vertices[index + 1], f - index);
+        }
+
+        private void begin()
+        {
+            startTime = Time.Current;
+            trackedTime = totalTime = 0;
+            label.FadeOut(150);
+            startCircle.ClearTransforms();
+            startCircle.ScaleTo(1.3f, 150, Easing.OutQuint).FadeOut(150);
+            ball.FadeIn(80);
+            follow.FadeIn(80);
+        }
+
+        private void finish(double accuracy)
+        {
+            if (Finished)
+                return;
+
+            Finished = true;
+            Completed?.Invoke(Math.Clamp(accuracy, 0, 1));
+
+            ball.ScaleTo(1.5f, 250, Easing.OutQuint).FadeOut(250);
+            follow.FadeOut(200);
+            outerPath.FadeOut(350);
+            innerPath.FadeOut(350);
+            this.Delay(400).Expire();
+        }
+
+        /// <summary>
+        /// Ends the slider with the given accuracy without any input (tests).
+        /// </summary>
+        internal void CompleteForTests(double accuracy)
+        {
+            if (Finished)
+                return;
+
+            if (!Started)
+                begin();
+
+            finish(accuracy);
+        }
+
+        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => !Started && !Finished && startCircle.ReceivePositionalInputAt(screenSpacePos);
+
+        protected override bool OnMouseDown(MouseDownEvent e)
+        {
+            if (Started || Finished)
+                return false;
+
+            begin();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// A round ability button in the play area: icon, cooldown ring and remaining time.
+    /// </summary>
+    internal partial class ClickerAbilityButton : OsuClickableContainer
+    {
+        public enum AbilityState
+        {
+            Locked,
+            Ready,
+            Active,
+            Cooldown,
+        }
+
+        public const float SIZE = 72;
+
+        public readonly ClickerAbility Ability;
+
+        private readonly Color4 colour;
+        private readonly CircularContainer disc;
+        private readonly CircularProgress ring;
+        private readonly SpriteIcon lockIcon;
+        private readonly OsuSpriteText timeText;
+        private AbilityState? state;
+        private string lastTime = string.Empty;
+
+        public ClickerAbilityButton(ClickerAbility ability, Color4 colour, Action action)
+        {
+            Ability = ability;
+            this.colour = colour;
+            Action = action;
+            AutoSizeAxes = Axes.Both;
+
+            Children = new Drawable[]
+            {
+                new FillFlowContainer
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, 4),
+                    Padding = new MarginPadding { Horizontal = 10, Bottom = 4 },
+                    Children = new Drawable[]
+                    {
+                        new Container
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Size = new Vector2(SIZE),
+                            Children = new Drawable[]
+                            {
+                                disc = new CircularContainer
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Anchor = Anchor.Centre,
+                                    Origin = Anchor.Centre,
+                                    Masking = true,
+                                    BorderThickness = 4,
+                                    BorderColour = Color4.White,
+                                    EdgeEffect = new EdgeEffectParameters
+                                    {
+                                        Type = EdgeEffectType.Glow,
+                                        Colour = colour.Opacity(0),
+                                        Radius = 22,
+                                    },
+                                    Children = new Drawable[]
+                                    {
+                                        new Box
+                                        {
+                                            RelativeSizeAxes = Axes.Both,
+                                            Colour = ColourInfo.GradientVertical(colour.Lighten(0.3f), colour.Darken(0.4f)),
+                                        },
+                                        new SpriteIcon
+                                        {
+                                            Anchor = Anchor.Centre,
+                                            Origin = Anchor.Centre,
+                                            Size = new Vector2(30),
+                                            Icon = ability.Icon,
+                                            Shadow = true,
+                                        },
+                                    },
+                                },
+                                ring = new CircularProgress
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Anchor = Anchor.Centre,
+                                    Origin = Anchor.Centre,
+                                    InnerRadius = 0.14f,
+                                    Colour = Color4.White.Opacity(0.8f),
+                                    Alpha = 0,
+                                },
+                                lockIcon = new SpriteIcon
+                                {
+                                    Anchor = Anchor.BottomRight,
+                                    Origin = Anchor.Centre,
+                                    Size = new Vector2(18),
+                                    Icon = FontAwesome.Solid.Lock,
+                                    Colour = Color4.White,
+                                    Shadow = true,
+                                    Alpha = 0,
+                                },
+                            },
+                        },
+                        new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Text = ClickerStrings.Text(ability.Name),
+                            Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
+                            Shadow = true,
+                        },
+                        timeText = new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
+                            Colour = Color4.White.Opacity(0.8f),
+                        },
+                    },
+                },
+            };
+        }
+
+        /// <summary>
+        /// Called every frame by the screen; only state changes start transforms.
+        /// </summary>
+        /// <param name="newState">Locked, ready, active or cooling down.</param>
+        /// <param name="fraction">Remaining share of the active time or the cooldown (fills the ring).</param>
+        /// <param name="time">Remaining time as text, or empty.</param>
+        public void SetState(AbilityState newState, double fraction, string time)
+        {
+            if (time != lastTime)
+            {
+                lastTime = time;
+                timeText.Text = time;
+            }
+
+            ring.Progress = Math.Clamp(fraction, 0, 1);
+
+            if (newState == state)
+                return;
+
+            state = newState;
+            Enabled.Value = newState == AbilityState.Ready;
+            disc.ClearTransforms();
+
+            string name = ClickerStrings.Pick(Ability.Name);
+            string description = ClickerStrings.Pick(Ability.Description);
+
+            switch (newState)
+            {
+                case AbilityState.Locked:
+                    this.FadeTo(0.45f, 200);
+                    lockIcon.FadeIn(200);
+                    ring.FadeOut(200);
+                    disc.ScaleTo(1f, 200);
+                    disc.FadeEdgeEffectTo(colour.Opacity(0), 200);
+                    TooltipText = ClickerStrings.Text("{0}: {1} Unlock it in the shop for {2} PP.", "{0}: {1} Im Shop für {2} PP freischalten.", name, description, ClickerFormat.Number(Ability.UnlockCost));
+                    break;
+
+                case AbilityState.Ready:
+                    this.FadeTo(1f, 200);
+                    lockIcon.FadeOut(200);
+                    ring.FadeOut(200);
+                    disc.FadeEdgeEffectTo(colour.Opacity(0.8f), 300);
+                    disc.Loop(d => d.ScaleTo(1.08f, 500, Easing.InOutSine).Then().ScaleTo(1f, 500, Easing.InOutSine));
+                    TooltipText = ClickerStrings.Text("{0}: {1} Click to activate.", "{0}: {1} Klicken zum Aktivieren.", name, description);
+                    break;
+
+                case AbilityState.Active:
+                    this.FadeTo(1f, 200);
+                    lockIcon.FadeOut(200);
+                    ring.Colour = colour.Lighten(0.7f);
+                    ring.FadeIn(100);
+                    disc.ScaleTo(1.12f, 200, Easing.OutQuint);
+                    disc.FadeEdgeEffectTo(colour.Opacity(1), 200);
+                    TooltipText = ClickerStrings.Text("{0} is active!", "{0} ist aktiv!", name);
+                    break;
+
+                case AbilityState.Cooldown:
+                    this.FadeTo(0.8f, 200);
+                    lockIcon.FadeOut(200);
+                    ring.Colour = Color4.White.Opacity(0.7f);
+                    ring.FadeIn(200);
+                    disc.ScaleTo(1f, 300, Easing.OutQuint);
+                    disc.FadeEdgeEffectTo(colour.Opacity(0), 300);
+                    TooltipText = ClickerStrings.Text("{0}: ready again soon.", "{0}: bald wieder bereit.", name);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Small popover with the three volume sliders (master, music, effects) of the audio manager.
+    /// </summary>
+    internal partial class ClickerVolumePopover : VisibilityContainer
+    {
+        private const float popover_width = 250;
+
+        public ClickerVolumePopover()
+        {
+            AutoSizeAxes = Axes.Both;
+            Masking = true;
+            CornerRadius = 10;
+            EdgeEffect = new EdgeEffectParameters
+            {
+                Type = EdgeEffectType.Shadow,
+                Colour = Color4.Black.Opacity(0.4f),
+                Radius = 16,
+            };
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(AudioManager audio)
+        {
+            Children = new Drawable[]
+            {
+                new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = Color4Extensions.FromHex("1b1420").Opacity(0.97f),
+                },
+                new FillFlowContainer
+                {
+                    Width = popover_width,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Vertical,
+                    Padding = new MarginPadding(14),
+                    Spacing = new Vector2(0, 8),
+                    Children = new[]
+                    {
+                        createRow(ClickerStrings.Text("Master", "Gesamt"), audio.Volume),
+                        createRow(ClickerStrings.Text("Music", "Musik"), audio.VolumeTrack),
+                        createRow(ClickerStrings.Text("Effects", "Effekte"), audio.VolumeSample),
+                    },
+                },
+            };
+        }
+
+        private static Drawable createRow(LocalisableString label, BindableNumber<double> volume) => new FillFlowContainer
+        {
+            RelativeSizeAxes = Axes.X,
+            AutoSizeAxes = Axes.Y,
+            Direction = FillDirection.Vertical,
+            Spacing = new Vector2(0, 2),
+            Children = new Drawable[]
+            {
+                new OsuSpriteText
+                {
+                    Text = label,
+                    Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
+                },
+                new RoundedSliderBar<double>
+                {
+                    RelativeSizeAxes = Axes.X,
+                    Current = volume.GetBoundCopy(),
+                    DisplayAsPercentage = true,
+                },
+            },
+        };
+
+        protected override void PopIn() => this.FadeIn(150, Easing.OutQuint).ScaleTo(1f, 200, Easing.OutQuint);
+
+        protected override void PopOut() => this.FadeOut(150, Easing.OutQuint).ScaleTo(0.95f, 150, Easing.OutQuint);
+    }
+
+    /// <summary>
+    /// Hold-to-confirm dialog of the clicker (rebirth, respec).
+    /// </summary>
+    internal partial class ClickerConfirmDialog : DangerousActionDialog
+    {
+        public ClickerConfirmDialog(LocalisableString header, LocalisableString body, LocalisableString confirm, IconUsage icon, Action action)
+        {
+            HeaderText = header;
+            BodyText = body;
+            Icon = icon;
+            DangerousAction = action;
+
+            Buttons = new PopupDialogButton[]
+            {
+                new PopupDialogDangerousButton
+                {
+                    Text = confirm,
+                    Action = () => DangerousAction?.Invoke(),
+                },
+                new PopupDialogCancelButton
+                {
+                    Text = ClickerStrings.Text("Cancel", "Abbrechen"),
+                },
+            };
+        }
+    }
+
+    /// <summary>
+    /// Small pill-shaped toggle button (buy amount, stances, expedition choices).
+    /// </summary>
+    internal partial class ClickerPillButton : OsuClickableContainer
+    {
+        public readonly LocalisableString Label;
+
+        private readonly Color4 accent;
+        private readonly Box background;
+        private bool active;
+
+        public ClickerPillButton(LocalisableString label, Color4 accent, Action action, IconUsage? icon = null)
+        {
+            Label = label;
+            this.accent = accent;
+            Action = action;
+
+            AutoSizeAxes = Axes.X;
+            Height = 30;
+            Masking = true;
+            CornerRadius = 15;
+
+            var content = new FillFlowContainer
+            {
+                AutoSizeAxes = Axes.Both,
+                Anchor = Anchor.CentreLeft,
+                Origin = Anchor.CentreLeft,
+                Direction = FillDirection.Horizontal,
+                Spacing = new Vector2(6, 0),
+                Padding = new MarginPadding { Horizontal = 12 },
+            };
+
+            if (icon != null)
+            {
+                content.Add(new SpriteIcon
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Size = new Vector2(13),
+                    Icon = icon.Value,
+                });
+            }
+
+            content.Add(new OsuSpriteText
+            {
+                Anchor = Anchor.CentreLeft,
+                Origin = Anchor.CentreLeft,
+                Text = label,
+                Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
+            });
+
+            Children = new Drawable[]
+            {
+                background = new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = Color4.Black,
+                    Alpha = 0.4f,
+                },
+                content,
+            };
+        }
+
+        public bool Active
+        {
+            get => active;
+            set
+            {
+                active = value;
+                background.FadeColour(value ? accent : Color4.Black, 150, Easing.OutQuint);
+                background.FadeTo(value ? 0.9f : 0.4f, 150, Easing.OutQuint);
+            }
+        }
+
+        public void SetEnabled(bool enabled)
+        {
+            Enabled.Value = enabled;
+            this.FadeTo(enabled ? 1f : 0.4f, 150, Easing.OutQuint);
         }
     }
 
@@ -378,9 +1029,14 @@ namespace osu.Game.Screens.Banchosucks
             };
         }
 
-        public void Increment()
+        public void Increment() => Set(Current + 1);
+
+        /// <summary>
+        /// Shows the engine's combo with the pop-out animation of a hit.
+        /// </summary>
+        public void Set(int value)
         {
-            Current++;
+            Current = value;
             text.Text = popOut.Text = $"{Current}x";
             text.FadeColour(Color4.White);
             popOut.FadeTo(0.5f).ScaleTo(1f).ScaleTo(1.5f, 250, Easing.OutQuint).FadeOut(250);
@@ -468,33 +1124,39 @@ namespace osu.Game.Screens.Banchosucks
     }
 
     /// <summary>
-    /// One building or upgrade in the shop.
+    /// One building, star, upgrade, synergy or ability in the shop. The texts are polled every frame through delegates.
     /// </summary>
     internal partial class ClickerShopRow : CompositeDrawable
     {
+        public readonly LocalisableString Title;
+
         private readonly Func<string> detail;
         private readonly Func<string> buttonText;
         private readonly Func<bool> enabled;
         private readonly Func<string>? bigCount;
-        private readonly Color4 accent;
+        private readonly Func<string>? hint;
         private readonly Box background;
         private readonly Box accentBar;
         private readonly OsuSpriteText detailText;
         private readonly OsuSpriteText countText;
+        private readonly OsuSpriteText hintText;
         private readonly RoundedButton button;
         private string lastDetail = string.Empty;
         private string lastButtonText = string.Empty;
         private string lastCount = string.Empty;
+        private string lastHint = string.Empty;
         private bool? lastEnabled;
 
-        public ClickerShopRow(Drawable icon, Color4 accent, string title, string description, Func<string> detail, Func<string> buttonText,
-                              Func<bool> enabled, Action action, Func<string>? bigCount = null)
+        /// <param name="hint">Small text under the button ("ready in 0:42"); empty hides it.</param>
+        public ClickerShopRow(Drawable icon, Color4 accent, LocalisableString title, LocalisableString description, Func<string> detail, Func<string> buttonText,
+                              Func<bool> enabled, Action action, Func<string>? bigCount = null, Func<string>? hint = null)
         {
+            Title = title;
             this.detail = detail;
             this.buttonText = buttonText;
             this.enabled = enabled;
             this.bigCount = bigCount;
-            this.accent = accent;
+            this.hint = hint;
 
             RelativeSizeAxes = Axes.X;
             Height = 78;
@@ -541,10 +1203,11 @@ namespace osu.Game.Screens.Banchosucks
                     Spacing = new Vector2(0, 1),
                     Children = new Drawable[]
                     {
-                        new OsuSpriteText
+                        new TruncatingSpriteText
                         {
                             Text = title,
                             Font = OsuFont.GetFont(size: 19, weight: FontWeight.Bold),
+                            RelativeSizeAxes = Axes.X,
                         },
                         new TruncatingSpriteText
                         {
@@ -565,9 +1228,19 @@ namespace osu.Game.Screens.Banchosucks
                     Anchor = Anchor.CentreRight,
                     Origin = Anchor.CentreRight,
                     X = -10,
+                    Y = hint != null ? -7 : 0,
                     Width = 130,
                     Action = action,
                     BackgroundColour = accent.Darken(0.45f),
+                },
+                hintText = new OsuSpriteText
+                {
+                    Anchor = Anchor.BottomRight,
+                    Origin = Anchor.BottomRight,
+                    X = -14,
+                    Y = -5,
+                    Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                    Colour = Color4.White.Opacity(0.6f),
                 },
             };
         }
@@ -601,6 +1274,13 @@ namespace osu.Game.Screens.Banchosucks
                 string newCount = bigCount();
                 if (newCount != lastCount)
                     countText.Text = lastCount = newCount;
+            }
+
+            if (hint != null)
+            {
+                string newHint = hint();
+                if (newHint != lastHint)
+                    hintText.Text = lastHint = newHint;
             }
 
             bool isEnabled = enabled();
@@ -651,7 +1331,7 @@ namespace osu.Game.Screens.Banchosucks
         private readonly Color4 activeColour;
         private bool active;
 
-        public ClickerTabButton(string text, IconUsage icon, Color4 activeColour, Action action)
+        public ClickerTabButton(LocalisableString text, IconUsage icon, Color4 activeColour, Action action, float fontSize = 20, float iconSize = 16)
         {
             this.activeColour = activeColour;
             Action = action;
@@ -666,7 +1346,7 @@ namespace osu.Game.Screens.Banchosucks
                     Anchor = Anchor.CentreLeft,
                     Origin = Anchor.CentreLeft,
                     Direction = FillDirection.Horizontal,
-                    Spacing = new Vector2(8, 0),
+                    Spacing = new Vector2(fontSize >= 20 ? 8 : 5, 0),
                     Padding = new MarginPadding { Horizontal = 6 },
                     Children = new Drawable[]
                     {
@@ -675,14 +1355,14 @@ namespace osu.Game.Screens.Banchosucks
                             Anchor = Anchor.CentreLeft,
                             Origin = Anchor.CentreLeft,
                             Icon = icon,
-                            Size = new Vector2(16),
+                            Size = new Vector2(iconSize),
                         },
                         label = new OsuSpriteText
                         {
                             Anchor = Anchor.CentreLeft,
                             Origin = Anchor.CentreLeft,
                             Text = text,
-                            Font = OsuFont.GetFont(size: 20, weight: FontWeight.Bold),
+                            Font = OsuFont.GetFont(size: fontSize, weight: FontWeight.Bold),
                         },
                     },
                 },

@@ -65,6 +65,7 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Game.Screens;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Footer;
 using osu.Game.Screens.Menu;
@@ -1172,6 +1173,9 @@ namespace osu.Game
 
             // Banchosucks: renders replays to video on this PC with danser-go (downloaded after the player agreed)
             loadComponentSingleFile(new BanchosucksReplayRenderer(), Add, true);
+
+            // Banchosucks: the osu! Clicker keeps producing in every screen (menu, gameplay, editor)
+            loadComponentSingleFile(new ClickerEngine(), Add, true);
 
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {

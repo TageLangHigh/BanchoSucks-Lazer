@@ -51,16 +51,24 @@ Für den Client heißt das zusätzlich:
 ## 3. Wo was liegt
 
 - `BANCHOSUCKS.md`: alle Banchosucks-Änderungen am Client, Branding, Lizenz-Hinweise.
-- Minispiele und osu! Clicker: `osu.Game/Screens/Banchosucks/`. Zahlen und Spielstand-Format in
-  `ClickerBalance.cs`, Grafik in `ClickerDrawables.cs`, Rangliste und API-Anfragen in
-  `ClickerLeaderboard.cs`, Tipp-BPM in `TapBpmMeter.cs`, der Screen in `OsuClickerScreen.cs`.
-  Tests: `osu.Game.Tests/Visual/Navigation/TestSceneBanchosucksMinigames.cs` und
-  `osu.Game.Tests/NonVisual/BanchosucksTapBpmMeterTest.cs`.
+- Minispiele und osu! Clicker: `osu.Game/Screens/Banchosucks/`. Das Spiel selbst ist
+  `Clicker/ClickerEngine.cs` (lebt in `OsuGame`, produziert in jedem Bildschirm, speichert,
+  sendet an den Server); der Bildschirm `OsuClickerScreen.cs` zeigt nur an. Alle Zahlen stehen in
+  `Clicker/clicker-balance.json` (eingebettet), nie im Code; Rechnungen in
+  `Clicker/ClickerEconomy.cs`, Spielstand in `Clicker/ClickerState.cs`, Texte Deutsch und
+  Englisch in `Clicker/ClickerStrings.cs`, API-Modelle in `Clicker/ClickerRequests.cs`, Grafik in
+  `ClickerDrawables.cs` und `ClickerPanels.cs`, Rangliste in `ClickerLeaderboard.cs`, Tipp-BPM in
+  `TapBpmMeter.cs`. Tests: `osu.Game.Tests/Visual/Navigation/TestSceneBanchosucksMinigames.cs`,
+  `osu.Game.Tests/NonVisual/BanchosucksTapBpmMeterTest.cs` und
+  `osu.Game.Tests/NonVisual/BanchosucksClickerEconomyTest.cs` (gemeinsame Fixture mit dem Plugin).
 - Die Server-Regeln zum Clicker leben im Website-Repo in
-  `server/lazer/plugins/banchosucks_clicker/__init__.py`: dieselben Zahlen wie `ClickerBalance.cs`,
-  die Plausibilitätsprüfung und `BPM_EPOCH`. Client und Plugin immer zusammen ändern, sonst lehnt
-  der Server ehrliche Spieler ab. Ein BPM-Rekord zählt nur, wenn der Client `bpm_epoch` mitschickt
-  und der Wert mindestens `BPM_EPOCH` ist; wer die Tipp-Erkennung ändert, erhöht den Wert in beiden.
+  `server/lazer/plugins/banchosucks_clicker/`: `clicker-balance.json` (byteweise gleiche Kopie
+  der Client-Datei), `economy.py` (Spiegel von `ClickerEconomy.cs`), `__init__.py` (API, kappt
+  unplausibles Wachstum, Saison-Feld, Cloud-Save). Zahlen nur in der JSON ändern, dann
+  `make_fixture.py` laufen lassen und die Fixture in beide Repos kopieren; Client und Plugin
+  immer zusammen ausrollen. Eine neue Belohnungsquelle muss in `growth_allowance` (economy.py)
+  eingerechnet werden, sonst werden ehrliche Spieler gekappt. Ein BPM-Rekord zählt nur mit
+  `bpm_epoch` >= Wert der Bilanzdatei; ein Reset läuft über `season`.
 - Discord Rich Presence: `osu.Desktop/DiscordRichPresence.cs`, App-ID und Bilder kommen vom
   Lazer-Plugin `banchosucks_client` im Website-Repo.
 - Replay-Renderer (danser-go): `osu.Game/Scoring/BanchosucksReplayRenderer.cs`.

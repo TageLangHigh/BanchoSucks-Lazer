@@ -27,6 +27,7 @@ using osu.Game.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Online.Rooms;
 using osu.Game.Overlays;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
@@ -161,7 +162,7 @@ namespace osu.Game.Screens.Menu
             buttonsPlay.Add(new MainMenuButton(ButtonSystemStrings.Multi, @"button-default-select", OsuIcon.Online, new Color4(94, 63, 186, 255), (_, _) => State = ButtonSystemState.Multi, Key.M));
             buttonsPlay.Add(new MainMenuButton(ButtonSystemStrings.Playlists, @"button-default-select", OsuIcon.Tournament, new Color4(94, 63, 186, 255), onPlaylists, Key.L));
             buttonsPlay.Add(new DailyChallengeButton(@"button-daily-select", new Color4(94, 63, 186, 255), onDailyChallenge, Key.D));
-            buttonsPlay.Add(new MainMenuButton("minispiele", @"button-default-select", FontAwesome.Solid.Gamepad, new Color4(255, 73, 100, 255), (_, _) => OnMinigames?.Invoke(), Key.G));
+            buttonsPlay.Add(new MainMenuButton(ClickerStrings.Text("minigames", "minispiele"), @"button-default-select", FontAwesome.Solid.Gamepad, new Color4(255, 73, 100, 255), (_, _) => OnMinigames?.Invoke(), Key.G));
             buttonsPlay.ForEach(b => b.VisibleState = ButtonSystemState.Play);
 
             buttonsMulti.Add(new MainMenuButton(ButtonSystemStrings.Lounge, @"button-default-select", FontAwesome.Solid.Couch, new Color4(94, 63, 186, 255), onMultiplayer, Key.L, Key.M)

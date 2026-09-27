@@ -43,6 +43,10 @@ Full licence text: see LICENCE and LICENCE-OSU.</PackageReleaseNotes>
   </ItemGroup>
   <!-- BanchoSucks branding overrides live in Resources\** (embedded via Directory.Build.props) and take
        precedence over the g0v0 resources package for same-named files, see OsuGameBase. -->
+  <ItemGroup Label="Banchosucks">
+    <!-- osu! Clicker balance: the single source of numbers, mirrored by the lazer server plugin banchosucks_clicker -->
+    <EmbeddedResource Include="Screens\Banchosucks\Clicker\clicker-balance.json" LogicalName="clicker-balance.json" />
+  </ItemGroup>
   <ItemGroup Label="Package References">
     <!-- Resources are released separately from GooGuTeam/g0v0-resources and must stay aligned with the game package version. -->
     <PackageReference Include="g0v0.osu.Game.Resources" Version="$(G0V0ResourcesVersion)" />

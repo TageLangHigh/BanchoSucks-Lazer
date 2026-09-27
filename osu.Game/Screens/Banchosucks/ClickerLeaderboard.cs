@@ -3,21 +3,20 @@
 
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
-using Newtonsoft.Json;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
-using osu.Framework.IO.Network;
+using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osu.Game.Users;
 using osu.Game.Users.Drawables;
 using osuTK;
@@ -25,150 +24,17 @@ using osuTK.Graphics;
 
 namespace osu.Game.Screens.Banchosucks
 {
-    public class ClickerSubmission
-    {
-        [JsonProperty("total_earned")]
-        public double TotalEarned { get; set; }
-
-        [JsonProperty("clicks")]
-        public long Clicks { get; set; }
-
-        [JsonProperty("best_bpm")]
-        public double BestBpm { get; set; }
-
-        [JsonProperty("bpm_epoch")]
-        public int BpmEpoch { get; set; }
-
-        [JsonProperty("best_combo")]
-        public int BestCombo { get; set; }
-
-        [JsonProperty("producers")]
-        public Dictionary<string, int> Producers { get; set; } = new Dictionary<string, int>();
-
-        [JsonProperty("upgrades")]
-        public List<string> Upgrades { get; set; } = new List<string>();
-    }
-
-    public class ClickerSubmitResponse
-    {
-        [JsonProperty("accepted")]
-        public bool Accepted { get; set; }
-
-        [JsonProperty("reason")]
-        public string? Reason { get; set; }
-
-        [JsonProperty("rank_pp")]
-        public int? RankPp { get; set; }
-
-        [JsonProperty("rank_bpm")]
-        public int? RankBpm { get; set; }
-    }
-
-    public class ClickerLeaderboardEntry
-    {
-        [JsonProperty("rank")]
-        public int Rank { get; set; }
-
-        [JsonProperty("user_id")]
-        public long UserId { get; set; }
-
-        [JsonProperty("username")]
-        public string Username { get; set; } = string.Empty;
-
-        [JsonProperty("country_code")]
-        public string? CountryCode { get; set; }
-
-        [JsonProperty("avatar_url")]
-        public string? AvatarUrl { get; set; }
-
-        [JsonProperty("total_earned")]
-        public double TotalEarned { get; set; }
-
-        [JsonProperty("best_bpm")]
-        public double BestBpm { get; set; }
-
-        [JsonProperty("best_combo")]
-        public int BestCombo { get; set; }
-
-        [JsonProperty("clicks")]
-        public long Clicks { get; set; }
-
-        [JsonProperty("buildings")]
-        public int Buildings { get; set; }
-    }
-
-    public class ClickerLeaderboardResponse
-    {
-        [JsonProperty("sort")]
-        public string Sort { get; set; } = "pp";
-
-        [JsonProperty("total")]
-        public int Total { get; set; }
-
-        [JsonProperty("entries")]
-        public List<ClickerLeaderboardEntry> Entries { get; set; } = new List<ClickerLeaderboardEntry>();
-
-        [JsonProperty("own")]
-        public ClickerLeaderboardEntry? Own { get; set; }
-    }
-
     /// <summary>
-    /// Banchosucks: sends the osu! Clicker progress to the lazer server plugin <c>banchosucks_clicker</c>.
-    /// </summary>
-    public class SubmitClickerScoreRequest : APIRequest<ClickerSubmitResponse>
-    {
-        public readonly ClickerSubmission Submission;
-
-        public SubmitClickerScoreRequest(ClickerSubmission submission)
-        {
-            Submission = submission;
-        }
-
-        protected override string Route => "plugins";
-
-        protected override string Target => "banchosucks_clicker/submit";
-
-        protected override WebRequest CreateWebRequest()
-        {
-            var req = base.CreateWebRequest();
-            req.Method = HttpMethod.Post;
-            req.ContentType = "application/json";
-            req.AddRaw(JsonConvert.SerializeObject(Submission));
-            return req;
-        }
-    }
-
-    /// <summary>
-    /// Banchosucks: osu! Clicker leaderboard, sorted by earned PP ("pp") or tapping speed ("bpm").
-    /// </summary>
-    public class GetClickerLeaderboardRequest : APIRequest<ClickerLeaderboardResponse>
-    {
-        public readonly string Sort;
-
-        public GetClickerLeaderboardRequest(string sort)
-        {
-            Sort = sort;
-        }
-
-        protected override string Route => "plugins";
-
-        protected override string Target => "banchosucks_clicker/leaderboard";
-
-        protected override WebRequest CreateWebRequest()
-        {
-            var req = base.CreateWebRequest();
-            req.AddParameter("sort", Sort);
-            req.AddParameter("limit", "50");
-            return req;
-        }
-    }
-
-    /// <summary>
-    /// The "Rangliste" tab of the osu! Clicker.
+    /// The "Rangliste" tab of the osu! Clicker: lifetime PP, tapping BPM, prestige points or medals.
     /// </summary>
     internal partial class ClickerLeaderboardPanel : CompositeDrawable
     {
         private const double refresh_interval = 30_000;
+
+        public const string SORT_PP = "pp";
+        public const string SORT_BPM = "bpm";
+        public const string SORT_PRESTIGE = "prestige";
+        public const string SORT_MEDALS = "medals";
 
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
@@ -176,15 +42,19 @@ namespace osu.Game.Screens.Banchosucks
         [Resolved]
         private OsuColour colours { get; set; } = null!;
 
-        private string sort = "pp";
+        private string sort = SORT_PP;
         private GetClickerLeaderboardRequest? request;
-        private ClickerTabButton ppTab = null!;
-        private ClickerTabButton bpmTab = null!;
+        private readonly Dictionary<string, ClickerTabButton> sortTabs = new Dictionary<string, ClickerTabButton>();
         private OsuSpriteText ownText = null!;
         private OsuSpriteText statusText = null!;
         private FillFlowContainer rows = null!;
         private LoadingSpinner loading = null!;
         private double lastRefresh = double.MinValue;
+
+        /// <summary>
+        /// The sort currently shown (tests check which one was requested).
+        /// </summary>
+        public string Sort => sort;
 
         public ClickerLeaderboardPanel()
         {
@@ -212,12 +82,14 @@ namespace osu.Game.Screens.Banchosucks
                         {
                             RelativeSizeAxes = Axes.Both,
                             Direction = FillDirection.Horizontal,
-                            Spacing = new Vector2(12, 0),
-                            Padding = new MarginPadding { Horizontal = 16 },
+                            Spacing = new Vector2(8, 0),
+                            Padding = new MarginPadding { Horizontal = 12 },
                             Children = new Drawable[]
                             {
-                                ppTab = new ClickerTabButton("PP", FontAwesome.Solid.Coins, colours.Pink, () => setSort("pp")),
-                                bpmTab = new ClickerTabButton("Tapping-BPM", FontAwesome.Solid.Bolt, colours.Yellow, () => setSort("bpm")),
+                                sortTabs[SORT_PP] = new ClickerTabButton(ClickerStrings.Text("PP", "PP"), FontAwesome.Solid.Coins, colours.Pink, () => setSort(SORT_PP), 15, 14),
+                                sortTabs[SORT_BPM] = new ClickerTabButton(ClickerStrings.Text("Tapping BPM", "Tapping-BPM"), FontAwesome.Solid.Bolt, colours.Yellow, () => setSort(SORT_BPM), 15, 14),
+                                sortTabs[SORT_PRESTIGE] = new ClickerTabButton(ClickerStrings.Text("Prestige", "Prestige"), FontAwesome.Solid.Star, colours.Purple, () => setSort(SORT_PRESTIGE), 15, 14),
+                                sortTabs[SORT_MEDALS] = new ClickerTabButton(ClickerStrings.Text("Medals", "Medaillen"), FontAwesome.Solid.Medal, colours.Green, () => setSort(SORT_MEDALS), 15, 14),
                             },
                         },
                     },
@@ -268,7 +140,7 @@ namespace osu.Game.Screens.Banchosucks
         protected override void LoadComplete()
         {
             base.LoadComplete();
-            ppTab.Active = true;
+            sortTabs[SORT_PP].Active = true;
         }
 
         protected override void Update()
@@ -283,8 +155,10 @@ namespace osu.Game.Screens.Banchosucks
         private void setSort(string newSort)
         {
             sort = newSort;
-            ppTab.Active = sort == "pp";
-            bpmTab.Active = sort == "bpm";
+
+            foreach (var (id, tab) in sortTabs)
+                tab.Active = id == sort;
+
             Refresh();
         }
 
@@ -299,7 +173,7 @@ namespace osu.Game.Screens.Banchosucks
                 loading.Hide();
                 rows.Clear();
                 ownText.Text = string.Empty;
-                statusText.Text = "Melde dich an, um die Rangliste zu sehen.";
+                statusText.Text = ClickerStrings.Text("Log in to see the leaderboard.", "Melde dich an, um die Rangliste zu sehen.");
                 statusText.FadeIn(200);
                 return;
             }
@@ -324,7 +198,7 @@ namespace osu.Game.Screens.Banchosucks
                 loading.Hide();
                 rows.Clear();
                 ownText.Text = string.Empty;
-                statusText.Text = "Rangliste gerade nicht erreichbar.";
+                statusText.Text = ClickerStrings.Text("The leaderboard is not reachable right now.", "Rangliste gerade nicht erreichbar.");
                 statusText.FadeIn(200);
             };
 
@@ -334,13 +208,20 @@ namespace osu.Game.Screens.Banchosucks
         /// <summary>
         /// Shows the ranks the server returned after a submission, until the next refresh.
         /// </summary>
-        public void SetOwnRanks(int? rankPp, int? rankBpm)
+        public void SetOwnRanks(ClickerSubmitResponse response)
         {
-            if (rankPp == null && rankBpm == null)
+            if (response.RankPp == null && response.RankBpm == null && response.RankPrestige == null)
                 return;
 
-            ownText.Text = $"Dein Rang: PP #{rankPp?.ToString() ?? "–"} · BPM #{rankBpm?.ToString() ?? "–"}";
+            submittedRanks = ClickerStrings.Pick(
+                $"Your rank: PP #{rank(response.RankPp)} · BPM #{rank(response.RankBpm)} · Prestige #{rank(response.RankPrestige)}",
+                $"Dein Rang: PP #{rank(response.RankPp)} · BPM #{rank(response.RankBpm)} · Prestige #{rank(response.RankPrestige)}");
+            ownText.Text = submittedRanks;
         }
+
+        private string? submittedRanks;
+
+        private static string rank(int? value) => value?.ToString() ?? "–";
 
         private void showBoard(ClickerLeaderboardResponse response)
         {
@@ -348,7 +229,7 @@ namespace osu.Game.Screens.Banchosucks
 
             if (response.Entries.Count == 0)
             {
-                statusText.Text = "Noch niemand in der Rangliste. Sei die erste Person!";
+                statusText.Text = ClickerStrings.Text("Nobody on the leaderboard yet. Be the first!", "Noch niemand in der Rangliste. Sei die erste Person!");
                 statusText.FadeIn(200);
             }
             else
@@ -377,11 +258,44 @@ namespace osu.Game.Screens.Banchosucks
                 rows.Add(new LeaderboardRow(response.Own, sort, true));
             }
 
+            // the ranks of the last submission stay until the board itself knows where the player is
             ownText.Text = response.Own != null
-                ? $"Dein Rang: #{response.Own.Rank} von {response.Total}"
-                : api.IsLoggedIn
-                    ? $"{response.Total} Spieler · Dein Fortschritt wird jede Minute eingereicht."
-                    : $"{response.Total} Spieler · Melde dich an, um mitzumachen.";
+                ? ClickerStrings.Pick($"Your rank: #{response.Own.Rank} of {response.Total}", $"Dein Rang: #{response.Own.Rank} von {response.Total}")
+                : submittedRanks ?? (api.IsLoggedIn
+                    ? ClickerStrings.Pick($"{response.Total} players · your progress is submitted every minute.", $"{response.Total} Spieler · Dein Fortschritt wird jede Minute eingereicht.")
+                    : ClickerStrings.Pick($"{response.Total} players · log in to take part.", $"{response.Total} Spieler · Melde dich an, um mitzumachen."));
+        }
+
+        /// <summary>
+        /// The big number of a row for the given sort.
+        /// </summary>
+        public static string ValueText(ClickerLeaderboardEntry entry, string sort)
+        {
+            switch (sort)
+            {
+                case SORT_BPM: return $"{entry.BestBpm:0} BPM";
+                case SORT_PRESTIGE: return ClickerStrings.Pick($"{entry.Prestige} prestige", $"{entry.Prestige} Prestige");
+                case SORT_MEDALS: return ClickerStrings.Pick($"{entry.Medals} medals", $"{entry.Medals} Medaillen");
+                default: return $"{ClickerFormat.Number(entry.TotalEarned)} PP";
+            }
+        }
+
+        private static string secondaryText(ClickerLeaderboardEntry entry, string sort)
+        {
+            switch (sort)
+            {
+                case SORT_BPM:
+                    return ClickerStrings.Pick($"{ClickerFormat.Number(entry.TotalEarned)} PP · combo {ClickerFormat.Count(entry.BestCombo)}", $"{ClickerFormat.Number(entry.TotalEarned)} PP · Combo {ClickerFormat.Count(entry.BestCombo)}");
+
+                case SORT_PRESTIGE:
+                    return ClickerStrings.Pick($"{entry.Rebirths} rebirths · {ClickerFormat.Number(entry.TotalEarned)} PP", $"{entry.Rebirths} Rebirths · {ClickerFormat.Number(entry.TotalEarned)} PP");
+
+                case SORT_MEDALS:
+                    return ClickerStrings.Pick($"{entry.Prestige} prestige · {ClickerFormat.Count(entry.Buildings)} buildings", $"{entry.Prestige} Prestige · {ClickerFormat.Count(entry.Buildings)} Gebäude");
+
+                default:
+                    return ClickerStrings.Pick($"{ClickerFormat.Count(entry.Buildings)} buildings · {entry.Rebirths} rebirths · {entry.Medals} medals", $"{ClickerFormat.Count(entry.Buildings)} Gebäude · {entry.Rebirths} Rebirths · {entry.Medals} Medaillen");
+            }
         }
 
         private partial class LeaderboardRow : CompositeDrawable
@@ -413,6 +327,14 @@ namespace osu.Game.Screens.Banchosucks
                     _ => Color4.White,
                 };
 
+                Color4 valueColour = sort switch
+                {
+                    SORT_BPM => colours.Yellow,
+                    SORT_PRESTIGE => colours.Purple.Lighten(0.5f),
+                    SORT_MEDALS => colours.Green.Lighten(0.3f),
+                    _ => colours.Pink.Lighten(0.4f),
+                };
+
                 Enum.TryParse(entry.CountryCode, true, out CountryCode country);
 
                 var user = new APIUser
@@ -422,11 +344,6 @@ namespace osu.Game.Screens.Banchosucks
                     AvatarUrl = entry.AvatarUrl ?? string.Empty,
                     CountryCode = country,
                 };
-
-                string value = sort == "bpm" ? $"{entry.BestBpm:0} BPM" : $"{ClickerFormat.Number(entry.TotalEarned)} PP";
-                string secondary = sort == "bpm"
-                    ? $"{ClickerFormat.Number(entry.TotalEarned)} PP · Combo {entry.BestCombo:N0}"
-                    : $"{entry.Buildings:N0} Gebäude · {entry.BestBpm:0} BPM";
 
                 InternalChildren = new Drawable[]
                 {
@@ -487,7 +404,7 @@ namespace osu.Game.Screens.Banchosucks
                             },
                             new OsuSpriteText
                             {
-                                Text = secondary,
+                                Text = secondaryText(entry, sort),
                                 Font = OsuFont.GetFont(size: 13),
                                 Colour = colours.Gray9,
                             },
@@ -498,9 +415,9 @@ namespace osu.Game.Screens.Banchosucks
                         Anchor = Anchor.CentreRight,
                         Origin = Anchor.CentreRight,
                         X = -14,
-                        Text = value,
+                        Text = ValueText(entry, sort),
                         Font = OsuFont.GetFont(size: 18, weight: FontWeight.Bold),
-                        Colour = sort == "bpm" ? colours.Yellow : colours.Pink.Lighten(0.4f),
+                        Colour = valueColour,
                     },
                 };
             }

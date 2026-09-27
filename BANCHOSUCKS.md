@@ -84,13 +84,27 @@ and restart the app container.
   its GitHub release only after the player agrees, checked against a pinned SHA-256 and kept
   in `<game data>/banchosucks-renderer/`. Antivirus programs sometimes quarantine its
   ffmpeg; the client then says so.
-- **Minigames** (main menu > Play > Minispiele): `osu.Game/Screens/Banchosucks/`, currently
-  "osu! Clicker", an idle clicker saved in `<game data>/banchosucks/osu-clicker.json`. It takes
-  the osu!standard tap keys from the player's key bindings and shows the tapping speed as stream BPM
-  (taps per second * 15, `TapBpmMeter`). Files: `ClickerBalance.cs` (numbers, save format),
-  `ClickerDrawables.cs` (circle with orbiting cursors and hit bursts, combo counter, bonus
-  spinner, shop rows with the real osu! mod icons), `ClickerLeaderboard.cs` ("Rangliste" tab).
-  Logged-in players send their progress every minute to the lazer plugin `banchosucks_clicker`
-  (`/api/plugins/banchosucks_clicker/submit`, leaderboard by PP or tapping BPM). The plugin
-  repeats the numbers from `ClickerBalance.cs` for its plausibility checks, so change both
-  together.
+- **Minigames** (main menu > Play > minigames): `osu.Game/Screens/Banchosucks/`, currently
+  "osu! Clicker" (season 2 since 2026-09-27), an idle clicker in osu! style. The game itself is
+  `Clicker/ClickerEngine.cs`, a component of `OsuGame` that keeps producing in every screen
+  (menu, gameplay, editor; one second per frame at most, longer gaps count as offline time),
+  saves atomically to `<game data>/banchosucks/osu-clicker.json` (+ `.bak.json`) and submits a
+  snapshot to the lazer plugin `banchosucks_clicker` every minute while the screen is open,
+  every five minutes otherwise, never during a play. Every number lives in
+  `Clicker/clicker-balance.json` (embedded; the plugin ships a byte-identical copy):
+  11 buildings (three unlocked by the prestige tree), 10 mod upgrades, building stars,
+  synergies, Kiai Time / farm map abilities, mod stances, spinner and slider events,
+  tournament expeditions, Encore (passed online maps pay), daily-challenge bonus, weekly server
+  modifier, 38 medals (+2 % production each), rebirths with prestige points
+  (floor(cbrt(lifetime PP / 1e8))) spent in a 34-node tree, respec for 10 % of the points.
+  `Clicker/ClickerEconomy.cs` derives all values from the state and is mirrored line by line by
+  the plugin's `economy.py`; both are checked against `osu.Game.Tests/Resources/Banchosucks/
+  clicker-balance-fixture.json`. Texts are English and German by client language
+  (`Clicker/ClickerStrings.cs`). Tapping speed is shown as stream BPM (taps per second * 15,
+  `TapBpmMeter`); taps faster than 500 BPM are refused. Screen: `OsuClickerScreen.cs` (tabs
+  Shop / Prestige / Medals / Stats / Leaderboard, volume popover, ability buttons),
+  `ClickerPanels.cs` (prestige tree, medals, stats, stance, expeditions), `ClickerDrawables.cs`
+  (circle, spinner, slider event, shop rows), `ClickerLeaderboard.cs` (PP, BPM, prestige and
+  medal boards). The server clamps implausible growth instead of rejecting it, keeps a cloud
+  save, awards five real profile medals and rejects saves from an older season
+  (`old_season`); the season 2 reset wiped every save and record once.
