@@ -154,7 +154,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
 
             ProductionMultiplier = productionMult
                                    * (1 + productionAdd)
-                                   * (1 + PrestigeEffective * PrestigeRate)
+                                   * PrestigeMultiplier(Balance, PrestigeEffective, PrestigeRate)
                                    * (1 + s.Medals.Count * b.MedalRate)
                                    * stanceProduction
                                    * wysi
@@ -176,6 +176,14 @@ namespace osu.Game.Screens.Banchosucks.Clicker
                 int away = s.Expeditions.Where(e => e.Producer == producer.Id).Sum(e => e.Count);
                 double rate = SingleRate(producer.Id);
                 double perSecond = Math.Max(count - away, 0) * rate;
+                producerRates[producer.Id] = perSecond;
+                total += perSecond;
+            }
+
+            // prestige buildings: bought with prestige points, survive rebirths, no stars or synergies
+            foreach (var producer in b.PrestigeProducers)
+            {
+                double perSecond = s.PrestigeProducers.GetValueOrDefault(producer.Id) * producer.PerSecond;
                 producerRates[producer.Id] = perSecond;
                 total += perSecond;
             }
@@ -385,6 +393,25 @@ namespace osu.Game.Screens.Banchosucks.Clicker
 
         // --------------------------------------------------------------- prestige
 
+        /// <summary>
+        /// Permanent production bonus of the prestige points: linear up to <see cref="ClickerBalance.PrestigeSoftcap"/>,
+        /// then growing with the square root (mirror of <c>economy.prestige_multiplier</c>). Without the soft cap the
+        /// bonus fed on itself: two players finished the whole tree within a day of season 2.
+        /// </summary>
+        public static double PrestigeMultiplier(ClickerBalance balance, int points, double rate)
+        {
+            double softcap = balance.PrestigeSoftcap;
+            if (softcap <= 0 || points <= softcap)
+                return 1 + points * rate;
+
+            return (1 + softcap * rate) * Math.Sqrt(points / softcap);
+        }
+
+        /// <summary>
+        /// The production bonus the prestige points give right now (for the prestige tab).
+        /// </summary>
+        public double PrestigeBonus => PrestigeMultiplier(Balance, PrestigeEffective, PrestigeRate);
+
         public static int PrestigeTotalFor(double lifetime, double divisor) => lifetime <= 0 ? 0 : (int)Math.Floor(Math.Cbrt(lifetime / divisor));
 
         public int PrestigeTotal => PrestigeTotalFor(State.TotalEarned, Balance.PrestigeDivisor);
@@ -396,7 +423,33 @@ namespace osu.Game.Screens.Banchosucks.Clicker
 
         public int PrestigeEffective => Math.Max(State.PrestigeClaimed - State.PrestigeBurned, 0);
 
-        public int PrestigeSpent => State.Tree.Sum(id => Balance.Node(id)?.Cost ?? 0);
+        public int PrestigeProducerCount(string id) => State.PrestigeProducers.GetValueOrDefault(id);
+
+        /// <summary>
+        /// Price in prestige points of the next prestige building when <paramref name="owned"/> are owned already.
+        /// </summary>
+        public int PrestigeProducerCost(ClickerPrestigeProducer producer, int owned) => (int)Math.Ceiling(producer.Cost * Math.Pow(Balance.PrestigeProducerGrowth, owned));
+
+        public int PrestigeProducerCost(ClickerPrestigeProducer producer) => PrestigeProducerCost(producer, PrestigeProducerCount(producer.Id));
+
+        public bool PrestigeProducersUnlocked => State.Rebirths >= Balance.PrestigeProducersUnlockRebirths;
+
+        public int PrestigeSpentOnBuildings
+        {
+            get
+            {
+                int spent = 0;
+                foreach (var producer in Balance.PrestigeProducers)
+                {
+                    for (int k = 0; k < PrestigeProducerCount(producer.Id); k++)
+                        spent += PrestigeProducerCost(producer, k);
+                }
+
+                return spent;
+            }
+        }
+
+        public int PrestigeSpent => State.Tree.Sum(id => Balance.Node(id)?.Cost ?? 0) + PrestigeSpentOnBuildings;
 
         public int PrestigeAvailable => PrestigeEffective - PrestigeSpent;
 

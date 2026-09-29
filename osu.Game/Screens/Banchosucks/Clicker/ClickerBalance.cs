@@ -60,6 +60,11 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonPropertyName("combo_timeout_ms")] public double ComboTimeoutMs { get; set; }
         [JsonPropertyName("prestige_divisor")] public double PrestigeDivisor { get; set; }
         [JsonPropertyName("prestige_rate")] public double PrestigeRate { get; set; }
+
+        /// <summary>
+        /// Prestige points up to which the bonus grows linearly; beyond it with the square root (0 = linear forever).
+        /// </summary>
+        [JsonPropertyName("prestige_softcap")] public double PrestigeSoftcap { get; set; }
         [JsonPropertyName("medal_rate")] public double MedalRate { get; set; }
         [JsonPropertyName("respec_share")] public double RespecShare { get; set; }
         [JsonPropertyName("stance_unlock_buildings")] public int StanceUnlockBuildings { get; set; }
@@ -77,6 +82,13 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonPropertyName("daily")] public DailyRules Daily { get; set; } = new DailyRules();
         [JsonPropertyName("expedition")] public ExpeditionRules Expedition { get; set; } = new ExpeditionRules();
         [JsonPropertyName("producers")] public ClickerProducer[] Producers { get; set; } = Array.Empty<ClickerProducer>();
+
+        /// <summary>
+        /// Buildings bought with prestige points; they survive rebirths and get neither stars nor synergies.
+        /// </summary>
+        [JsonPropertyName("prestige_producers")] public ClickerPrestigeProducer[] PrestigeProducers { get; set; } = Array.Empty<ClickerPrestigeProducer>();
+        [JsonPropertyName("prestige_producer_growth")] public double PrestigeProducerGrowth { get; set; } = 1.5;
+        [JsonPropertyName("prestige_producers_unlock_rebirths")] public int PrestigeProducersUnlockRebirths { get; set; } = 1;
         [JsonPropertyName("upgrades")] public ClickerUpgrade[] Upgrades { get; set; } = Array.Empty<ClickerUpgrade>();
         [JsonPropertyName("synergies")] public ClickerSynergy[] Synergies { get; set; } = Array.Empty<ClickerSynergy>();
         [JsonPropertyName("abilities")] public ClickerAbility[] Abilities { get; set; } = Array.Empty<ClickerAbility>();
@@ -86,6 +98,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonPropertyName("modifier_presets")] public ClickerModifier[] ModifierPresets { get; set; } = Array.Empty<ClickerModifier>();
 
         private Dictionary<string, ClickerProducer> producersById = null!;
+        private Dictionary<string, ClickerPrestigeProducer> prestigeProducersById = null!;
         private Dictionary<string, ClickerUpgrade> upgradesById = null!;
         private Dictionary<string, ClickerSynergy> synergiesById = null!;
         private Dictionary<string, ClickerAbility> abilitiesById = null!;
@@ -94,6 +107,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         private Dictionary<string, ClickerMedal> medalsById = null!;
 
         public ClickerProducer? Producer(string id) => producersById.GetValueOrDefault(id);
+        public ClickerPrestigeProducer? PrestigeProducer(string id) => prestigeProducersById.GetValueOrDefault(id);
         public ClickerUpgrade? Upgrade(string id) => upgradesById.GetValueOrDefault(id);
         public ClickerSynergy? Synergy(string id) => synergiesById.GetValueOrDefault(id);
         public ClickerAbility? Ability(string id) => abilitiesById.GetValueOrDefault(id);
@@ -123,6 +137,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         private void index()
         {
             producersById = Producers.ToDictionary(p => p.Id);
+            prestigeProducersById = PrestigeProducers.ToDictionary(p => p.Id);
             upgradesById = Upgrades.ToDictionary(u => u.Id);
             synergiesById = Synergies.ToDictionary(s => s.Id);
             abilitiesById = Abilities.ToDictionary(a => a.Id);
@@ -171,6 +186,22 @@ namespace osu.Game.Screens.Banchosucks.Clicker
 
         [JsonIgnore] public IconUsage Icon => ClickerBalance.Icon(IconName, FontAwesome.Solid.Cube);
         [JsonIgnore] public Color4 Colour => ClickerBalance.Colour(ColourHex, Color4.White);
+    }
+
+    public class ClickerPrestigeProducer
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
+
+        /// <summary>Price in prestige points of the first one; each further one costs <see cref="ClickerBalance.PrestigeProducerGrowth"/> times more.</summary>
+        [JsonPropertyName("cost")] public double Cost { get; set; }
+        [JsonPropertyName("per_second")] public double PerSecond { get; set; }
+        [JsonPropertyName("icon")] public string? IconName { get; set; }
+        [JsonPropertyName("colour")] public string? ColourHex { get; set; }
+        [JsonPropertyName("name")] public LocalisedName Name { get; set; } = new LocalisedName();
+        [JsonPropertyName("description")] public LocalisedName Description { get; set; } = new LocalisedName();
+
+        [JsonIgnore] public IconUsage Icon => ClickerBalance.Icon(IconName, FontAwesome.Solid.Star);
+        [JsonIgnore] public Color4 Colour => ClickerBalance.Colour(ColourHex, Color4.Gold);
     }
 
     public class ClickerUpgrade

@@ -428,6 +428,23 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         }
 
         /// <summary>
+        /// Buys a prestige building with prestige points; they stay through every rebirth.
+        /// </summary>
+        public bool BuyPrestigeProducer(ClickerPrestigeProducer producer)
+        {
+            if (!Economy.PrestigeProducersUnlocked)
+                return false;
+
+            int price = Economy.PrestigeProducerCost(producer);
+            if (Economy.PrestigeAvailable < price)
+                return false;
+
+            State.PrestigeProducers[producer.Id] = Economy.PrestigeProducerCount(producer.Id) + 1;
+            changed();
+            return true;
+        }
+
+        /// <summary>
         /// Clears the tree for a tenth of the prestige points; the rest is refunded.
         /// </summary>
         public bool Respec()
@@ -613,6 +630,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
             PrestigeClaimed = State.PrestigeClaimed,
             PrestigeBurned = State.PrestigeBurned,
             Tree = State.Tree.ToList(),
+            PrestigeProducers = State.PrestigeProducers.Where(p => p.Value > 0).ToDictionary(p => p.Key, p => p.Value),
             Medals = State.Medals.ToList(),
             EncoreMaps = State.EncoreMaps,
             DailyDays = State.DailyDays,

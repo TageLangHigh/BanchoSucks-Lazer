@@ -61,6 +61,9 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonPropertyName("prestige_burned")] public int PrestigeBurned { get; set; }
 
         [JsonPropertyName("tree")] public HashSet<string> Tree { get; set; } = new HashSet<string>();
+
+        /// <summary>Prestige buildings owned (bought with prestige points, kept through rebirths).</summary>
+        [JsonPropertyName("prestige_producers")] public Dictionary<string, int> PrestigeProducers { get; set; } = new Dictionary<string, int>();
         [JsonPropertyName("medals")] public HashSet<string> Medals { get; set; } = new HashSet<string>();
 
         [JsonPropertyName("encore_maps")] public int EncoreMaps { get; set; }

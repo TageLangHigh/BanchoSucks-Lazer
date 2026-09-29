@@ -177,7 +177,7 @@ namespace osu.Game.Tests.Visual.Navigation
             AddUntilStep("other player listed", () => hasText("Hodenlos"));
             AddUntilStep("value formatted", () => hasText("123.46M PP"));
             AddAssert("progress submitted", () => submitted != null && submitted.TotalEarned >= 15 && submitted.Clicks == 15);
-            AddAssert("submission carries the BPM epoch and season", () => submitted != null && submitted.BpmEpoch == 3 && submitted.Season == 2);
+            AddAssert("submission carries the BPM epoch and season", () => submitted != null && submitted.BpmEpoch == 3 && submitted.Season == 3);
             AddUntilStep("own ranks shown", () => hasTextContaining("PP #2 · BPM #1 · Prestige #3"));
             AddUntilStep("weekly rule banner shown", () => hasVisibleText("This week: Taiko week: drums x2"));
 
@@ -269,7 +269,7 @@ namespace osu.Game.Tests.Visual.Navigation
             AddStep("reset clicker", resetClicker);
             AddStep("lifetime PP worth ten prestige points", () =>
             {
-                engine.State.TotalEarned = 1.1e11;
+                engine.State.TotalEarned = 3.1e13;
                 engine.State.Points = 500;
                 engine.State.Producers["cursor"] = 3;
                 engine.Economy.Recalculate();
@@ -287,7 +287,7 @@ namespace osu.Game.Tests.Visual.Navigation
             AddStep("hold to confirm", () => dialogOverlay.CurrentDialog!.PerformAction<PopupDialogDangerousButton>());
             AddUntilStep("reborn", () => engine.State.Rebirths == 1 && engine.State.PrestigeClaimed == 10);
             AddAssert("run reset", () => engine.State.Points == 0 && engine.State.Producers.GetValueOrDefault("cursor") == 0);
-            AddAssert("lifetime PP kept", () => engine.State.TotalEarned >= 1.1e11);
+            AddAssert("lifetime PP kept", () => engine.State.TotalEarned >= 3.1e13);
             AddUntilStep("panel updated", () => hasVisibleText("Rebirths: 1"));
         }
 
@@ -314,7 +314,7 @@ namespace osu.Game.Tests.Visual.Navigation
                 InputManager.Click(MouseButton.Left);
             });
             AddUntilStep("node owned", () => engine.State.Tree.Contains("aim_1"));
-            AddUntilStep("tree header counts it", () => hasVisibleTextContaining("1 / 34 nodes · 19 points to spend"));
+            AddUntilStep("tree header counts it", () => hasVisibleTextContaining("1 / 34 nodes · 18 points to spend"));
             AddAssert("aim_2 buyable now", () => engine.Economy.CanBuyNode(engine.Balance.Node("aim_2")!));
 
             AddStep("scroll to respec", () => scrollIntoView(respecButton()));
@@ -328,6 +328,44 @@ namespace osu.Game.Tests.Visual.Navigation
             AddUntilStep("tree cleared", () => engine.State.Tree.Count == 0);
             AddAssert("a tenth burned", () => engine.State.PrestigeBurned == 2 && engine.Economy.PrestigeAvailable == 18);
         }
+
+        [Test]
+        public void TestPrestigeBuildings()
+        {
+            AddStep("reset clicker", resetClicker);
+            AddStep("one rebirth, 45 points", () =>
+            {
+                engine.State.PrestigeClaimed = 45;
+                engine.State.Rebirths = 1;
+                engine.Economy.Recalculate();
+            });
+            openClicker();
+            clickTab("Prestige");
+
+            AddUntilStep("prestige buildings listed", () => hasVisibleTextContaining("Prestige buildings"));
+            AddStep("scroll to the circuit", () => scrollIntoView(prestigeBuildingRow("Tournament circuit")));
+            AddAssert("costs 20 prestige", () => prestigeBuildingRow("Tournament circuit").ChildrenOfType<RoundedButton>().First().Text.ToString() == "20 prestige");
+            AddStep("buy the circuit", () =>
+            {
+                InputManager.MoveMouseTo(prestigeBuildingRow("Tournament circuit").ChildrenOfType<RoundedButton>().First());
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("one circuit owned", () => engine.State.PrestigeProducers.GetValueOrDefault("circuit") == 1);
+            AddAssert("points spent, second one dearer", () => engine.Economy.PrestigeAvailable == 25 && engine.Economy.PrestigeProducerCost(engine.Balance.PrestigeProducer("circuit")!) == 30);
+            AddAssert("it produces", () => engine.Economy.BasePerSecond > 0);
+            AddAssert("30 > 25: not affordable now", () => !prestigeBuildingRow("Tournament circuit").ChildrenOfType<RoundedButton>().First().Enabled.Value);
+
+            AddStep("rebirth keeps it", () =>
+            {
+                // 45 points are claimed already; 3e15 lifetime PP are worth 46, so one is pending
+                engine.State.TotalEarned = 3e15;
+                engine.Economy.Recalculate();
+                engine.Rebirth();
+            });
+            AddAssert("circuit survives the rebirth", () => engine.State.PrestigeProducers.GetValueOrDefault("circuit") == 1 && engine.State.Rebirths == 2);
+        }
+
+        private ClickerShopRow prestigeBuildingRow(string title) => clicker.ChildrenOfType<ClickerShopRow>().First(r => r.Title.ToString() == title);
 
         [Test]
         public void TestMedalsTab()
@@ -395,7 +433,7 @@ namespace osu.Game.Tests.Visual.Navigation
             AddStep("reset clicker", resetClicker);
             AddStep("tournament host with four taiko drums", () =>
             {
-                engine.State.PrestigeClaimed = 6;
+                engine.State.PrestigeClaimed = 12;
                 engine.State.Tree.Add("rank_1");
                 engine.State.Tree.Add("rank_2");
                 engine.State.Producers["taiko"] = 4;

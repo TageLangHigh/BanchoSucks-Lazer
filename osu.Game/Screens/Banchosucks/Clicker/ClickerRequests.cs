@@ -35,6 +35,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonProperty("prestige_claimed")] public int PrestigeClaimed { get; set; }
         [JsonProperty("prestige_burned")] public int PrestigeBurned { get; set; }
         [JsonProperty("tree")] public List<string> Tree { get; set; } = new List<string>();
+        [JsonProperty("prestige_producers")] public Dictionary<string, int> PrestigeProducers { get; set; } = new Dictionary<string, int>();
         [JsonProperty("medals")] public List<string> Medals { get; set; } = new List<string>();
         [JsonProperty("encore_maps")] public int EncoreMaps { get; set; }
         [JsonProperty("daily_days")] public int DailyDays { get; set; }

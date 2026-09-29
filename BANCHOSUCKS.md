@@ -85,7 +85,7 @@ and restart the app container.
   in `<game data>/banchosucks-renderer/`. Antivirus programs sometimes quarantine its
   ffmpeg; the client then says so.
 - **Minigames** (main menu > Play > minigames): `osu.Game/Screens/Banchosucks/`, currently
-  "osu! Clicker" (season 2 since 2026-09-27), an idle clicker in osu! style. The game itself is
+  "osu! Clicker" (season 3 since 2026-09-29), an idle clicker in osu! style. The game itself is
   `Clicker/ClickerEngine.cs`, a component of `OsuGame` that keeps producing in every screen
   (menu, gameplay, editor; one second per frame at most, longer gaps count as offline time),
   saves atomically to `<game data>/banchosucks/osu-clicker.json` (+ `.bak.json`) and submits a
@@ -96,7 +96,10 @@ and restart the app container.
   synergies, Kiai Time / farm map abilities, mod stances, spinner and slider events,
   tournament expeditions, Encore (passed online maps pay), daily-challenge bonus, weekly server
   modifier, 38 medals (+2 % production each), rebirths with prestige points
-  (floor(cbrt(lifetime PP / 1e8))) spent in a 34-node tree, respec for 10 % of the points.
+  (floor(cbrt(lifetime PP / 1e11))) spent in a 34-node tree and on three prestige buildings
+  that survive rebirths, respec for 10 % of the points. The prestige bonus grows linearly up to
+  50 points and with the square root beyond (season 2 showed the linear bonus feeding on itself:
+  two players finished everything in hours).
   `Clicker/ClickerEconomy.cs` derives all values from the state and is mirrored line by line by
   the plugin's `economy.py`; both are checked against `osu.Game.Tests/Resources/Banchosucks/
   clicker-balance-fixture.json`. Texts are English and German by client language
@@ -107,4 +110,5 @@ and restart the app container.
   (circle, spinner, slider event, shop rows), `ClickerLeaderboard.cs` (PP, BPM, prestige and
   medal boards). The server clamps implausible growth instead of rejecting it, keeps a cloud
   save, awards five real profile medals and rejects saves from an older season
-  (`old_season`); the season 2 reset wiped every save and record once.
+  (`old_season`); the season 2 reset (2026-09-27) and the season 3 rebalance reset (2026-09-29) each wiped
+  every save and record once.

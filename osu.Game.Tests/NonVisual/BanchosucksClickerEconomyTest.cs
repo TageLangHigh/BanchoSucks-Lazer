@@ -25,10 +25,12 @@ namespace osu.Game.Tests.NonVisual
         public void TestBalanceEmbedded()
         {
             var balance = ClickerBalance.Instance;
-            Assert.That(balance.Season, Is.EqualTo(2));
+            Assert.That(balance.Season, Is.EqualTo(3));
             Assert.That(balance.BpmEpoch, Is.EqualTo(3));
             Assert.That(balance.MaxBpm, Is.EqualTo(500));
             Assert.That(balance.Producers.Length, Is.EqualTo(11));
+            Assert.That(balance.PrestigeProducers.Length, Is.EqualTo(3));
+            Assert.That(balance.PrestigeSoftcap, Is.EqualTo(50));
             Assert.That(balance.Tree.Length, Is.GreaterThan(30));
             Assert.That(balance.Producer("cursor")!.Icon, Is.Not.EqualTo(default(osu.Framework.Graphics.Sprites.IconUsage)));
             Assert.That(balance.Node("wysi")!.Requires, Is.EquivalentTo(new[] { "aim_5", "speed_5" }));

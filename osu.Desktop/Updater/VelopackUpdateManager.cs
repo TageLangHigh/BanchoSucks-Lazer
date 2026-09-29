@@ -5,6 +5,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
 using osu.Game;
@@ -35,6 +36,7 @@ namespace osu.Desktop.Updater
         private bool isInGameplay => localUserInfo?.PlayingState.Value != LocalUserPlayingState.NotPlaying;
 
         private ScheduledDelegate? scheduledBackgroundCheck;
+        private bool notInstalledNoticeShown;
 
         private void scheduleNextUpdateCheck()
         {
@@ -92,6 +94,18 @@ namespace osu.Desktop.Updater
             catch (Exception e)
             {
                 log($"Update check failed with error ({e.Message})");
+
+                // Banchosucks: a copy unpacked from a plain zip (releases before 2026.913.10) has no Velopack
+                // Update.exe next to it, so it can never update itself; say so instead of failing silently.
+                if (e is Velopack.Exceptions.NotInstalledException && !notInstalledNoticeShown)
+                {
+                    notInstalledNoticeShown = true;
+                    runOutsideOfGameplay(() => notificationOverlay.Post(new SimpleNotification
+                    {
+                        Text = "Diese Installation kann sich nicht selbst aktualisieren (kein Setup). Bitte einmal BanchoSucksLazer-win-Setup.exe von github.com/TageLangHigh/BanchoSucks-Lazer/releases installieren, danach kommen Updates im Spiel.",
+                        Icon = FontAwesome.Solid.Download,
+                    }), cancellationToken);
+                }
 
                 // we shouldn't crash on a web failure. or any failure for the matter.
                 scheduleNextUpdateCheck();

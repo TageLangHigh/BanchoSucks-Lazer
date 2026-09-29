@@ -46,6 +46,8 @@ namespace osu.Game.Screens.Banchosucks
         private OsuSpriteText treeInfoText = null!;
         private RoundedButton rebirthButton = null!;
         private RoundedButton respecButton = null!;
+        private OsuSpriteText prestigeBuildingsText = null!;
+        private FillFlowContainer prestigeBuildingRows = null!;
         private readonly List<ClickerTreeNodeBox> nodes = new List<ClickerTreeNodeBox>();
         private int lastPending = -1;
         private double lastLive = double.MinValue;
@@ -167,9 +169,34 @@ namespace osu.Game.Screens.Banchosucks
                             BackgroundColour = colours.Purple.Darken(0.4f),
                             Action = confirmRespec,
                         },
+                        prestigeBuildingsText = new OsuSpriteText
+                        {
+                            Font = OsuFont.GetFont(size: 15, weight: FontWeight.Bold),
+                            Margin = new MarginPadding { Left = 4, Top = 6 },
+                        },
+                        prestigeBuildingRows = new FillFlowContainer
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            Direction = FillDirection.Vertical,
+                            Spacing = new Vector2(0, 6),
+                        },
                     },
                 },
             };
+
+            // prestige buildings are paid with prestige points and stay through every rebirth
+            foreach (var producer in engine.Balance.PrestigeProducers)
+            {
+                var p = producer;
+                prestigeBuildingRows.Add(new ClickerShopRow(ClickerShopRow.CreateIcon(p.Icon, p.Colour), p.Colour, ClickerStrings.Text(p.Name), ClickerStrings.Text(p.Description),
+                    () => ClickerStrings.Pick($"{engine.Economy.PrestigeProducerCount(p.Id)}× · {ClickerFormat.Number(p.PerSecond * engine.Economy.ProductionMultiplier)} PP/s each",
+                        $"{engine.Economy.PrestigeProducerCount(p.Id)}× · {ClickerFormat.Number(p.PerSecond * engine.Economy.ProductionMultiplier)} PP/s pro Stück"),
+                    () => ClickerStrings.Pick($"{engine.Economy.PrestigeProducerCost(p)} prestige", $"{engine.Economy.PrestigeProducerCost(p)} Prestige"),
+                    () => engine.Economy.PrestigeProducersUnlocked && engine.Economy.PrestigeAvailable >= engine.Economy.PrestigeProducerCost(p),
+                    () => engine.BuyPrestigeProducer(p),
+                    () => engine.Economy.PrestigeProducerCount(p.Id) > 0 ? ClickerFormat.Count(engine.Economy.PrestigeProducerCount(p.Id)) : string.Empty));
+            }
         }
 
         protected override void LoadComplete()
@@ -203,8 +230,8 @@ namespace osu.Game.Screens.Banchosucks
             var state = engine.State;
 
             pointsText.Text = ClickerStrings.Pick(
-                $"Prestige points: {economy.PrestigeEffective} · {economy.PrestigeAvailable} available · +{ClickerFormat.Percent(economy.PrestigeRate)} production each",
-                $"Prestige-Punkte: {economy.PrestigeEffective} · {economy.PrestigeAvailable} frei · je +{ClickerFormat.Percent(economy.PrestigeRate)} Produktion");
+                $"Prestige points: {economy.PrestigeEffective} · {economy.PrestigeAvailable} available · production {ClickerFormat.Multiplier(economy.PrestigeBonus)} (+{ClickerFormat.Percent(economy.PrestigeRate)} each up to {economy.Balance.PrestigeSoftcap:0}, slower after that)",
+                $"Prestige-Punkte: {economy.PrestigeEffective} · {economy.PrestigeAvailable} frei · Produktion {ClickerFormat.Multiplier(economy.PrestigeBonus)} (je +{ClickerFormat.Percent(economy.PrestigeRate)} bis {economy.Balance.PrestigeSoftcap:0}, danach langsamer)");
             rebirthsText.Text = ClickerStrings.Pick($"Rebirths: {state.Rebirths}", $"Rebirths: {state.Rebirths}");
             treeInfoText.Text = ClickerStrings.Pick(
                 $"Prestige tree · {state.Tree.Count} / {engine.Balance.Tree.Length} nodes · {economy.PrestigeAvailable} points to spend",
@@ -212,6 +239,14 @@ namespace osu.Game.Screens.Banchosucks
 
             foreach (var node in nodes)
                 node.Refresh();
+
+            prestigeBuildingsText.Text = economy.PrestigeProducersUnlocked
+                ? ClickerStrings.Pick(
+                    $"Prestige buildings · paid with prestige points, kept through rebirths · {engine.Balance.PrestigeProducers.Sum(p => economy.PrestigeProducerCount(p.Id))} owned",
+                    $"Prestige-Gebäude · kosten Prestige-Punkte, bleiben bei jedem Rebirth · {engine.Balance.PrestigeProducers.Sum(p => economy.PrestigeProducerCount(p.Id))} im Besitz")
+                : ClickerStrings.Pick(
+                    $"Prestige buildings · unlocked after {engine.Balance.PrestigeProducersUnlockRebirths} rebirth, paid with prestige points",
+                    $"Prestige-Gebäude · ab {engine.Balance.PrestigeProducersUnlockRebirths} Rebirth, kosten Prestige-Punkte");
 
             respecButton.Text = ClickerStrings.Text("Respec: costs {0} prestige points, refunds the rest", "Respec: kostet {0} Prestige-Punkte, der Rest kommt zurück", economy.RespecCost);
             respecButton.Enabled.Value = state.Tree.Count > 0 && economy.PrestigeEffective >= 1;

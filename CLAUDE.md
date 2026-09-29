@@ -68,7 +68,10 @@ Für den Client heißt das zusätzlich:
   `make_fixture.py` laufen lassen und die Fixture in beide Repos kopieren; Client und Plugin
   immer zusammen ausrollen. Eine neue Belohnungsquelle muss in `growth_allowance` (economy.py)
   eingerechnet werden, sonst werden ehrliche Spieler gekappt. Ein BPM-Rekord zählt nur mit
-  `bpm_epoch` >= Wert der Bilanzdatei; ein Reset läuft über `season`.
+  `bpm_epoch` >= Wert der Bilanzdatei; ein Reset läuft über `season` (das Plugin benennt die
+  alten Tabellen beim ersten Aufruf um). Balance-Änderungen vorher mit der Simulation im
+  Plugin-Ordner (`sim.py`, aggressives Profil = Autoclicker am 500-BPM-Limit rund um die Uhr)
+  prüfen: der ganze Baum soll auch für dieses Profil Monate dauern.
 - Discord Rich Presence: `osu.Desktop/DiscordRichPresence.cs`, App-ID und Bilder kommen vom
   Lazer-Plugin `banchosucks_client` im Website-Repo.
 - Replay-Renderer (danser-go): `osu.Game/Scoring/BanchosucksReplayRenderer.cs`.
