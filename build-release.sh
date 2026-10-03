@@ -54,6 +54,10 @@ if [[ $UPLOAD -eq 1 && -d /srv/bancho-web/downloads ]]; then
     sudo -n cp "$OUT/$f" "/srv/bancho-web/downloads/$f" && sudo -n cp "$OUT/$f" "/srv/bancho-web/downloads/${f/win-/$V-}" || echo "    copy of $f failed"
   done
   sudo -n chmod 644 /srv/bancho-web/downloads/BanchoSucksLazer-* || true
+  # the Velopack feed the client checks first (SimpleWebSource on dl.banchosucks.cc/lazer/)
+  sudo -n mkdir -p /srv/bancho-web/downloads/lazer
+  sudo -n cp "$OUT"/releases.win.json "$OUT"/RELEASES "$OUT"/assets.win.json "$OUT"/*.nupkg /srv/bancho-web/downloads/lazer/ || echo "    feed copy failed"
+  sudo -n chmod 644 /srv/bancho-web/downloads/lazer/* || true
 fi
 
 if [[ $UPLOAD -eq 1 ]]; then

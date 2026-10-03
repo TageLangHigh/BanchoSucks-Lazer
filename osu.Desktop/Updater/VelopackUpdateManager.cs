@@ -2,6 +2,7 @@
 // See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
@@ -61,15 +62,34 @@ namespace osu.Desktop.Updater
 
             try
             {
-                // Banchosucks: updates come from our own releases (Velopack assets on the GitHub release),
-                // never from upstream, which would replace the client with a g0v0 build.
-                IUpdateSource updateSource = new GithubSource(@"https://github.com/TageLangHigh/BanchoSucks-Lazer", null, false);
-                Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
-                {
-                    AllowVersionDowngrade = true
-                });
+                // Banchosucks: updates come from our own releases, never from upstream (which would replace the
+                // client with a g0v0 build). The download mirror dl.banchosucks.cc (Julian's server) carries the
+                // Velopack feed of every release; the GitHub release stays as fallback when the mirror is down.
+                Velopack.UpdateManager? updateManager = null;
+                UpdateInfo? update = null;
 
-                UpdateInfo? update = await updateManager.CheckForUpdatesAsync().ConfigureAwait(false);
+                foreach (var (name, source) in updateSources())
+                {
+                    try
+                    {
+                        var candidate = new Velopack.UpdateManager(source, new UpdateOptions { AllowVersionDowngrade = true });
+                        update = await candidate.CheckForUpdatesAsync().ConfigureAwait(false);
+                        updateManager = candidate;
+                        log($"Update check against {name}: {(update == null ? "up to date" : update.TargetFullRelease.Version.ToString())}");
+                        break;
+                    }
+                    catch (Velopack.Exceptions.NotInstalledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception e)
+                    {
+                        log($"Update check against {name} failed ({e.Message}), trying the next source");
+                    }
+                }
+
+                if (updateManager == null)
+                    throw new InvalidOperationException("No update source could be reached");
 
                 if (cancellationToken.IsCancellationRequested)
                 {
@@ -170,6 +190,12 @@ namespace osu.Desktop.Updater
         {
             game.RestartOnExitAction = () => updateManager.WaitExitThenApplyUpdates(update.TargetFullRelease);
             game.AttemptExit();
+        }
+
+        private static IEnumerable<(string name, IUpdateSource source)> updateSources()
+        {
+            yield return ("dl.banchosucks.cc", new SimpleWebSource(@"https://dl.banchosucks.cc/lazer/"));
+            yield return ("GitHub", new GithubSource(@"https://github.com/TageLangHigh/BanchoSucks-Lazer", null, false));
         }
 
         private static void log(string text) => Logger.Log($"VelopackUpdateManager: {text}");
