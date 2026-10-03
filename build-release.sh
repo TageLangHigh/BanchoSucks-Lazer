@@ -46,6 +46,16 @@ ls -la "$OUT" | awk 'NR>1{printf "    %8.0f KB  %s\n", $5/1024, $9}'
 MD5=$(md5sum "$PUB/osu.Game.dll" | cut -d' ' -f1)
 echo "==> osu.Game.dll md5: $MD5"
 
+# the download mirror (dl.banchosucks.cc on Julian's server) pulls /srv/bancho-web/downloads every ten
+# minutes; the fixed names are what the website links, the versioned ones stay for reference
+if [[ $UPLOAD -eq 1 && -d /srv/bancho-web/downloads ]]; then
+  echo "==> copy installer and portable package to /srv/bancho-web/downloads"
+  for f in BanchoSucksLazer-win-Setup.exe BanchoSucksLazer-win-Portable.zip; do
+    sudo -n cp "$OUT/$f" "/srv/bancho-web/downloads/$f" && sudo -n cp "$OUT/$f" "/srv/bancho-web/downloads/${f/win-/$V-}" || echo "    copy of $f failed"
+  done
+  sudo -n chmod 644 /srv/bancho-web/downloads/BanchoSucksLazer-* || true
+fi
+
 if [[ $UPLOAD -eq 1 ]]; then
   T=$(tr -d '\r\n' < ~/.config/github-token)
   echo "==> GitHub release v$V-banchosucks"
