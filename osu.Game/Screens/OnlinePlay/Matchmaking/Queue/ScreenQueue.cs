@@ -590,7 +590,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                                 Anchor = Anchor.TopCentre,
                                 Origin = Anchor.TopCentre,
                                 Width = 200,
-                                Enabled = { BindTarget = isConnected },
+                                IsConnected = { BindTarget = isConnected },
                                 SelectedPool = { BindTarget = selectedPool },
                                 Action = () =>
                                 {
@@ -829,14 +829,24 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         private partial class BeginQueueingButton : SelectionButton
         {
+            // Banchosucks: Enabled must not be bound to the client's IsConnected itself. Bindings work in both directions,
+            // so disabling the button (no pool selected, the normal case on a server without matchmaking pools) wrote
+            // "disconnected" into the multiplayer client: "Create room" stayed greyed out and joining rooms failed
+            // until the next reconnect.
+            public readonly IBindable<bool> IsConnected = new Bindable<bool>();
             public readonly IBindable<MatchmakingPool?> SelectedPool = new Bindable<MatchmakingPool?>();
 
             protected override void LoadComplete()
             {
                 base.LoadComplete();
 
-                SelectedPool.BindValueChanged(p => Enabled.Value = p.NewValue != null, true);
+                // the connection state can change on a background thread.
+                IsConnected.BindValueChanged(_ => Scheduler.AddOnce(updateEnabled));
+                SelectedPool.BindValueChanged(_ => Scheduler.AddOnce(updateEnabled));
+                updateEnabled();
             }
+
+            private void updateEnabled() => Enabled.Value = IsConnected.Value && SelectedPool.Value != null;
         }
 
         private partial class SelectionButton : ShearedButton, IKeyBindingHandler<GlobalAction>
