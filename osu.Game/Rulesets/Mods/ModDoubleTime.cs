@@ -21,7 +21,9 @@ namespace osu.Game.Rulesets.Mods
         public override IconUsage? Icon => OsuIcon.ModDoubleTime;
         public override ModType Type => ModType.DifficultyIncrease;
         public override LocalisableString Description => CommonModsStrings.DoubleTimeDescription;
-        public override bool Ranked => SpeedChange.IsDefault;
+        // Banchosucks: Double Time counts at every speed the slider offers, not only at the default 1.5x.
+        // Whether a play gives pp is decided by the server (plugin banchosucks_rankedmods: speed_change 1.01 to 2.0).
+        public override bool Ranked => true;
 
         [SettingSource(typeof(CommonModsStrings), nameof(CommonModsStrings.SpeedIncreaseLabel), nameof(CommonModsStrings.SpeedIncreaseDescription), SettingControlType = typeof(MultiplierSettingsSlider))]
         public override BindableNumber<double> SpeedChange { get; } = new BindableDouble(1.5)
