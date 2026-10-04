@@ -137,6 +137,71 @@ namespace osu.Game.Screens.Banchosucks.Clicker
             Mouse,
         }
 
+#if CLICKER_DEBUG
+        /// <summary>
+        /// Test builds only: debug tools are compiled in and the engine never submits or restores from the server.
+        /// </summary>
+        public const bool DEBUG_TOOLS = true;
+
+        public void DebugAddPoints(double amount)
+        {
+            credit(amount, null);
+            changed();
+        }
+
+        public void DebugAddLifetime(double amount)
+        {
+            State.TotalEarned += amount;
+            changed();
+        }
+
+        public void DebugAddPrestige(int points)
+        {
+            State.PrestigeClaimed += points;
+            changed();
+        }
+
+        public void DebugAddRebirth()
+        {
+            State.Rebirths++;
+            changed();
+        }
+
+        public void DebugAddClicks(long clicks)
+        {
+            State.Clicks += clicks;
+            changed();
+        }
+
+        public void DebugSetBestBpm(double bpm)
+        {
+            State.BestBpm = bpm;
+            BpmMeter.Best = bpm;
+            changed();
+        }
+
+        /// <summary>
+        /// Pretends the given number of hours passed: offline earnings, cooldowns over, expeditions back.
+        /// </summary>
+        public void DebugTimeSkip(double hours)
+        {
+            double earned = Economy.OfflineEarnings(hours * 3600);
+            credit(earned, ledger => ledger.Offline += earned);
+            State.AbilityReadyAt.Clear();
+            State.AbilityActiveUntil.Clear();
+            foreach (var expedition in State.Expeditions)
+                expedition.EndsAt = Math.Min(expedition.EndsAt, Now);
+            returnExpeditions(Now);
+            changed();
+        }
+
+        public void DebugEncore() => OnScoreSubmitted(new ScoreInfo { Passed = true });
+
+        public void DebugReset() => ResetForTests();
+#else
+        public const bool DEBUG_TOOLS = false;
+#endif
+
         [BackgroundDependencyLoader]
         private void load()
         {
@@ -649,6 +714,9 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         {
             lastSubmit = Time.Current;
 
+            if (DEBUG_TOOLS)
+                return;
+
             if (api.State.Value != APIState.Online || State.TotalEarned < 1 || Math.Floor(State.TotalEarned) == lastSubmittedTotal)
                 return;
 
@@ -728,7 +796,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
 
         private void restoreFromCloud()
         {
-            if (cloudChecked || IsDisposed)
+            if (cloudChecked || IsDisposed || DEBUG_TOOLS)
                 return;
 
             cloudChecked = true;

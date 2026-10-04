@@ -780,9 +780,37 @@ namespace osu.Game.Screens.Banchosucks
             }
         }
 
+#if CLICKER_DEBUG
+        private ClickerDebugPanel debugPanel = null!;
+#endif
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+#if CLICKER_DEBUG
+            // test build: debug tools (F10) and a permanent reminder that nothing reaches the leaderboard
+            AddInternal(debugPanel = new ClickerDebugPanel
+            {
+                Anchor = Anchor.TopLeft,
+                Origin = Anchor.TopLeft,
+                Position = new Vector2(16, 16),
+                Alpha = 0,
+                Depth = -10,
+                SpawnSpinner = spawnBonus,
+                SpawnSlider = () => SpawnSlider(),
+            });
+            AddInternal(new OsuSpriteText
+            {
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                Y = 8,
+                Text = "TESTBUILD · Debug-Werkzeuge mit F10 · keine Rangliste",
+                Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
+                Colour = colours.Yellow,
+                Depth = -10,
+            });
+#endif
 
             tabButtons[ClickerTab.Shop].Active = true;
             updateVisuals();
@@ -957,6 +985,14 @@ namespace osu.Game.Screens.Banchosucks
 
         protected override bool OnKeyDown(KeyDownEvent e)
         {
+#if CLICKER_DEBUG
+            if (e.Key == Key.F10 && !e.Repeat)
+            {
+                debugPanel.FadeTo(debugPanel.Alpha > 0 ? 0 : 1, 100);
+                return true;
+            }
+#endif
+
             // the keys the player taps circles with in osu!standard
             if (tapKeys.Contains(KeyCombination.FromKey(e.Key)))
             {

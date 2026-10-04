@@ -10,10 +10,20 @@
 # afterwards (printed at the end). Never echo the token.
 set -euo pipefail
 V=${1:?version like 2026.913.10}; shift || true
-UPLOAD=1; PUBLISH=1
+UPLOAD=1; PUBLISH=1; DEBUG_TOOLS=0
 for flag in "$@"; do
-  case $flag in --no-upload) UPLOAD=0 ;; --skip-publish) PUBLISH=0 ;; *) echo "unknown flag $flag"; exit 1 ;; esac
+  case $flag in
+    --no-upload) UPLOAD=0 ;;
+    --skip-publish) PUBLISH=0 ;;
+    # test build with the clicker debug panel (F10), never uploaded, never a release
+    --debug-tools) DEBUG_TOOLS=1; UPLOAD=0 ;;
+    *) echo "unknown flag $flag"; exit 1 ;;
+  esac
 done
+# a prerelease suffix (2026.913.13-debug) is fine for Velopack, assembly versions need plain numbers
+NUMERIC_V=${V%%-*}
+EXTRA_PROPS=""
+[[ $DEBUG_TOOLS -eq 1 ]] && EXTRA_PROPS="-p:ClickerDebug=true"
 REPO=TageLangHigh/BanchoSucks-Lazer
 ROOT=$(cd "$(dirname "$0")" && pwd)
 ART=$ROOT/../artifacts; PUB=$ART/BanchoSucks-Lazer-win-x64-$V; OUT=$ART/velopack-$V
@@ -29,7 +39,7 @@ if [[ $PUBLISH -eq 1 ]]; then
   # low priority and at most two build processes: the game servers share these four cores,
   # a full-speed build made the website crawl for players (2026-09-26)
   nice -n 19 ionice -c 3 dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained true -o "$PUB" \
-    -m:2 -p:Version=$V -p:AssemblyVersion=$V -p:FileVersion=$V -p:InformationalVersion=$V-banchosucks >"$ART/publish-$V.log"
+    -m:2 -p:Version=$V -p:AssemblyVersion=$NUMERIC_V -p:FileVersion=$NUMERIC_V -p:InformationalVersion=$V-banchosucks $EXTRA_PROPS >"$ART/publish-$V.log"
 else
   [[ -f "$PUB/BanchoSucks-Lazer.exe" ]] || { echo "no publish output in $PUB"; exit 1; }
 fi
@@ -45,6 +55,13 @@ ls -la "$OUT" | awk 'NR>1{printf "    %8.0f KB  %s\n", $5/1024, $9}'
 
 MD5=$(md5sum "$PUB/osu.Game.dll" | cut -d' ' -f1)
 echo "==> osu.Game.dll md5: $MD5"
+
+if [[ $DEBUG_TOOLS -eq 1 && -d /srv/bancho-downloads ]]; then
+  echo "==> debug build: Setup and Portable to /srv/bancho-downloads (test files, not under releases/)"
+  sudo -n cp "$OUT/BanchoSucksLazer-win-Setup.exe" "/srv/bancho-downloads/BanchoSucksLazer-$V-Setup.exe"
+  sudo -n cp "$OUT/BanchoSucksLazer-win-Portable.zip" "/srv/bancho-downloads/BanchoSucksLazer-$V-Portable.zip"
+  sudo -n chmod 644 /srv/bancho-downloads/BanchoSucksLazer-$V-*
+fi
 
 # the download mirror (dl.banchosucks.cc on Julian's server) pulls /srv/bancho-downloads every ten
 # minutes; the fixed names are what the website links, the versioned ones stay for reference
