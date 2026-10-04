@@ -28,9 +28,6 @@ Full licence text: see LICENCE and LICENCE-OSU.</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup Label="Build Configuration">
     <SentryDsn Condition="'$(SentryDsn)' == ''"></SentryDsn>
-    <!-- Banchosucks: test builds only (build-release.sh with the debug-tools flag): the osu! Clicker gets a debug panel and
-         never talks to the leaderboard. Never set for a release. -->
-    <DefineConstants Condition="'$(ClickerDebug)' == 'true'">$(DefineConstants);CLICKER_DEBUG</DefineConstants>
   </PropertyGroup>
   <ItemGroup Label="Icon">
     <None Include="..\assets\lazer-nuget.png">

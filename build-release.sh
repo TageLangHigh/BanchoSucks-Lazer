@@ -7,23 +7,21 @@
 #
 # Needs: a clean checkout of the commit to release (tag vVERSION-banchosucks on it), the GitHub token in
 # ~/.config/github-token (Julian's account, push rights), and for the lazer server the md5 registration
-# afterwards (printed at the end). Never echo the token.
+# afterwards (printed at the end). Never echo the token. Release notes: release-notes/VERSION.md in the
+# repo (preferred, so every build machine has them) or ../artifacts/notes-VERSION.md.
 set -euo pipefail
 V=${1:?version like 2026.913.10}; shift || true
-UPLOAD=1; PUBLISH=1; DEBUG_TOOLS=0
+UPLOAD=1; PUBLISH=1
 for flag in "$@"; do
   case $flag in
     --no-upload) UPLOAD=0 ;;
     --skip-publish) PUBLISH=0 ;;
-    # test build with the clicker debug panel (F10), never uploaded, never a release
-    --debug-tools) DEBUG_TOOLS=1; UPLOAD=0 ;;
     *) echo "unknown flag $flag"; exit 1 ;;
   esac
 done
-# a prerelease suffix (2026.913.13-debug) is fine for Velopack, assembly versions need plain numbers
+# a prerelease suffix (2026.913.13-test) is fine for Velopack, assembly versions need plain numbers
 NUMERIC_V=${V%%-*}
 EXTRA_PROPS=""
-[[ $DEBUG_TOOLS -eq 1 ]] && EXTRA_PROPS="-p:ClickerDebug=true"
 REPO=TageLangHigh/BanchoSucks-Lazer
 ROOT=$(cd "$(dirname "$0")" && pwd)
 ART=$ROOT/../artifacts; PUB=$ART/BanchoSucks-Lazer-win-x64-$V; OUT=$ART/velopack-$V
@@ -56,13 +54,6 @@ ls -la "$OUT" | awk 'NR>1{printf "    %8.0f KB  %s\n", $5/1024, $9}'
 MD5=$(md5sum "$PUB/osu.Game.dll" | cut -d' ' -f1)
 echo "==> osu.Game.dll md5: $MD5"
 
-if [[ $DEBUG_TOOLS -eq 1 && -d /srv/bancho-downloads ]]; then
-  echo "==> debug build: Setup and Portable to /srv/bancho-downloads (test files, not under releases/)"
-  sudo -n cp "$OUT/BanchoSucksLazer-win-Setup.exe" "/srv/bancho-downloads/BanchoSucksLazer-$V-Setup.exe"
-  sudo -n cp "$OUT/BanchoSucksLazer-win-Portable.zip" "/srv/bancho-downloads/BanchoSucksLazer-$V-Portable.zip"
-  sudo -n chmod 644 /srv/bancho-downloads/BanchoSucksLazer-$V-*
-fi
-
 # the download mirror (dl.banchosucks.cc on Julian's server) pulls /srv/bancho-downloads every ten
 # minutes; the fixed names are what the website links, the versioned ones stay for reference
 if [[ $UPLOAD -eq 1 && -d /srv/bancho-downloads/releases ]]; then
@@ -80,9 +71,9 @@ fi
 if [[ $UPLOAD -eq 1 ]]; then
   T=$(tr -d '\r\n' < ~/.config/github-token)
   echo "==> GitHub release v$V-banchosucks"
-  python3 - "$T" "$V" "$OUT" "$REPO" <<'PY'
+  python3 - "$T" "$V" "$OUT" "$REPO" "$ROOT" <<'PY'
 import json, sys, os, urllib.request, urllib.error
-token, v, out, repo = sys.argv[1:5]
+token, v, out, repo, root = sys.argv[1:6]
 tag = f"v{v}-banchosucks"
 def api(method, url, data=None, ctype="application/json"):
     req = urllib.request.Request(url, data=data, method=method, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "Content-Type": ctype, "User-Agent": "banchosucks-release"})
@@ -90,7 +81,8 @@ def api(method, url, data=None, ctype="application/json"):
 try:
     rel = api("GET", f"https://api.github.com/repos/{repo}/releases/tags/{tag}")
 except urllib.error.HTTPError:
-    notes = open(os.path.join(out, "..", f"notes-{v}.md")).read() if os.path.exists(os.path.join(out, "..", f"notes-{v}.md")) else f"BanchoSucks Lazer {v}"
+    candidates = [os.path.join(root, "release-notes", f"{v}.md"), os.path.join(out, "..", f"notes-{v}.md")]
+    notes = next((open(c, encoding="utf-8").read() for c in candidates if os.path.exists(c)), f"BanchoSucks Lazer {v}")
     rel = api("POST", f"https://api.github.com/repos/{repo}/releases", json.dumps({"tag_name": tag, "name": f"BanchoSucks Lazer {v}", "body": notes}).encode())
 have = {a["name"] for a in rel.get("assets", [])}
 # only what this pack produced (assets.win.json); the previous full package downloaded for the delta stays local
