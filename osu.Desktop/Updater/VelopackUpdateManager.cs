@@ -63,8 +63,9 @@ namespace osu.Desktop.Updater
             try
             {
                 // Banchosucks: updates come from our own releases, never from upstream (which would replace the
-                // client with a g0v0 build). The download mirror dl.banchosucks.cc (Julian's server) carries the
-                // Velopack feed of every release; the GitHub release stays as fallback when the mirror is down.
+                // client with a g0v0 build). GitHub serves the packages from its CDN at full speed from the first
+                // byte; the mirror dl.banchosucks.cc (Julian's home server, uplink-bound and not cached by Cloudflare
+                // for .nupkg) carries the same feed and is the fallback when GitHub is down or rate-limited (2026-10-04).
                 Velopack.UpdateManager? updateManager = null;
                 UpdateInfo? update = null;
 
@@ -194,8 +195,8 @@ namespace osu.Desktop.Updater
 
         private static IEnumerable<(string name, IUpdateSource source)> updateSources()
         {
-            yield return ("dl.banchosucks.cc", new SimpleWebSource(@"https://dl.banchosucks.cc/releases/lazer/"));
             yield return ("GitHub", new GithubSource(@"https://github.com/TageLangHigh/BanchoSucks-Lazer", null, false));
+            yield return ("dl.banchosucks.cc", new SimpleWebSource(@"https://dl.banchosucks.cc/releases/lazer/"));
         }
 
         private static void log(string text) => Logger.Log($"VelopackUpdateManager: {text}");
