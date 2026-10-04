@@ -25,7 +25,10 @@ namespace osu.Game.Tests.NonVisual
         public void TestBalanceEmbedded()
         {
             var balance = ClickerBalance.Instance;
-            Assert.That(balance.Season, Is.EqualTo(3));
+            // balance 3 (2026-10-04) changed the numbers without a season reset: the season stays 2
+            Assert.That(balance.Season, Is.EqualTo(2));
+            Assert.That(balance.BalanceVersion, Is.EqualTo(3));
+            Assert.That(balance.RelicTree.Length, Is.EqualTo(8));
             Assert.That(balance.BpmEpoch, Is.EqualTo(3));
             Assert.That(balance.MaxBpm, Is.EqualTo(500));
             Assert.That(balance.Producers.Length, Is.EqualTo(11));
@@ -77,6 +80,11 @@ namespace osu.Game.Tests.NonVisual
                 assertClose(expected, "kiai_spinner_reward", economy.SpinnerReward(now, true), testCase.Name);
                 assertClose(expected, "slider_reward_80", economy.SliderReward(now, 0.8), testCase.Name);
                 assertClose(expected, "expedition_slots", economy.ExpeditionSlots, testCase.Name);
+                assertClose(expected, "relic_gain", economy.RelicGain, testCase.Name);
+                assertClose(expected, "relic_available", economy.RelicAvailable, testCase.Name);
+                assertClose(expected, "relic_multiplier", economy.RelicMultiplier, testCase.Name);
+                if (expected["next_relic_at"].ValueKind == JsonValueKind.Number)
+                    assertClose(expected, "next_relic_at", economy.NextRelicAt, testCase.Name);
 
                 Assert.That(economy.StanceUnlocked, Is.EqualTo(expected["stance_unlocked"].GetBoolean()), $"{testCase.Name}: stance_unlocked");
 

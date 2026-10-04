@@ -36,6 +36,11 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonProperty("prestige_burned")] public int PrestigeBurned { get; set; }
         [JsonProperty("tree")] public List<string> Tree { get; set; } = new List<string>();
         [JsonProperty("prestige_producers")] public Dictionary<string, int> PrestigeProducers { get; set; } = new Dictionary<string, int>();
+        [JsonProperty("ascensions")] public int Ascensions { get; set; }
+        [JsonProperty("relics_total")] public int RelicsTotal { get; set; }
+        [JsonProperty("relic_tree")] public List<string> RelicTree { get; set; } = new List<string>();
+        [JsonProperty("all_time_earned")] public double AllTimeEarned { get; set; }
+        [JsonProperty("best_era")] public double BestEra { get; set; }
         [JsonProperty("medals")] public List<string> Medals { get; set; } = new List<string>();
         [JsonProperty("encore_maps")] public int EncoreMaps { get; set; }
         [JsonProperty("daily_days")] public int DailyDays { get; set; }
@@ -73,6 +78,9 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonProperty("daily")] public ClickerDailyStatus? Daily { get; set; }
         [JsonProperty("modifier")] public ClickerModifierResponse? ModifierRaw { get; set; }
         [JsonProperty("profile_medals")] public List<int> ProfileMedals { get; set; } = new List<int>();
+
+        /// <summary>Relics the server holds for the player after this submission (it verifies ascensions from its own stored lifetime).</summary>
+        [JsonProperty("relics_total")] public int? RelicsTotal { get; set; }
 
         [Newtonsoft.Json.JsonIgnore]
         public ClickerModifier? Modifier => ModifierRaw?.ToModifier();
@@ -130,6 +138,8 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonProperty("prestige")] public int Prestige { get; set; }
         [JsonProperty("medals")] public int Medals { get; set; }
         [JsonProperty("per_second")] public double PerSecond { get; set; }
+        [JsonProperty("relics")] public int Relics { get; set; }
+        [JsonProperty("ascensions")] public int Ascensions { get; set; }
     }
 
     public class ClickerLeaderboardResponse

@@ -844,6 +844,13 @@ namespace osu.Game.Screens.Banchosucks
                 return;
             }
 
+            // a save converted from an older balance version (no reset, but the prestige numbers changed)
+            if (engine.MigrationNotice != null)
+            {
+                showMessage(engine.MigrationNotice.Value);
+                engine.MigrationNotice = null;
+            }
+
             var receipt = engine.TakeReceipt();
             statsPanel.SetReceipt(receipt);
 

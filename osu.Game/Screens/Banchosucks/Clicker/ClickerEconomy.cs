@@ -51,6 +51,10 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         // --------------------------------------------------------------- multipliers
 
         public double ProductionMultiplier { get; private set; }
+
+        /// <summary>The permanent bonus of the relics ever earned (ascensions), part of both production and clicks.</summary>
+        public double RelicMultiplier { get; private set; } = 1;
+
         public double ClickBase { get; private set; }
         public double ClickShare { get; private set; }
         public double StanceClickMult { get; private set; }
@@ -94,9 +98,9 @@ namespace osu.Game.Screens.Banchosucks.Clicker
             double clickMult = 1;
             double clickShare = 0;
 
-            foreach (string id in s.Tree)
+            // the prestige tree and the relic tree share one set of effects
+            foreach (var node in s.Tree.Select(b.Node).Concat(s.RelicTree.Select(b.RelicNode)))
             {
-                var node = b.Node(id);
                 if (node == null)
                     continue;
 
@@ -152,14 +156,16 @@ namespace osu.Game.Screens.Banchosucks.Clicker
             double wysi = Wysi ? b.Node("wysi")?.Value ?? 1 : 1;
             double modifierProduction = Modifier?.ProductionMult ?? 1;
 
+            RelicMultiplier = RelicMultiplierFor(Balance, s.RelicsTotal);
             ProductionMultiplier = productionMult
                                    * (1 + productionAdd)
                                    * PrestigeMultiplier(Balance, PrestigeEffective, PrestigeRate)
                                    * (1 + s.Medals.Count * b.MedalRate)
                                    * stanceProduction
                                    * wysi
-                                   * modifierProduction;
-            ClickBase = clickMult;
+                                   * modifierProduction
+                                   * RelicMultiplier;
+            ClickBase = clickMult * RelicMultiplier;
             ClickShare = clickShare;
 
             Buildings = 0;
@@ -460,6 +466,60 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         /// </summary>
         public double NextPrestigeAt => Math.Pow(PrestigeTotal + 1, 3) * Balance.PrestigeDivisor;
 
+        // --------------------------------------------------------------- ascension (relics)
+
+        public static double RelicMultiplierFor(ClickerBalance balance, int relicsTotal) => 1 + Math.Max(relicsTotal, 0) * balance.Ascension.RelicBonus;
+
+        /// <summary>
+        /// Relics an ascension at this era lifetime gives: one per power of ten from the minimum on (1e15 -> 1, 1e16 -> 2, 3e25 -> 11).
+        /// The thresholds are built by repeated multiplication so the plugin (economy.py) rounds identically.
+        /// </summary>
+        public static int RelicGainFor(double totalEarned, ClickerBalance balance) => relicSteps(totalEarned, balance).gain;
+
+        /// <summary>The era lifetime PP at which the next relic would be earned.</summary>
+        public static double NextRelicAtFor(double totalEarned, ClickerBalance balance) => relicSteps(totalEarned, balance).next;
+
+        private static (int gain, double next) relicSteps(double totalEarned, ClickerBalance balance)
+        {
+            double threshold = balance.Ascension.MinTotalEarned;
+            if (threshold <= 0 || !double.IsFinite(totalEarned))
+                return (0, double.PositiveInfinity);
+
+            int gain = 0;
+
+            while (gain < 400 && totalEarned >= threshold)
+            {
+                gain++;
+                threshold *= 10;
+            }
+
+            return (gain, threshold);
+        }
+
+        public int RelicGain => RelicGainFor(State.TotalEarned, Balance);
+        public double NextRelicAt => NextRelicAtFor(State.TotalEarned, Balance);
+        public bool CanAscend => RelicGain >= 1;
+        public int RelicSpent => State.RelicTree.Sum(id => Balance.RelicNode(id)?.Cost ?? 0);
+        public int RelicAvailable => State.RelicsTotal - RelicSpent;
+        public double AllTimeEarned => State.AllTimeEarned + State.TotalEarned;
+        public bool RelicNodeOwned(string id) => State.RelicTree.Contains(id);
+
+        public bool RelicNodeRequirementsMet(ClickerTreeNode node)
+        {
+            if (node.Requires != null)
+                return node.Requires.All(RelicNodeOwned);
+
+            if (node.Tier <= 1)
+                return true;
+
+            var previous = Balance.RelicTree.FirstOrDefault(n => n.Tier == node.Tier - 1);
+            return previous == null || RelicNodeOwned(previous.Id);
+        }
+
+        public bool CanBuyRelicNode(ClickerTreeNode node) => !RelicNodeOwned(node.Id) && RelicNodeRequirementsMet(node) && RelicAvailable >= node.Cost;
+
+        // --------------------------------------------------------------- prestige tree
+
         public bool NodeOwned(string id) => State.Tree.Contains(id);
 
         public bool NodeRequirementsMet(ClickerTreeNode node)
@@ -496,6 +556,8 @@ namespace osu.Game.Screens.Banchosucks.Clicker
                 case "daily": return State.DailyDays;
                 case "expeditions": return State.ExpeditionsDone;
                 case "sliders": return State.SliderBest >= 0.95 ? 1 : 0;
+                case "ascensions": return State.Ascensions;
+                case "relics": return State.RelicsTotal;
                 default: return 0;
             }
         }

@@ -34,6 +34,10 @@
     "slider_reward_80": 8.0,
     "stance_unlocked": false,
     "expedition_slots": 0,
+    "relic_gain": 0,
+    "relic_available": 0,
+    "relic_multiplier": 1.0,
+    "next_relic_at": 1000000000000000.0,
     "growth_allowance_3600_1000": 13447.5
    }
   },
@@ -91,6 +95,10 @@
     "slider_reward_80": 518.4,
     "stance_unlocked": false,
     "expedition_slots": 0,
+    "relic_gain": 0,
+    "relic_available": 0,
+    "relic_multiplier": 1.0,
+    "next_relic_at": 1000000000000000.0,
     "growth_allowance_3600_1000": 141987.5
    }
   },
@@ -178,6 +186,10 @@
     "slider_reward_80": 1817249.2800000003,
     "stance_unlocked": true,
     "expedition_slots": 0,
+    "relic_gain": 0,
+    "relic_available": 0,
+    "relic_multiplier": 1.0,
+    "next_relic_at": 1000000000000000.0,
     "growth_allowance_3600_1000": 1354010037.8
    }
   },
@@ -244,6 +256,14 @@
     "prestige_producers": {
      "circuit": 2
     },
+    "ascensions": 1,
+    "relics_total": 3,
+    "relic_tree": [
+     "relic_legacy",
+     "relic_night"
+    ],
+    "all_time_earned": 2000000000000000.0,
+    "best_era": 2000000000000000.0,
     "tree": [
      "aim_1",
      "aim_2",
@@ -297,10 +317,10 @@
    },
    "modifier": null,
    "expected": {
-    "base_per_second": 24959636245.919796,
-    "per_second": 93598635922.19923,
+    "base_per_second": 28703581682.807762,
+    "per_second": 107638431310.52911,
     "click_value": 0.0,
-    "production_multiplier": 706.8117095804229,
+    "production_multiplier": 812.8334660174862,
     "spent_total": 221814292924610.0,
     "buildings": 835,
     "total_stars": 27,
@@ -313,11 +333,12 @@
     "respec_cost": 8,
     "cursor_cost": 31839560646456,
     "taiko_star_cost": 20736000,
-    "cursor_display_rate": 2261.797470657353,
-    "offline_10000s": 187197271844398.47,
+    "cursor_display_rate": 2601.0670912559563,
+    "offline_10000s": 215276862621058.22,
     "offline_rate": 0.75,
     "offline_cap_seconds": 57600.0,
     "new_medals": [
+     "ascend_1",
      "combo_1000",
      "daily_7",
      "encore_10",
@@ -332,14 +353,18 @@
      "tree_5",
      "upgrades_all"
     ],
-    "encore_reward": 11231836310663.908,
-    "daily_reward": 336955089319917.25,
-    "spinner_reward": 5615918155331.954,
-    "kiai_spinner_reward": 28079590776659.77,
-    "slider_reward_80": 8985469048531.127,
+    "encore_reward": 12916611757263.494,
+    "daily_reward": 387498352717904.8,
+    "spinner_reward": 6458305878631.747,
+    "kiai_spinner_reward": 32291529393158.734,
+    "slider_reward_80": 10333289405810.795,
     "stance_unlocked": true,
     "expedition_slots": 1,
-    "growth_allowance_3600_1000": 2288486648307771.0
+    "relic_gain": 0,
+    "relic_available": 1,
+    "relic_multiplier": 1.15,
+    "next_relic_at": 1000000000000000.0,
+    "growth_allowance_3600_1000": 2631759645552437.0
    }
   },
   {
@@ -417,6 +442,20 @@
      "srv_3",
      "wysi"
     ],
+    "ascensions": 4,
+    "relics_total": 24,
+    "relic_tree": [
+     "relic_legacy",
+     "relic_night",
+     "relic_veteran",
+     "relic_fingers",
+     "relic_sponsor",
+     "relic_hype",
+     "relic_crown",
+     "relic_eternal"
+    ],
+    "all_time_earned": 9e+25,
+    "best_era": 3.1e+25,
     "expeditions": [
      {
       "producer": "taiko",
@@ -469,7 +508,13 @@
      "expedition_1",
      "slider_perfect",
      "lifetime_1b",
-     "lifetime_1q"
+     "lifetime_1q",
+     "ascend_1",
+     "ascend_3",
+     "ascend_10",
+     "relics_5",
+     "relics_15",
+     "relics_30"
     ],
     "encore_maps": 100,
     "daily_days": 30,
@@ -485,11 +530,11 @@
     }
    },
    "expected": {
-    "base_per_second": 6035073659785.269,
-    "per_second": 6035073659785.269,
-    "click_value": 416420082566.5835,
-    "production_multiplier": 2581.896615509517,
-    "spent_total": 930886176795.0,
+    "base_per_second": 51284654961612.76,
+    "per_second": 51284654961612.76,
+    "click_value": 3538641192465.13,
+    "production_multiplier": 21940.3580697427,
+    "spent_total": 884341879113.0,
     "buildings": 339,
     "total_stars": 7,
     "prestige_total": 436,
@@ -499,21 +544,104 @@
     "prestige_bonus": 53.99537017189529,
     "circuit_cost": 152,
     "respec_cost": 1190,
-    "cursor_cost": 6288435,
+    "cursor_cost": 5974013,
     "taiko_star_cost": 864000,
-    "cursor_display_rate": 4131.034584815227,
-    "offline_10000s": 6.035073659785269e+16,
+    "cursor_display_rate": 35104.57291158832,
+    "offline_10000s": 5.1284654961612755e+17,
     "offline_rate": 1.0,
     "offline_cap_seconds": 86400.0,
     "new_medals": [],
-    "encore_reward": 765850847430890.6,
-    "daily_reward": 2.172626517522697e+16,
-    "spinner_reward": 724208839174232.2,
-    "kiai_spinner_reward": 3621044195871161.0,
-    "slider_reward_80": 1158734142678771.8,
+    "encore_reward": 6508022714640044.0,
+    "daily_reward": 1.8462475786180592e+17,
+    "spinner_reward": 6154158595393531.0,
+    "kiai_spinner_reward": 3.0770792976967656e+16,
+    "slider_reward_80": 9846653752629650.0,
     "stance_unlocked": true,
     "expedition_slots": 2,
-    "growth_allowance_3600_1000": 2.1824214420732424e+18
+    "relic_gain": 4,
+    "relic_available": 0,
+    "relic_multiplier": 2.2,
+    "next_relic_at": 1e+19,
+    "growth_allowance_3600_1000": 1.8545710781185237e+19
+   }
+  },
+  {
+   "name": "ascended",
+   "state": {
+    "producers": {
+     "cursor": 15,
+     "taiko": 5,
+     "catch": 2
+    },
+    "total_earned": 0,
+    "points": 0,
+    "clicks": 257175,
+    "best_bpm": 410,
+    "best_combo": 3000,
+    "ascensions": 1,
+    "relics_total": 11,
+    "relic_tree": [
+     "relic_legacy",
+     "relic_night",
+     "relic_veteran",
+     "relic_fingers",
+     "relic_sponsor"
+    ],
+    "all_time_earned": 3.1e+25,
+    "best_era": 3.1e+25,
+    "medals": [
+     "clicks_100",
+     "clicks_1k",
+     "clicks_10k",
+     "clicks_100k",
+     "bpm_150",
+     "bpm_200",
+     "bpm_250",
+     "bpm_300",
+     "ascend_1",
+     "relics_5"
+    ]
+   },
+   "modifier": null,
+   "expected": {
+    "base_per_second": 52.31250000000001,
+    "per_second": 52.31250000000001,
+    "click_value": 1.9375,
+    "production_multiplier": 2.325,
+    "spent_total": 0.0,
+    "buildings": 22,
+    "total_stars": 0,
+    "prestige_total": 0,
+    "prestige_pending": 0,
+    "prestige_available": 0,
+    "prestige_spent": 0,
+    "prestige_bonus": 1.0,
+    "circuit_cost": 20,
+    "respec_cost": 0,
+    "cursor_cost": 116,
+    "taiko_star_cost": 1000,
+    "cursor_display_rate": 0.23250000000000004,
+    "offline_10000s": 392343.75000000006,
+    "offline_rate": 0.75,
+    "offline_cap_seconds": 28800.0,
+    "new_medals": [
+     "buildings_10",
+     "combo_100",
+     "combo_1000",
+     "combo_500"
+    ],
+    "encore_reward": 6471.250000000001,
+    "daily_reward": 188325.00000000003,
+    "spinner_reward": 3138.7500000000005,
+    "kiai_spinner_reward": 15693.750000000002,
+    "slider_reward_80": 5022.000000000001,
+    "stance_unlocked": false,
+    "expedition_slots": 0,
+    "relic_gain": 0,
+    "relic_available": 2,
+    "relic_multiplier": 1.55,
+    "next_relic_at": 1000000000000000.0,
+    "growth_allowance_3600_1000": 1258985.1562500002
    }
   }
  ]

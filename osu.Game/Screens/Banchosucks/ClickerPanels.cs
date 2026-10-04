@@ -48,6 +48,13 @@ namespace osu.Game.Screens.Banchosucks
         private RoundedButton respecButton = null!;
         private OsuSpriteText prestigeBuildingsText = null!;
         private FillFlowContainer prestigeBuildingRows = null!;
+        private OsuSpriteText ascensionText = null!;
+        private OsuSpriteText relicTreeText = null!;
+        private RoundedButton ascendButton = null!;
+        private readonly List<ClickerTreeNodeBox> relicNodes = new List<ClickerTreeNodeBox>();
+        private int lastRelicGain = -1;
+
+        public static readonly Color4 RELIC_COLOUR = Color4Extensions.FromHex("4dd0e1");
         private readonly List<ClickerTreeNodeBox> nodes = new List<ClickerTreeNodeBox>();
         private int lastPending = -1;
         private double lastLive = double.MinValue;
@@ -89,6 +96,24 @@ namespace osu.Game.Screens.Banchosucks
                     var box = new ClickerTreeNodeBox(node);
                     nodes.Add(box);
                     content[tier][column] = box;
+                }
+            }
+
+            // the relic tree: tiers as rows, the nodes of a tier side by side
+            int relicTiers = balance.RelicTree.Length == 0 ? 0 : balance.RelicTree.Max(n => n.Tier);
+            int relicColumns = balance.RelicTree.Length == 0 ? 1 : balance.RelicTree.GroupBy(n => n.Tier).Max(g => g.Count());
+            var relicContent = new Drawable[relicTiers][];
+
+            for (int tier = 1; tier <= relicTiers; tier++)
+            {
+                relicContent[tier - 1] = new Drawable[relicColumns];
+                int column = 0;
+
+                foreach (var node in balance.RelicTree.Where(n => n.Tier == tier))
+                {
+                    var box = new ClickerTreeNodeBox(node, relic: true);
+                    relicNodes.Add(box);
+                    relicContent[tier - 1][column++] = box;
                 }
             }
 
@@ -181,6 +206,73 @@ namespace osu.Game.Screens.Banchosucks
                             Direction = FillDirection.Vertical,
                             Spacing = new Vector2(0, 6),
                         },
+                        // ascension (2026-10-04): the voluntary restart above rebirth, paid out in relics
+                        new Container
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            Masking = true,
+                            CornerRadius = 10,
+                            Margin = new MarginPadding { Top = 8 },
+                            Children = new Drawable[]
+                            {
+                                new Box
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Colour = Color4.Black,
+                                    Alpha = 0.35f,
+                                },
+                                new FillFlowContainer
+                                {
+                                    RelativeSizeAxes = Axes.X,
+                                    AutoSizeAxes = Axes.Y,
+                                    Direction = FillDirection.Vertical,
+                                    Padding = new MarginPadding(14),
+                                    Spacing = new Vector2(0, 3),
+                                    Children = new Drawable[]
+                                    {
+                                        new OsuSpriteText
+                                        {
+                                            Text = ClickerStrings.Text("Ascension", "Aufstieg"),
+                                            Font = OsuFont.GetFont(size: 22, weight: FontWeight.Bold),
+                                            Colour = RELIC_COLOUR,
+                                        },
+                                        ascensionText = new OsuSpriteText { Font = OsuFont.GetFont(size: 15, weight: FontWeight.SemiBold) },
+                                        new OsuTextFlowContainer(t => t.Font = OsuFont.GetFont(size: 13))
+                                        {
+                                            RelativeSizeAxes = Axes.X,
+                                            AutoSizeAxes = Axes.Y,
+                                            Colour = colours.Gray9,
+                                            Text = ClickerStrings.Text(
+                                                "Done with the game? Ascend: buildings, prestige points, the prestige tree and rebirths start over in a new era. Clicks, BPM, combo, medals and relics stay. The era's lifetime PP become relics: one at {0} PP, one more per power of ten. Each relic gives +{1} production and clicks for good, and relics buy the relic tree below.",
+                                                "Durchgespielt? Steig auf: Gebäude, Prestige-Punkte, Prestige-Baum und Rebirths beginnen in einer neuen Ära von vorn. Klicks, BPM, Combo, Medaillen und Relikte bleiben. Die PP dieser Ära werden zu Relikten: eins ab {0} PP, je Zehnerpotenz eins mehr. Jedes Relikt gibt dauerhaft +{1} Produktion und Klicks, und Relikte kaufen den Relikt-Baum darunter.",
+                                                ClickerFormat.Number(balance.Ascension.MinTotalEarned), ClickerFormat.Percent(balance.Ascension.RelicBonus)),
+                                        },
+                                        ascendButton = new RoundedButton
+                                        {
+                                            RelativeSizeAxes = Axes.X,
+                                            Height = 44,
+                                            Margin = new MarginPadding { Top = 8 },
+                                            BackgroundColour = RELIC_COLOUR.Darken(0.6f),
+                                            Action = confirmAscend,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        relicTreeText = new OsuSpriteText
+                        {
+                            Font = OsuFont.GetFont(size: 15, weight: FontWeight.Bold),
+                            Margin = new MarginPadding { Left = 4 },
+                        },
+                        new GridContainer
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            ColumnDimensions = Enumerable.Range(0, relicColumns).Select(_ => new Dimension()).ToArray(),
+                            RowDimensions = Enumerable.Range(0, Math.Max(relicTiers, 1)).Select(_ => new Dimension(GridSizeMode.AutoSize)).ToArray(),
+                            Content = relicContent,
+                        },
                     },
                 },
             };
@@ -250,7 +342,17 @@ namespace osu.Game.Screens.Banchosucks
 
             respecButton.Text = ClickerStrings.Text("Respec: costs {0} prestige points, refunds the rest", "Respec: kostet {0} Prestige-Punkte, der Rest kommt zurück", economy.RespecCost);
             respecButton.Enabled.Value = state.Tree.Count > 0 && economy.PrestigeEffective >= 1;
+            ascensionText.Text = ClickerStrings.Pick(
+                $"Ascensions: {state.Ascensions} · relics: {state.RelicsTotal} ({economy.RelicAvailable} to spend) · bonus {ClickerFormat.Multiplier(economy.RelicMultiplier)} on production and clicks",
+                $"Aufstiege: {state.Ascensions} · Relikte: {state.RelicsTotal} ({economy.RelicAvailable} frei) · Bonus {ClickerFormat.Multiplier(economy.RelicMultiplier)} auf Produktion und Klicks");
+            relicTreeText.Text = ClickerStrings.Pick(
+                $"Relic tree · {state.RelicTree.Count} / {engine.Balance.RelicTree.Length} nodes · {economy.RelicAvailable} relics to spend",
+                $"Relikt-Baum · {state.RelicTree.Count} / {engine.Balance.RelicTree.Length} Knoten · {economy.RelicAvailable} Relikte übrig");
 
+            foreach (var node in relicNodes)
+                node.Refresh();
+
+            lastRelicGain = -1;
             refreshLive();
         }
 
@@ -261,6 +363,17 @@ namespace osu.Game.Screens.Banchosucks
             var economy = engine.Economy;
             lifetimeText.Text = ClickerStrings.Pick($"Lifetime PP: {ClickerFormat.Number(engine.State.TotalEarned)}", $"PP insgesamt: {ClickerFormat.Number(engine.State.TotalEarned)}");
             nextText.Text = ClickerStrings.Pick($"Next prestige point at {ClickerFormat.Number(economy.NextPrestigeAt)} PP", $"Nächster Prestige-Punkt bei {ClickerFormat.Number(economy.NextPrestigeAt)} PP");
+
+            int gain = economy.RelicGain;
+
+            if (gain != lastRelicGain)
+            {
+                lastRelicGain = gain;
+                ascendButton.Enabled.Value = gain >= 1;
+                ascendButton.Text = gain >= 1
+                    ? ClickerStrings.Text("Ascend: +{0} relics (one more at {1} PP)", "Aufstieg: +{0} Relikte (eins mehr ab {1} PP)", gain, ClickerFormat.Number(economy.NextRelicAt))
+                    : ClickerStrings.Text("Ascend: from {0} PP in this era", "Aufstieg: ab {0} PP in dieser Ära", ClickerFormat.Number(economy.NextRelicAt));
+            }
 
             int pending = economy.PrestigePending;
             if (pending == lastPending)
@@ -302,6 +415,27 @@ namespace osu.Game.Screens.Banchosucks
                 engine.Rebirth();
         }
 
+        private void confirmAscend()
+        {
+            int gain = engine.Economy.RelicGain;
+            if (gain < 1)
+                return;
+
+            var dialog = new ClickerConfirmDialog(
+                ClickerStrings.Text("Ascend into a new era?", "In eine neue Ära aufsteigen?"),
+                ClickerStrings.Text("Buildings, prestige points, the prestige tree and rebirths start over. Clicks, BPM, combo, medals and relics stay, your lifetime PP go to the all-time record. You get {0} relics, each +{1} production and clicks for good.",
+                    "Gebäude, Prestige-Punkte, Prestige-Baum und Rebirths fangen von vorn an. Klicks, BPM, Combo, Medaillen und Relikte bleiben, deine PP wandern in den Gesamtrekord. Du bekommst {0} Relikte, je +{1} Produktion und Klicks für immer.",
+                    gain, ClickerFormat.Percent(engine.Balance.Ascension.RelicBonus)),
+                ClickerStrings.Text("Ascend", "Aufsteigen"),
+                FontAwesome.Solid.Gem,
+                () => engine.Ascend());
+
+            if (dialogOverlay != null)
+                dialogOverlay.Push(dialog);
+            else
+                engine.Ascend();
+        }
+
         private void confirmRespec()
         {
             var dialog = new ClickerConfirmDialog(
@@ -326,6 +460,9 @@ namespace osu.Game.Screens.Banchosucks
     {
         public readonly ClickerTreeNode Node;
 
+        /// <summary>True for a node of the relic tree (paid with relics, engine.BuyRelicNode), false for the prestige tree.</summary>
+        public readonly bool Relic;
+
         [Resolved]
         private ClickerEngine engine { get; set; } = null!;
 
@@ -335,9 +472,10 @@ namespace osu.Game.Screens.Banchosucks
         private readonly Box background;
         private readonly Container border;
 
-        public ClickerTreeNodeBox(ClickerTreeNode node)
+        public ClickerTreeNodeBox(ClickerTreeNode node, bool relic = false)
         {
             Node = node;
+            Relic = relic;
 
             RelativeSizeAxes = Axes.X;
             Height = 56;
@@ -390,8 +528,8 @@ namespace osu.Game.Screens.Banchosucks
                                     Anchor = Anchor.CentreLeft,
                                     Origin = Anchor.CentreLeft,
                                     Size = new Vector2(9),
-                                    Icon = FontAwesome.Solid.Star,
-                                    Colour = Color4Extensions.FromHex("ffd966"),
+                                    Icon = relic ? FontAwesome.Solid.Gem : FontAwesome.Solid.Star,
+                                    Colour = relic ? ClickerPrestigePanel.RELIC_COLOUR : Color4Extensions.FromHex("ffd966"),
                                 },
                                 new OsuSpriteText
                                 {
@@ -409,17 +547,19 @@ namespace osu.Game.Screens.Banchosucks
 
         private void buy()
         {
-            if (!engine.BuyNode(Node))
+            bool bought = Relic ? engine.BuyRelicNode(Node) : engine.BuyNode(Node);
+
+            if (!bought)
                 background.FlashColour(colours.Red, 300, Easing.OutQuint);
         }
 
         public void Refresh()
         {
             var economy = engine.Economy;
-            bool owned = economy.NodeOwned(Node.Id);
-            bool buyable = economy.CanBuyNode(Node);
-            bool requirementsMet = economy.NodeRequirementsMet(Node);
-            Color4 accent = colours.Pink;
+            bool owned = Relic ? economy.RelicNodeOwned(Node.Id) : economy.NodeOwned(Node.Id);
+            bool buyable = Relic ? economy.CanBuyRelicNode(Node) : economy.CanBuyNode(Node);
+            bool requirementsMet = Relic ? economy.RelicNodeRequirementsMet(Node) : economy.NodeRequirementsMet(Node);
+            Color4 accent = Relic ? ClickerPrestigePanel.RELIC_COLOUR : colours.Pink;
 
             background.FadeColour(owned ? accent.Darken(0.25f) : buyable ? accent.Darken(0.75f) : Color4.Black, 200, Easing.OutQuint);
             background.FadeTo(owned ? 0.9f : buyable ? 0.7f : 0.35f, 200, Easing.OutQuint);
@@ -445,6 +585,8 @@ namespace osu.Game.Screens.Banchosucks
 
             if (owned)
                 TooltipText = ClickerStrings.Text("{0}: {1} (owned)", "{0}: {1} (gekauft)", name, description);
+            else if (requirementsMet && Relic)
+                TooltipText = ClickerStrings.Text("{0}: {1} Costs {2} relics.", "{0}: {1} Kostet {2} Relikte.", name, description, Node.Cost);
             else if (requirementsMet)
                 TooltipText = ClickerStrings.Text("{0}: {1} Costs {2} prestige points.", "{0}: {1} Kostet {2} Prestige-Punkte.", name, description, Node.Cost);
             else
@@ -456,8 +598,8 @@ namespace osu.Game.Screens.Banchosucks
             var balance = engine.Balance;
 
             IEnumerable<ClickerTreeNode?> required = Node.Requires != null
-                ? Node.Requires.Select(balance.Node)
-                : balance.Tree.Where(n => n.Branch == Node.Branch && n.Tier == Node.Tier - 1);
+                ? Node.Requires.Select(id => Relic ? balance.RelicNode(id) : balance.Node(id))
+                : (Relic ? balance.RelicTree.Where(n => n.Tier == Node.Tier - 1) : balance.Tree.Where(n => n.Branch == Node.Branch && n.Tier == Node.Tier - 1));
 
             return string.Join(" + ", required.Where(n => n != null).Select(n => ClickerStrings.Pick(n!.Name)));
         }
@@ -804,6 +946,10 @@ namespace osu.Game.Screens.Banchosucks
             row(ClickerStrings.Text("Best combo", "Beste Combo"), () => ClickerFormat.Count(state.BestCombo));
             row(ClickerStrings.Text("Rebirths", "Rebirths"), () => ClickerFormat.Count(state.Rebirths));
             row(ClickerStrings.Text("Prestige points", "Prestige-Punkte"), () => ClickerStrings.Pick($"{economy.PrestigeEffective} ({economy.PrestigeAvailable} available)", $"{economy.PrestigeEffective} ({economy.PrestigeAvailable} frei)"));
+            row(ClickerStrings.Text("Ascensions", "Aufstiege"), () => ClickerFormat.Count(state.Ascensions));
+            row(ClickerStrings.Text("Relics", "Relikte"), () => ClickerStrings.Pick($"{state.RelicsTotal} ({economy.RelicAvailable} to spend)", $"{state.RelicsTotal} ({economy.RelicAvailable} frei)"));
+            row(ClickerStrings.Text("All-time PP (every era)", "PP aller Ären"), () => ClickerFormat.Number(economy.AllTimeEarned));
+            row(ClickerStrings.Text("Best era", "Beste Ära"), () => ClickerFormat.Number(Math.Max(state.BestEra, state.TotalEarned)));
             row(ClickerStrings.Text("Buildings", "Gebäude"), () => ClickerFormat.Count(economy.Buildings));
             row(ClickerStrings.Text("Stars", "Sterne"), () => ClickerFormat.Count(economy.TotalStars));
 

@@ -93,6 +93,11 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         public bool SeasonResetNoticePending { get; set; }
 
         /// <summary>
+        /// Set when loading converted an older balance version (prestige cut, tree refunded); the screen shows it once.
+        /// </summary>
+        public LocalisableString? MigrationNotice { get; set; }
+
+        /// <summary>
         /// Medals earned while the screen was closed, shown on the next visit.
         /// </summary>
         public readonly List<string> UnseenMedals = new List<string>();
@@ -128,6 +133,9 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         private SubmitClickerScoreRequest? submitRequest;
         private bool cloudChecked;
         private bool submitPending;
+
+        // an ascension drops the lifetime to zero; until the server has accepted that snapshot the usual "nothing new" shortcuts must not swallow it
+        private bool ascensionPending;
         private int clampNotices;
 
         public enum TapSource
@@ -164,6 +172,12 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         public void DebugAddRebirth()
         {
             State.Rebirths++;
+            changed();
+        }
+
+        public void DebugAddRelics(int relics)
+        {
+            State.RelicsTotal += relics;
             changed();
         }
 
@@ -523,6 +537,70 @@ namespace osu.Game.Screens.Banchosucks.Clicker
             return true;
         }
 
+        // ------------------------------------------------------------------ ascension
+
+        /// <summary>
+        /// The voluntary restart above rebirth (2026-10-04): the era's lifetime PP become relics, the whole economy (buildings,
+        /// prestige points, prestige tree and buildings, rebirth counter) starts over; clicks, BPM, combo, medals and the relic
+        /// tree stay. The server verifies the relic gain from the lifetime it stored, so the snapshot is sent at once.
+        /// </summary>
+        public bool Ascend()
+        {
+            int gained = Economy.RelicGain;
+            if (gained < 1)
+                return false;
+
+            double era = State.TotalEarned;
+
+            State.Ascensions++;
+            State.RelicsTotal += gained;
+            State.AllTimeEarned += era;
+            State.BestEra = Math.Max(State.BestEra, era);
+
+            State.TotalEarned = 0;
+            State.RunEarned = 0;
+            State.Points = 0;
+            State.Rebirths = 0;
+            State.PrestigeClaimed = 0;
+            State.PrestigeBurned = 0;
+            State.Tree.Clear();
+            State.PrestigeProducers.Clear();
+            State.Stars = new Dictionary<string, int>();
+            State.Upgrades = new HashSet<string>();
+            State.Synergies = new HashSet<string>();
+            State.Stance = "none";
+            State.Abilities = new HashSet<string>();
+            State.AbilityActiveUntil.Clear();
+            State.AbilityReadyAt.Clear();
+            State.WarmedUpUntil = 0;
+            State.Expeditions.Clear();
+            Combo = 0;
+
+            // the head start now comes from the relic tree alone (the prestige tree is gone)
+            Economy.Recalculate();
+            State.Producers = new Dictionary<string, int>(Economy.HeadStart);
+
+            ascensionPending = true;
+            changed();
+            Save();
+            lastSubmittedTotal = -1;
+            SubmitNow();
+
+            Notice?.Invoke(ClickerStrings.Text("Ascended! +{0} relics ({1} in total). A new era begins, your records stay.",
+                "Aufgestiegen! +{0} Relikte (insgesamt {1}). Eine neue Ära beginnt, deine Rekorde bleiben.", gained, State.RelicsTotal));
+            return true;
+        }
+
+        public bool BuyRelicNode(ClickerTreeNode node)
+        {
+            if (!Economy.CanBuyRelicNode(node))
+                return false;
+
+            State.RelicTree.Add(node.Id);
+            changed();
+            return true;
+        }
+
         // ------------------------------------------------------------------ events (screen only)
 
         public void GrantSpinner(bool kiai)
@@ -696,6 +774,11 @@ namespace osu.Game.Screens.Banchosucks.Clicker
             PrestigeBurned = State.PrestigeBurned,
             Tree = State.Tree.ToList(),
             PrestigeProducers = State.PrestigeProducers.Where(p => p.Value > 0).ToDictionary(p => p.Key, p => p.Value),
+            Ascensions = State.Ascensions,
+            RelicsTotal = State.RelicsTotal,
+            RelicTree = State.RelicTree.ToList(),
+            AllTimeEarned = Math.Floor(State.AllTimeEarned),
+            BestEra = Math.Floor(State.BestEra),
             Medals = State.Medals.ToList(),
             EncoreMaps = State.EncoreMaps,
             DailyDays = State.DailyDays,
@@ -717,7 +800,10 @@ namespace osu.Game.Screens.Banchosucks.Clicker
             if (DEBUG_TOOLS)
                 return;
 
-            if (api.State.Value != APIState.Online || State.TotalEarned < 1 || Math.Floor(State.TotalEarned) == lastSubmittedTotal)
+            if (api.State.Value != APIState.Online)
+                return;
+
+            if (!ascensionPending && (State.TotalEarned < 1 || Math.Floor(State.TotalEarned) == lastSubmittedTotal))
                 return;
 
             if (playing)
@@ -764,6 +850,12 @@ namespace osu.Game.Screens.Banchosucks.Clicker
 
             if (response.Clamped && clampNotices++ < 3)
                 Logger.Log($"osu! Clicker: the server capped the reported growth (server total {response.TotalEarned})", LoggingTarget.Network);
+
+            if (ascensionPending)
+            {
+                ascensionPending = false;
+                Logger.Log($"osu! Clicker: ascension accepted, server holds {response.RelicsTotal?.ToString() ?? "?"} relics (client {State.RelicsTotal})", LoggingTarget.Network);
+            }
 
             // the weekly rule comes from the server; apply it when it changes
             string? oldModifier = Economy.Modifier?.Id;
@@ -817,7 +909,8 @@ namespace osu.Game.Screens.Banchosucks.Clicker
                 try
                 {
                     var restored = JsonSerializer.Deserialize<ClickerState>(response.Save.ToString(Newtonsoft.Json.Formatting.None));
-                    if (restored == null || restored.Season != Balance.Season || restored.TotalEarned <= 0)
+                    // an ascended save has a lifetime of zero but relics and records worth restoring
+                    if (restored == null || restored.Season != Balance.Season || (restored.TotalEarned <= 0 && restored.Ascensions == 0 && restored.Clicks == 0))
                         return;
 
                     adopt(restored);
@@ -830,6 +923,16 @@ namespace osu.Game.Screens.Banchosucks.Clicker
                 }
             };
             api.Queue(request);
+        }
+
+        /// <summary>
+        /// Loads the given state as if it came from disk, including the balance conversion (tests only).
+        /// </summary>
+        public void AdoptForTests(ClickerState state)
+        {
+            lastSubmittedTotal = -1;
+            MigrationNotice = null;
+            adopt(state);
         }
 
         /// <summary>
@@ -885,6 +988,8 @@ namespace osu.Game.Screens.Banchosucks.Clicker
 
         private void adopt(ClickerState loaded)
         {
+            int loadedVersion = loaded.BalanceVersion;
+
             State = loaded;
             State.Season = Balance.Season;
             State.BalanceVersion = Balance.BalanceVersion;
@@ -899,9 +1004,53 @@ namespace osu.Game.Screens.Banchosucks.Clicker
                 State.Stance = "none";
 
             Economy = new ClickerEconomy(Balance, State, Economy?.Modifier);
+
+            if (loadedVersion > 0 && loadedVersion < Balance.BalanceVersion)
+                convertBalance(loadedVersion);
+
             BpmMeter.Best = State.BestBpm;
             dirty = true;
             Changed?.Invoke();
+        }
+
+        /// <summary>
+        /// Brings a save of an older balance version in line with the current numbers (2026-10-04, version 2 -> 3, no season
+        /// reset): prestige points come from a far larger divisor now, so a claim above the new formula is cut, and a tree
+        /// (plus prestige buildings) the cut points can no longer pay for is refunded in full rather than left inconsistent.
+        /// The plugin applies the same cap to the stored claim.
+        /// </summary>
+        private void convertBalance(int fromVersion)
+        {
+            int claimedBefore = State.PrestigeClaimed;
+            int total = Economy.PrestigeTotal;
+
+            if (State.PrestigeClaimed > total)
+                State.PrestigeClaimed = total;
+            if (State.PrestigeBurned > State.PrestigeClaimed)
+                State.PrestigeBurned = State.PrestigeClaimed;
+
+            Economy.Recalculate();
+            bool refunded = false;
+
+            if (Economy.PrestigeSpent > Economy.PrestigeEffective)
+            {
+                State.Tree.Clear();
+                State.PrestigeProducers.Clear();
+                State.PrestigeBurned = 0;
+                refunded = true;
+                Economy.Recalculate();
+            }
+
+            Logger.Log($"osu! Clicker: save converted from balance {fromVersion} to {Balance.BalanceVersion}: prestige {claimedBefore} -> {State.PrestigeClaimed}{(refunded ? ", tree refunded" : "")}");
+
+            if (claimedBefore == State.PrestigeClaimed && !refunded)
+                return;
+
+            MigrationNotice = refunded
+                ? ClickerStrings.Text("New balance: prestige points are now worth more and harder to get. Yours were recalculated to {0}; your prestige tree and buildings were refunded in full, spend the points again.",
+                    "Neue Balance: Prestige-Punkte sind jetzt mehr wert und schwerer zu bekommen. Deine wurden auf {0} umgerechnet; Prestige-Baum und -Gebäude wurden voll erstattet, gib die Punkte neu aus.", State.PrestigeClaimed)
+                : ClickerStrings.Text("New balance: prestige points are now worth more and harder to get. Yours were recalculated from {0} to {1}; the tree stays.",
+                    "Neue Balance: Prestige-Punkte sind jetzt mehr wert und schwerer zu bekommen. Deine wurden von {0} auf {1} umgerechnet; der Baum bleibt.", claimedBefore, State.PrestigeClaimed);
         }
 
         private ClickerState? read(string path)

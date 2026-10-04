@@ -64,6 +64,23 @@ namespace osu.Game.Screens.Banchosucks.Clicker
 
         /// <summary>Prestige buildings owned (bought with prestige points, kept through rebirths).</summary>
         [JsonPropertyName("prestige_producers")] public Dictionary<string, int> PrestigeProducers { get; set; } = new Dictionary<string, int>();
+
+        /// <summary>
+        /// Ascensions so far (2026-10-04). Each one restarts the economy (an "era") and turns the era's lifetime PP into relics;
+        /// clicks, BPM, combo and medals stay.
+        /// </summary>
+        [JsonPropertyName("ascensions")] public int Ascensions { get; set; }
+
+        /// <summary>Relics ever earned. Spent ones keep counting for the passive bonus; the relic tree holds what was bought.</summary>
+        [JsonPropertyName("relics_total")] public int RelicsTotal { get; set; }
+
+        [JsonPropertyName("relic_tree")] public HashSet<string> RelicTree { get; set; } = new HashSet<string>();
+
+        /// <summary>Lifetime PP of the finished eras; all-time PP = this + <see cref="TotalEarned"/>.</summary>
+        [JsonPropertyName("all_time_earned")] public double AllTimeEarned { get; set; }
+
+        /// <summary>The largest lifetime PP any finished era reached (the record that stays after ascending).</summary>
+        [JsonPropertyName("best_era")] public double BestEra { get; set; }
         [JsonPropertyName("medals")] public HashSet<string> Medals { get; set; } = new HashSet<string>();
 
         [JsonPropertyName("encore_maps")] public int EncoreMaps { get; set; }

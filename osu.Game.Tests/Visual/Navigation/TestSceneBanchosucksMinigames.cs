@@ -177,7 +177,7 @@ namespace osu.Game.Tests.Visual.Navigation
             AddUntilStep("other player listed", () => hasText("Hodenlos"));
             AddUntilStep("value formatted", () => hasText("123.46M PP"));
             AddAssert("progress submitted", () => submitted != null && submitted.TotalEarned >= 15 && submitted.Clicks == 15);
-            AddAssert("submission carries the BPM epoch and season", () => submitted != null && submitted.BpmEpoch == 3 && submitted.Season == 3);
+            AddAssert("submission carries the BPM epoch and season", () => submitted != null && submitted.BpmEpoch == engine.Balance.BpmEpoch && submitted.Season == engine.Balance.Season);
             AddUntilStep("own ranks shown", () => hasTextContaining("PP #2 · BPM #1 · Prestige #3"));
             AddUntilStep("weekly rule banner shown", () => hasVisibleText("This week: Taiko week: drums x2"));
 
@@ -209,8 +209,8 @@ namespace osu.Game.Tests.Visual.Navigation
             AddAssert("rebirth needs PP first", () => clicker.ChildrenOfType<RoundedButton>().Any(b => b.Text.ToString().StartsWith("Rebirth", StringComparison.Ordinal) && !b.Enabled.Value));
 
             clickTab("Medals");
-            AddUntilStep("medals panel shown", () => panel<ClickerMedalsPanel>().Alpha == 1 && hasVisibleText("0 / 38 medals · +0 % production"));
-            AddAssert("all medals listed", () => clicker.ChildrenOfType<ClickerMedalTile>().Count() == 38);
+            AddUntilStep("medals panel shown", () => panel<ClickerMedalsPanel>().Alpha == 1 && hasVisibleText($"0 / {engine.Balance.Medals.Length} medals · +0 % production"));
+            AddAssert("all medals listed", () => clicker.ChildrenOfType<ClickerMedalTile>().Count() == engine.Balance.Medals.Length);
 
             clickTab("Stats");
             AddUntilStep("stats panel shown", () => panel<ClickerStatsPanel>().Alpha == 1 && hasVisibleText("Lifetime PP"));
@@ -368,6 +368,108 @@ namespace osu.Game.Tests.Visual.Navigation
         private ClickerShopRow prestigeBuildingRow(string title) => clicker.ChildrenOfType<ClickerShopRow>().First(r => r.Title.ToString() == title);
 
         [Test]
+        public void TestAscension()
+        {
+            AddStep("reset clicker", resetClicker);
+            AddStep("a finished era: 3.1e25 PP, prestige, tree, buildings, records", () =>
+            {
+                engine.State.TotalEarned = 3.1e25;
+                engine.State.Points = 1e20;
+                engine.State.Producers["cursor"] = 300;
+                engine.State.Rebirths = 33;
+                engine.State.PrestigeClaimed = 100_000;
+                engine.State.Tree.Add("aim_1");
+                engine.State.PrestigeProducers["circuit"] = 2;
+                engine.State.Clicks = 257_175;
+                engine.State.BestBpm = 410;
+                engine.Economy.Recalculate();
+            });
+            openClicker();
+            clickTab("Prestige");
+
+            AddUntilStep("ascend offers eleven relics", () => ascendButton() is { } button && button.Enabled.Value && button.Text.ToString().StartsWith("Ascend: +11 relics", StringComparison.Ordinal));
+            AddStep("scroll to ascend", () => scrollIntoView(ascendButton()!));
+            AddStep("click ascend", () =>
+            {
+                InputManager.MoveMouseTo(ascendButton()!);
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("ascension dialog shown", () => dialogOverlay.CurrentDialog is ClickerConfirmDialog);
+            AddStep("hold to confirm", () => dialogOverlay.CurrentDialog!.PerformAction<PopupDialogDangerousButton>());
+            AddUntilStep("ascended", () => engine.State.Ascensions == 1 && engine.State.RelicsTotal == 11);
+            AddAssert("economy reset", () => engine.State.TotalEarned == 0 && engine.State.Points == 0 && engine.State.Rebirths == 0 && engine.State.PrestigeClaimed == 0
+                                             && engine.State.Tree.Count == 0 && engine.State.PrestigeProducers.Count == 0 && engine.State.Producers.GetValueOrDefault("cursor") == 0);
+            AddAssert("records kept", () => engine.State.Clicks == 257_175 && engine.State.BestBpm == 410 && engine.State.AllTimeEarned == 3.1e25 && engine.State.BestEra == 3.1e25);
+            AddAssert("relic bonus active", () => Math.Abs(engine.Economy.RelicMultiplier - 1.55) < 1e-9);
+            AddAssert("ascension medals", () => engine.State.Medals.Contains("ascend_1") && engine.State.Medals.Contains("relics_5"));
+            AddUntilStep("panel shows the relics", () => hasVisibleTextContaining("relics: 11 (11 to spend)"));
+
+            AddStep("scroll to the legacy node", () => scrollIntoView(relicNode("relic_legacy")));
+            AddStep("buy the legacy node", () =>
+            {
+                InputManager.MoveMouseTo(relicNode("relic_legacy"));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("legacy owned", () => engine.State.RelicTree.Contains("relic_legacy") && engine.Economy.RelicAvailable == 10);
+            AddAssert("veteran buyable, crown locked", () => engine.Economy.CanBuyRelicNode(engine.Balance.RelicNode("relic_veteran")!) && !engine.Economy.CanBuyRelicNode(engine.Balance.RelicNode("relic_crown")!));
+            AddStep("next rebirth starts with the relic head start", () =>
+            {
+                engine.State.TotalEarned = 3.1e13;
+                engine.Economy.Recalculate();
+                engine.Rebirth();
+            });
+            AddAssert("15 cursors from the legacy node", () => engine.State.Producers.GetValueOrDefault("cursor") == 15 && engine.State.Rebirths == 1);
+            AddAssert("not enough for a second ascension yet", () => !engine.Economy.CanAscend);
+        }
+
+        [Test]
+        public void TestBalanceConversion()
+        {
+            // a season-2 save of the fifth-placed player (balance 2: divisor 1e8): 4304 points, the whole tree. Under balance 3 the
+            // lifetime (3.08e21) is worth 4682 points, so the claim stays, but the tree now costs 7337 and is refunded.
+            AddStep("reset clicker", resetClicker);
+            AddStep("load an old save whose tree is no longer affordable", () => engine.AdoptForTests(new ClickerState
+            {
+                Season = 2,
+                BalanceVersion = 2,
+                BpmEpoch = 3,
+                TotalEarned = 3.08e21,
+                Rebirths = 8,
+                PrestigeClaimed = 4304,
+                PrestigeBurned = 100,
+                Tree = engine.Balance.Tree.Select(n => n.Id).ToHashSet(),
+                Clicks = 209_000,
+                CreatedAt = 1,
+            }));
+            AddAssert("claim within the new formula stays", () => engine.State.PrestigeClaimed == 4304 && ClickerEconomy.PrestigeTotalFor(3.08e21, engine.Balance.PrestigeDivisor) >= 4304);
+            AddAssert("tree refunded in full", () => engine.State.Tree.Count == 0 && engine.State.PrestigeBurned == 0 && engine.Economy.PrestigeAvailable == engine.State.PrestigeClaimed);
+            AddAssert("records untouched, notice pending", () => engine.State.Clicks == 209_000 && engine.State.Rebirths == 8 && engine.MigrationNotice != null);
+
+            // the leader: 561k points under balance 2, enough for the whole tree under balance 3, so the tree stays
+            AddStep("load an old save that still affords its tree", () => engine.AdoptForTests(new ClickerState
+            {
+                Season = 2,
+                BalanceVersion = 2,
+                BpmEpoch = 3,
+                TotalEarned = 3.1e25,
+                Rebirths = 33,
+                PrestigeClaimed = 561_536,
+                Tree = engine.Balance.Tree.Select(n => n.Id).ToHashSet(),
+                CreatedAt = 1,
+            }));
+            AddAssert("claim cut, tree kept", () => engine.State.PrestigeClaimed == ClickerEconomy.PrestigeTotalFor(3.1e25, engine.Balance.PrestigeDivisor) && engine.State.Tree.Count == engine.Balance.Tree.Length && engine.MigrationNotice != null);
+            AddAssert("a current save is left alone", () =>
+            {
+                engine.AdoptForTests(new ClickerState { Season = 2, BalanceVersion = engine.Balance.BalanceVersion, TotalEarned = 1e12, PrestigeClaimed = 3, CreatedAt = 1 });
+                return engine.State.PrestigeClaimed == 3 && engine.MigrationNotice == null;
+            });
+        }
+
+        private RoundedButton? ascendButton() => clicker.ChildrenOfType<RoundedButton>().FirstOrDefault(b => b.Text.ToString().StartsWith("Ascend", StringComparison.Ordinal));
+
+        private ClickerTreeNodeBox relicNode(string id) => clicker.ChildrenOfType<ClickerTreeNodeBox>().First(n => n.Relic && n.Node.Id == id);
+
+        [Test]
         public void TestMedalsTab()
         {
             AddStep("reset clicker", resetClicker);
@@ -378,7 +480,7 @@ namespace osu.Game.Tests.Visual.Navigation
             AddUntilStep("first steps medal earned", () => engine.State.Medals.Contains("clicks_100"));
 
             clickTab("Medals");
-            AddUntilStep("header counts one medal", () => hasVisibleText("1 / 38 medals · +2 % production"));
+            AddUntilStep("header counts one medal", () => hasVisibleText($"1 / {engine.Balance.Medals.Length} medals · +2 % production"));
             AddUntilStep("tile earned", () => medalTile("clicks_100").Earned);
             AddAssert("next tile locked with progress", () => !medalTile("clicks_1k").Earned && medalTile("clicks_1k").ChildrenOfType<OsuSpriteText>().Any(t => t.Text.ToString() == "100 / 1,000"));
         }

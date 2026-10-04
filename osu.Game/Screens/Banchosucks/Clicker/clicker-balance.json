@@ -1,6 +1,6 @@
 {
   "balance_version": 3,
-  "season": 3,
+  "season": 2,
   "bpm_epoch": 3,
   "max_bpm": 500,
   "cost_growth": 1.15,
@@ -1680,6 +1680,85 @@
         "de": "1 Billiarde PP insgesamt verdient."
       },
       "profile_medal": 200017
+    },
+    {
+      "id": "ascend_1",
+      "kind": "ascensions",
+      "value": 1,
+      "name": {
+        "en": "Legacy",
+        "de": "Legacy"
+      },
+      "description": {
+        "en": "Your first ascension.",
+        "de": "Dein erster Aufstieg."
+      },
+      "profile_medal": 200019
+    },
+    {
+      "id": "ascend_3",
+      "kind": "ascensions",
+      "value": 3,
+      "name": {
+        "en": "Phoenix",
+        "de": "Phönix"
+      },
+      "description": {
+        "en": "3 ascensions.",
+        "de": "3 Aufstiege."
+      }
+    },
+    {
+      "id": "ascend_10",
+      "kind": "ascensions",
+      "value": 10,
+      "name": {
+        "en": "Eternal return",
+        "de": "Ewige Wiederkehr"
+      },
+      "description": {
+        "en": "10 ascensions.",
+        "de": "10 Aufstiege."
+      }
+    },
+    {
+      "id": "relics_5",
+      "kind": "relics",
+      "value": 5,
+      "name": {
+        "en": "Collector",
+        "de": "Sammler"
+      },
+      "description": {
+        "en": "5 relics earned.",
+        "de": "5 Relikte verdient."
+      }
+    },
+    {
+      "id": "relics_15",
+      "kind": "relics",
+      "value": 15,
+      "name": {
+        "en": "Curator",
+        "de": "Kurator"
+      },
+      "description": {
+        "en": "15 relics earned.",
+        "de": "15 Relikte verdient."
+      }
+    },
+    {
+      "id": "relics_30",
+      "kind": "relics",
+      "value": 30,
+      "name": {
+        "en": "Museum",
+        "de": "Museum"
+      },
+      "description": {
+        "en": "30 relics earned.",
+        "de": "30 Relikte verdient."
+      }
     }
   ],
   "profile_medals": [
@@ -1726,6 +1805,15 @@
       "description": {
         "en": "Bought the WYSI keystone of the prestige tree.",
         "de": "Den WYSI-Schlussstein des Prestige-Baums gekauft."
+      }
+    },
+    {
+      "id": 200019,
+      "slug": "banchosucks_clicker_ascend",
+      "name": "Legacy",
+      "description": {
+        "en": "Ascended in the osu! Clicker: the economy starts over, the records stay.",
+        "de": "Im osu! Clicker aufgestiegen: die Wirtschaft beginnt neu, die Rekorde bleiben."
       }
     }
   ],
@@ -1850,5 +1938,163 @@
       }
     }
   ],
-  "prestige_producers_unlock_rebirths": 1
+  "prestige_producers_unlock_rebirths": 1,
+  "ascension": {
+    "min_total_earned": 1000000000000000,
+    "relic_bonus": 0.05
+  },
+  "relic_tree": [
+    {
+      "id": "relic_legacy",
+      "branch": "relic",
+      "tier": 1,
+      "cost": 1,
+      "effect": "head_start",
+      "value": 1,
+      "name": {
+        "en": "Legacy account",
+        "de": "Legacy-Account"
+      },
+      "description": {
+        "en": "Every run starts with 15 cursors, 5 taiko drums and 2 catch fruits.",
+        "de": "Jeder Run startet mit 15 Cursorn, 5 Taiko-Trommeln und 2 Catch-Früchten."
+      },
+      "head_start": {
+        "cursor": 15,
+        "taiko": 5,
+        "catch": 2
+      }
+    },
+    {
+      "id": "relic_night",
+      "branch": "relic",
+      "tier": 1,
+      "cost": 1,
+      "effect": "offline_rate",
+      "value": 0.75,
+      "name": {
+        "en": "Night shift",
+        "de": "Nachtschicht"
+      },
+      "description": {
+        "en": "Offline production at 75% instead of 50%.",
+        "de": "Offline-Produktion mit 75 % statt 50 %."
+      }
+    },
+    {
+      "id": "relic_veteran",
+      "branch": "relic",
+      "tier": 2,
+      "cost": 2,
+      "effect": "production_mult",
+      "value": 1.25,
+      "name": {
+        "en": "Veteran",
+        "de": "Veteran"
+      },
+      "description": {
+        "en": "Production x1.25.",
+        "de": "Produktion x1,25."
+      },
+      "requires": [
+        "relic_legacy"
+      ]
+    },
+    {
+      "id": "relic_fingers",
+      "branch": "relic",
+      "tier": 2,
+      "cost": 2,
+      "effect": "click_mult",
+      "value": 1.25,
+      "name": {
+        "en": "Finger memory",
+        "de": "Fingergedächtnis"
+      },
+      "description": {
+        "en": "Clicks x1.25.",
+        "de": "Klicks x1,25."
+      },
+      "requires": [
+        "relic_night"
+      ]
+    },
+    {
+      "id": "relic_sponsor",
+      "branch": "relic",
+      "tier": 3,
+      "cost": 3,
+      "effect": "cost_discount",
+      "value": 0.05,
+      "name": {
+        "en": "Sponsor",
+        "de": "Sponsor"
+      },
+      "description": {
+        "en": "Buildings 5% cheaper.",
+        "de": "Gebäude 5 % günstiger."
+      },
+      "requires": [
+        "relic_veteran"
+      ]
+    },
+    {
+      "id": "relic_hype",
+      "branch": "relic",
+      "tier": 3,
+      "cost": 3,
+      "effect": "production_add",
+      "value": 0.5,
+      "name": {
+        "en": "Fan base",
+        "de": "Fanbase"
+      },
+      "description": {
+        "en": "Production +50%.",
+        "de": "Produktion +50 %."
+      },
+      "requires": [
+        "relic_fingers"
+      ]
+    },
+    {
+      "id": "relic_crown",
+      "branch": "relic",
+      "tier": 4,
+      "cost": 5,
+      "effect": "production_mult",
+      "value": 1.5,
+      "name": {
+        "en": "Crown",
+        "de": "Krone"
+      },
+      "description": {
+        "en": "Production x1.5.",
+        "de": "Produktion x1,5."
+      },
+      "requires": [
+        "relic_sponsor",
+        "relic_hype"
+      ]
+    },
+    {
+      "id": "relic_eternal",
+      "branch": "relic",
+      "tier": 4,
+      "cost": 7,
+      "effect": "production_mult",
+      "value": 1.5,
+      "name": {
+        "en": "Eternal",
+        "de": "Ewig"
+      },
+      "description": {
+        "en": "Production x1.5 once more.",
+        "de": "Produktion noch einmal x1,5."
+      },
+      "requires": [
+        "relic_crown"
+      ]
+    }
+  ]
 }

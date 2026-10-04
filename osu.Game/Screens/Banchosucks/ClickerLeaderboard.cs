@@ -294,7 +294,9 @@ namespace osu.Game.Screens.Banchosucks
                     return ClickerStrings.Pick($"{entry.Prestige} prestige · {ClickerFormat.Count(entry.Buildings)} buildings", $"{entry.Prestige} Prestige · {ClickerFormat.Count(entry.Buildings)} Gebäude");
 
                 default:
-                    return ClickerStrings.Pick($"{ClickerFormat.Count(entry.Buildings)} buildings · {entry.Rebirths} rebirths · {entry.Medals} medals", $"{ClickerFormat.Count(entry.Buildings)} Gebäude · {entry.Rebirths} Rebirths · {entry.Medals} Medaillen");
+                    // the PP board ranks relics first (ascended players above everyone who did not), so show them up front
+                    string relics = entry.Relics > 0 ? ClickerStrings.Pick($"{entry.Relics} relics · ", $"{entry.Relics} Relikte · ") : string.Empty;
+                    return relics + ClickerStrings.Pick($"{ClickerFormat.Count(entry.Buildings)} buildings · {entry.Rebirths} rebirths · {entry.Medals} medals", $"{ClickerFormat.Count(entry.Buildings)} Gebäude · {entry.Rebirths} Rebirths · {entry.Medals} Medaillen");
             }
         }
 

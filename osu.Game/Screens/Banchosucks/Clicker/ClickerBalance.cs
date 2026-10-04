@@ -89,6 +89,16 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonPropertyName("prestige_producers")] public ClickerPrestigeProducer[] PrestigeProducers { get; set; } = Array.Empty<ClickerPrestigeProducer>();
         [JsonPropertyName("prestige_producer_growth")] public double PrestigeProducerGrowth { get; set; } = 1.5;
         [JsonPropertyName("prestige_producers_unlock_rebirths")] public int PrestigeProducersUnlockRebirths { get; set; } = 1;
+
+        /// <summary>
+        /// Ascension (2026-10-04): a voluntary restart of the economy that turns the era's lifetime PP into relics.
+        /// </summary>
+        [JsonPropertyName("ascension")] public AscensionRules Ascension { get; set; } = new AscensionRules();
+
+        /// <summary>
+        /// The relic tree: bought with relics, survives rebirths and ascensions. Same node shape as the prestige tree.
+        /// </summary>
+        [JsonPropertyName("relic_tree")] public ClickerTreeNode[] RelicTree { get; set; } = Array.Empty<ClickerTreeNode>();
         [JsonPropertyName("upgrades")] public ClickerUpgrade[] Upgrades { get; set; } = Array.Empty<ClickerUpgrade>();
         [JsonPropertyName("synergies")] public ClickerSynergy[] Synergies { get; set; } = Array.Empty<ClickerSynergy>();
         [JsonPropertyName("abilities")] public ClickerAbility[] Abilities { get; set; } = Array.Empty<ClickerAbility>();
@@ -105,6 +115,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         private Dictionary<string, ClickerStance> stancesById = null!;
         private Dictionary<string, ClickerTreeNode> treeById = null!;
         private Dictionary<string, ClickerMedal> medalsById = null!;
+        private Dictionary<string, ClickerTreeNode> relicTreeById = null!;
 
         public ClickerProducer? Producer(string id) => producersById.GetValueOrDefault(id);
         public ClickerPrestigeProducer? PrestigeProducer(string id) => prestigeProducersById.GetValueOrDefault(id);
@@ -114,6 +125,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         public ClickerStance? Stance(string id) => stancesById.GetValueOrDefault(id);
         public ClickerTreeNode? Node(string id) => treeById.GetValueOrDefault(id);
         public ClickerMedal? Medal(string id) => medalsById.GetValueOrDefault(id);
+        public ClickerTreeNode? RelicNode(string id) => relicTreeById.GetValueOrDefault(id);
 
         public IEnumerable<string> Branches => Tree.Select(n => n.Branch).Distinct();
 
@@ -144,6 +156,7 @@ namespace osu.Game.Screens.Banchosucks.Clicker
             stancesById = Stances.ToDictionary(s => s.Id);
             treeById = Tree.ToDictionary(n => n.Id);
             medalsById = Medals.ToDictionary(m => m.Id);
+            relicTreeById = RelicTree.ToDictionary(n => n.Id);
         }
 
         /// <summary>
@@ -337,6 +350,15 @@ namespace osu.Game.Screens.Banchosucks.Clicker
     public class DailyRules
     {
         [JsonPropertyName("production_seconds")] public double ProductionSeconds { get; set; }
+    }
+
+    public class AscensionRules
+    {
+        /// <summary>Era lifetime PP needed before ascending is possible (worth the first relic).</summary>
+        [JsonPropertyName("min_total_earned")] public double MinTotalEarned { get; set; }
+
+        /// <summary>Permanent production and click bonus per relic ever earned.</summary>
+        [JsonPropertyName("relic_bonus")] public double RelicBonus { get; set; }
     }
 
     public class ExpeditionRules

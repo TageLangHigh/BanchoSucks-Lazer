@@ -71,6 +71,7 @@ namespace osu.Game.Screens.Banchosucks
             add("+10 Prestige-Punkte", () => engine.DebugAddPrestige(10), Color4Extensions.FromHex("6b3fa0"));
             add("+100 Prestige-Punkte", () => engine.DebugAddPrestige(100), Color4Extensions.FromHex("6b3fa0"));
             add("+1 Rebirth-Zähler", engine.DebugAddRebirth, Color4Extensions.FromHex("6b3fa0"));
+            add("+5 Relikte (Aufstieg)", () => engine.DebugAddRelics(5), Color4Extensions.FromHex("1f6f7a"));
             add("+10.000 Klicks", () => engine.DebugAddClicks(10_000));
             add("BPM-Rekord 300", () => engine.DebugSetBestBpm(300));
             add("Zeitsprung 1 h (offline, Cooldowns)", () => engine.DebugTimeSkip(1));
