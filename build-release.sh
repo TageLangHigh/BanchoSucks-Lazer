@@ -48,16 +48,16 @@ echo "==> osu.Game.dll md5: $MD5"
 
 # the download mirror (dl.banchosucks.cc on Julian's server) pulls /srv/bancho-downloads every ten
 # minutes; the fixed names are what the website links, the versioned ones stay for reference
-if [[ $UPLOAD -eq 1 && -d /srv/bancho-downloads ]]; then
-  echo "==> copy installer and portable package to /srv/bancho-downloads"
+if [[ $UPLOAD -eq 1 && -d /srv/bancho-downloads/releases ]]; then
+  echo "==> copy installer and portable package to /srv/bancho-downloads/releases"
   for f in BanchoSucksLazer-win-Setup.exe BanchoSucksLazer-win-Portable.zip; do
-    sudo -n cp "$OUT/$f" "/srv/bancho-downloads/$f" && sudo -n cp "$OUT/$f" "/srv/bancho-downloads/${f/win-/$V-}" || echo "    copy of $f failed"
+    sudo -n cp "$OUT/$f" "/srv/bancho-downloads/releases/$f" && sudo -n cp "$OUT/$f" "/srv/bancho-downloads/releases/${f/win-/$V-}" || echo "    copy of $f failed"
   done
-  sudo -n chmod 644 /srv/bancho-downloads/BanchoSucksLazer-* || true
+  sudo -n chmod 644 /srv/bancho-downloads/releases/BanchoSucksLazer-* || true
   # the Velopack feed the client checks first (SimpleWebSource on dl.banchosucks.cc/lazer/)
-  sudo -n mkdir -p /srv/bancho-downloads/lazer
-  sudo -n cp "$OUT"/releases.win.json "$OUT"/RELEASES "$OUT"/assets.win.json "$OUT"/*.nupkg /srv/bancho-downloads/lazer/ || echo "    feed copy failed"
-  sudo -n chmod 644 /srv/bancho-downloads/lazer/* || true
+  sudo -n mkdir -p /srv/bancho-downloads/releases/lazer
+  sudo -n cp "$OUT"/releases.win.json "$OUT"/RELEASES "$OUT"/assets.win.json "$OUT"/*.nupkg /srv/bancho-downloads/releases/lazer/ || echo "    feed copy failed"
+  sudo -n chmod 644 /srv/bancho-downloads/releases/lazer/* || true
 fi
 
 if [[ $UPLOAD -eq 1 ]]; then

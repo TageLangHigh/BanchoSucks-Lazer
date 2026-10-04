@@ -194,7 +194,7 @@ namespace osu.Desktop.Updater
 
         private static IEnumerable<(string name, IUpdateSource source)> updateSources()
         {
-            yield return ("dl.banchosucks.cc", new SimpleWebSource(@"https://dl.banchosucks.cc/lazer/"));
+            yield return ("dl.banchosucks.cc", new SimpleWebSource(@"https://dl.banchosucks.cc/releases/lazer/"));
             yield return ("GitHub", new GithubSource(@"https://github.com/TageLangHigh/BanchoSucks-Lazer", null, false));
         }
 
