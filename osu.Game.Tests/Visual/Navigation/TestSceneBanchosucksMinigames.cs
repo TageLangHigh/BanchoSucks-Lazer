@@ -411,7 +411,18 @@ namespace osu.Game.Tests.Visual.Navigation
                 InputManager.Click(MouseButton.Left);
             });
             AddUntilStep("legacy owned", () => engine.State.RelicTree.Contains("relic_legacy") && engine.Economy.RelicAvailable == 10);
-            AddAssert("veteran buyable, crown locked", () => engine.Economy.CanBuyRelicNode(engine.Balance.RelicNode("relic_veteran")!) && !engine.Economy.CanBuyRelicNode(engine.Balance.RelicNode("relic_crown")!));
+            AddAssert("night shift buyable, veteran gated until the second ascension", () => engine.Economy.CanBuyRelicNode(engine.Balance.RelicNode("relic_night")!)
+                                                                                           && !engine.Economy.CanBuyRelicNode(engine.Balance.RelicNode("relic_veteran")!)
+                                                                                           && engine.Economy.RelicAvailable >= engine.Balance.RelicNode("relic_veteran")!.Cost);
+            AddAssert("a second ascension opens tier 2", () =>
+            {
+                engine.State.Ascensions = 2;
+                engine.Economy.Recalculate();
+                bool open = engine.Economy.CanBuyRelicNode(engine.Balance.RelicNode("relic_veteran")!) && !engine.Economy.CanBuyRelicNode(engine.Balance.RelicNode("relic_crown")!);
+                engine.State.Ascensions = 1;
+                engine.Economy.Recalculate();
+                return open;
+            });
             AddStep("next rebirth starts with the relic head start", () =>
             {
                 engine.State.TotalEarned = 3.1e13;

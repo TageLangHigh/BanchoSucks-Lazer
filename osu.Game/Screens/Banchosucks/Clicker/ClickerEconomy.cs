@@ -504,8 +504,14 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         public double AllTimeEarned => State.AllTimeEarned + State.TotalEarned;
         public bool RelicNodeOwned(string id) => State.RelicTree.Contains(id);
 
+        /// <summary>Whether the node's ascension gate is open (independent of relics and prerequisite nodes).</summary>
+        public bool RelicNodeAscensionsMet(ClickerTreeNode node) => State.Ascensions >= node.RequiresAscensions;
+
         public bool RelicNodeRequirementsMet(ClickerTreeNode node)
         {
+            if (!RelicNodeAscensionsMet(node))
+                return false;
+
             if (node.Requires != null)
                 return node.Requires.All(RelicNodeOwned);
 

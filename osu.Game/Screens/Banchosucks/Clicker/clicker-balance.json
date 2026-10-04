@@ -1949,6 +1949,7 @@
       "branch": "relic",
       "tier": 1,
       "cost": 1,
+      "requires_ascensions": 1,
       "effect": "head_start",
       "value": 1,
       "name": {
@@ -1970,6 +1971,7 @@
       "branch": "relic",
       "tier": 1,
       "cost": 1,
+      "requires_ascensions": 1,
       "effect": "offline_rate",
       "value": 0.75,
       "name": {
@@ -1982,10 +1984,28 @@
       }
     },
     {
+      "id": "relic_whet_1",
+      "branch": "relic",
+      "tier": 1,
+      "cost": 3,
+      "requires_ascensions": 2,
+      "effect": "production_mult",
+      "value": 1.1,
+      "name": {
+        "en": "Whetstone I",
+        "de": "Schleifstein I"
+      },
+      "description": {
+        "en": "Production x1.1.",
+        "de": "Produktion x1,1."
+      }
+    },
+    {
       "id": "relic_veteran",
       "branch": "relic",
       "tier": 2,
       "cost": 2,
+      "requires_ascensions": 2,
       "effect": "production_mult",
       "value": 1.25,
       "name": {
@@ -2005,6 +2025,7 @@
       "branch": "relic",
       "tier": 2,
       "cost": 2,
+      "requires_ascensions": 2,
       "effect": "click_mult",
       "value": 1.25,
       "name": {
@@ -2020,10 +2041,31 @@
       ]
     },
     {
+      "id": "relic_whet_2",
+      "branch": "relic",
+      "tier": 2,
+      "cost": 4,
+      "requires_ascensions": 3,
+      "effect": "production_mult",
+      "value": 1.1,
+      "name": {
+        "en": "Whetstone II",
+        "de": "Schleifstein II"
+      },
+      "description": {
+        "en": "Production x1.1 again.",
+        "de": "Produktion noch einmal x1,1."
+      },
+      "requires": [
+        "relic_whet_1"
+      ]
+    },
+    {
       "id": "relic_sponsor",
       "branch": "relic",
       "tier": 3,
       "cost": 3,
+      "requires_ascensions": 4,
       "effect": "cost_discount",
       "value": 0.05,
       "name": {
@@ -2043,6 +2085,7 @@
       "branch": "relic",
       "tier": 3,
       "cost": 3,
+      "requires_ascensions": 4,
       "effect": "production_add",
       "value": 0.5,
       "name": {
@@ -2058,10 +2101,56 @@
       ]
     },
     {
+      "id": "relic_archive",
+      "branch": "relic",
+      "tier": 3,
+      "cost": 4,
+      "requires_ascensions": 4,
+      "effect": "keep_upgrades",
+      "value": 1,
+      "name": {
+        "en": "Archive",
+        "de": "Archiv"
+      },
+      "description": {
+        "en": "Tablet, Relax and Hard Rock survive every rebirth.",
+        "de": "Tablet, Relax und Hard Rock überleben jeden Rebirth."
+      },
+      "keeps": [
+        "tablet",
+        "relax",
+        "hardrock"
+      ],
+      "requires": [
+        "relic_veteran"
+      ]
+    },
+    {
+      "id": "relic_whet_3",
+      "branch": "relic",
+      "tier": 3,
+      "cost": 5,
+      "requires_ascensions": 5,
+      "effect": "production_mult",
+      "value": 1.1,
+      "name": {
+        "en": "Whetstone III",
+        "de": "Schleifstein III"
+      },
+      "description": {
+        "en": "Production x1.1 again.",
+        "de": "Produktion noch einmal x1,1."
+      },
+      "requires": [
+        "relic_whet_2"
+      ]
+    },
+    {
       "id": "relic_crown",
       "branch": "relic",
       "tier": 4,
       "cost": 5,
+      "requires_ascensions": 6,
       "effect": "production_mult",
       "value": 1.5,
       "name": {
@@ -2078,10 +2167,71 @@
       ]
     },
     {
-      "id": "relic_eternal",
+      "id": "relic_spotlight",
       "branch": "relic",
       "tier": 4,
+      "cost": 5,
+      "requires_ascensions": 6,
+      "effect": "event_boost",
+      "value": 1.5,
+      "name": {
+        "en": "Spotlight",
+        "de": "Rampenlicht"
+      },
+      "description": {
+        "en": "Spinners and sliders come 1.5x as often and pay 1.5x.",
+        "de": "Spinner und Slider kommen 1,5-mal so oft und zahlen 1,5-fach."
+      },
+      "requires": [
+        "relic_hype"
+      ]
+    },
+    {
+      "id": "relic_scout",
+      "branch": "relic",
+      "tier": 4,
+      "cost": 5,
+      "requires_ascensions": 6,
+      "effect": "expeditions",
+      "value": 1,
+      "name": {
+        "en": "Scout",
+        "de": "Kundschafter"
+      },
+      "description": {
+        "en": "One expedition slot from the start of every era.",
+        "de": "Ein Expeditionsplatz von Anfang jeder Ära an."
+      },
+      "requires": [
+        "relic_sponsor"
+      ]
+    },
+    {
+      "id": "relic_whet_4",
+      "branch": "relic",
+      "tier": 4,
+      "cost": 6,
+      "requires_ascensions": 7,
+      "effect": "production_mult",
+      "value": 1.1,
+      "name": {
+        "en": "Whetstone IV",
+        "de": "Schleifstein IV"
+      },
+      "description": {
+        "en": "Production x1.1 again.",
+        "de": "Produktion noch einmal x1,1."
+      },
+      "requires": [
+        "relic_whet_3"
+      ]
+    },
+    {
+      "id": "relic_eternal",
+      "branch": "relic",
+      "tier": 5,
       "cost": 7,
+      "requires_ascensions": 10,
       "effect": "production_mult",
       "value": 1.5,
       "name": {
@@ -2094,6 +2244,73 @@
       },
       "requires": [
         "relic_crown"
+      ]
+    },
+    {
+      "id": "relic_legend",
+      "branch": "relic",
+      "tier": 5,
+      "cost": 7,
+      "requires_ascensions": 10,
+      "effect": "head_start",
+      "value": 1,
+      "name": {
+        "en": "Legend",
+        "de": "Legende"
+      },
+      "description": {
+        "en": "Every run starts with 100 cursors, 50 taiko drums, 25 catch fruits and 10 mania keys.",
+        "de": "Jeder Run startet mit 100 Cursorn, 50 Taiko-Trommeln, 25 Catch-Früchten und 10 Mania-Keys."
+      },
+      "head_start": {
+        "cursor": 100,
+        "taiko": 50,
+        "catch": 25,
+        "mania": 10
+      },
+      "requires": [
+        "relic_crown"
+      ]
+    },
+    {
+      "id": "relic_timeless",
+      "branch": "relic",
+      "tier": 5,
+      "cost": 10,
+      "requires_ascensions": 10,
+      "effect": "production_mult",
+      "value": 2,
+      "name": {
+        "en": "Timeless",
+        "de": "Zeitlos"
+      },
+      "description": {
+        "en": "Production x2.",
+        "de": "Produktion x2."
+      },
+      "requires": [
+        "relic_eternal",
+        "relic_legend"
+      ]
+    },
+    {
+      "id": "relic_whet_5",
+      "branch": "relic",
+      "tier": 5,
+      "cost": 8,
+      "requires_ascensions": 9,
+      "effect": "production_mult",
+      "value": 1.1,
+      "name": {
+        "en": "Whetstone V",
+        "de": "Schleifstein V"
+      },
+      "description": {
+        "en": "Production x1.1 one last time.",
+        "de": "Produktion ein letztes Mal x1,1."
+      },
+      "requires": [
+        "relic_whet_4"
       ]
     }
   ]

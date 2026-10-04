@@ -284,6 +284,9 @@ namespace osu.Game.Screens.Banchosucks.Clicker
         [JsonPropertyName("head_start")] public Dictionary<string, int>? HeadStart { get; set; }
         [JsonPropertyName("unlocks")] public string? Unlocks { get; set; }
 
+        /// <summary>Relic tree only: ascensions needed before the node can be bought (the tiers open with real ascensions, not with banked relics).</summary>
+        [JsonPropertyName("requires_ascensions")] public int RequiresAscensions { get; set; }
+
         /// <summary>
         /// Explicit prerequisites; without them the node needs the previous tier of its branch.
         /// </summary>

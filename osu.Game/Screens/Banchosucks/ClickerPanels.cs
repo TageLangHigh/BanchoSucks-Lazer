@@ -600,8 +600,13 @@ namespace osu.Game.Screens.Banchosucks
             IEnumerable<ClickerTreeNode?> required = Node.Requires != null
                 ? Node.Requires.Select(id => Relic ? balance.RelicNode(id) : balance.Node(id))
                 : (Relic ? balance.RelicTree.Where(n => n.Tier == Node.Tier - 1) : balance.Tree.Where(n => n.Branch == Node.Branch && n.Tier == Node.Tier - 1));
+            var names = required.Where(n => n != null).Select(n => ClickerStrings.Pick(n!.Name)).ToList();
 
-            return string.Join(" + ", required.Where(n => n != null).Select(n => ClickerStrings.Pick(n!.Name)));
+            // the relic tiers open with real ascensions, banked relics alone do not help
+            if (Relic && !engine.Economy.RelicNodeAscensionsMet(Node))
+                names.Insert(0, ClickerStrings.Pick($"{Node.RequiresAscensions} ascensions", $"{Node.RequiresAscensions} Aufstiege"));
+
+            return string.Join(" + ", names);
         }
     }
 

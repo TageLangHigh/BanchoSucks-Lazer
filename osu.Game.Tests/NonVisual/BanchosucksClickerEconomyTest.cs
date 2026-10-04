@@ -28,7 +28,9 @@ namespace osu.Game.Tests.NonVisual
             // balance 3 (2026-10-04) changed the numbers without a season reset: the season stays 2
             Assert.That(balance.Season, Is.EqualTo(2));
             Assert.That(balance.BalanceVersion, Is.EqualTo(3));
-            Assert.That(balance.RelicTree.Length, Is.EqualTo(8));
+            Assert.That(balance.RelicTree.Length, Is.EqualTo(18));
+            Assert.That(balance.RelicTree.Sum(n => n.Cost), Is.EqualTo(81));
+            Assert.That(balance.RelicTree.All(n => n.RequiresAscensions >= 1), "every relic tier is gated by ascensions");
             Assert.That(balance.BpmEpoch, Is.EqualTo(3));
             Assert.That(balance.MaxBpm, Is.EqualTo(500));
             Assert.That(balance.Producers.Length, Is.EqualTo(11));
