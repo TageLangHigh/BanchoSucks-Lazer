@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using osu.Framework.Input;
 using osu.Framework.Input.Bindings;
@@ -111,6 +112,8 @@ namespace osu.Game.Input.Bindings
             new KeyBinding(InputKey.F10, GlobalAction.ToggleGameplayMouseButtons),
             new KeyBinding(InputKey.F12, GlobalAction.TakeScreenshot),
             new KeyBinding(new[] { InputKey.Shift, InputKey.F12 }, GlobalAction.TakeAndUploadScreeshot),
+
+            new KeyBinding(InputKey.Pause, GlobalAction.BanchosucksBossKey),
         };
 
         private static IEnumerable<KeyBinding> overlayKeyBindings => new[]
@@ -635,6 +638,10 @@ namespace osu.Game.Input.Bindings
 
         [LocalisableDescription(typeof(EditorStrings), nameof(EditorStrings.SeekToEnd))]
         EditorSeekToEnd,
+
+        // Banchosucks: new actions go at the end, realm stores the enum value
+        [Description("Boss-Taste: Spiel minimieren und stummschalten / Boss key: minimise and mute the game")]
+        BanchosucksBossKey,
     }
 
     public enum GlobalActionCategory

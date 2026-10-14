@@ -78,6 +78,15 @@ and restart the app container.
   kept applied by `osu.Game/Graphics/BanchosucksThreadRateManager.cs`.
 - **Menu opacity** (User Interface > General): alpha of menu screens; gameplay and the editor
   always stay opaque (`OsuGame.applyMenuOpacity`).
+- **Boss key** (Pause by default, rebindable under Input > Global): minimises the window and mutes
+  the game; gameplay pauses through the normal focus-loss handling and the mute is lifted when the
+  window is active again (`OsuGame.bossKey`).
+- **Presets** (General > Presets): "Smooth" (frame limiter 2x, multithreading, WASAPI, raw input,
+  storyboard / video / hit lighting / blur off, thread rates back to default) and "Stable feel"
+  (classic skin, Classic mod, which is ranked on this server, classic score display, beatmap skins /
+  colours / hitsounds, key overlay, no hold-to-confirm delay): `osu.Game/Configuration/BanchosucksPresets.cs`
+  and `osu.Game/Overlays/Settings/Sections/General/BanchosucksPresetSettings.cs`. A one-time
+  notification points at them after the update (`OsuSetting.BanchosucksPresetsHintShown`).
 - **Render replays as video** (right-click a score on the song select leaderboard):
   `osu.Game/Scoring/BanchosucksReplayRenderer.cs` renders with danser-go on the player's PC.
   danser-go (GPL-3.0, bundles FFmpeg) is not shipped with the client. It is downloaded from

@@ -1647,6 +1647,10 @@ namespace osu.Game
                 case GlobalAction.PreviousVolumeMeter:
                     return volume.Adjust(e.Action);
 
+                case GlobalAction.BanchosucksBossKey:
+                    bossKey();
+                    return true;
+
                 case GlobalAction.ToggleFPSDisplay:
                     fpsCounter.ToggleVisibility();
                     return true;
@@ -1728,6 +1732,13 @@ namespace osu.Game
 
         private void updateActiveState(bool isActive)
         {
+            // Banchosucks: the boss key's mute ends as soon as the window is active again
+            if (isActive && bossKeyMuted && volume != null)
+            {
+                bossKeyMuted = false;
+                volume.IsMuted.Value = false;
+            }
+
             if (isActive)
                 this.TransformBindableTo(inactiveVolumeFade, 1, 400, Easing.OutQuint);
             else
@@ -1791,6 +1802,44 @@ namespace osu.Game
 
         private Bindable<float> menuOpacity;
 
+        private bool bossKeyMuted;
+
+        /// <summary>
+        /// Banchosucks: minimises the window and mutes the game in one keypress. Gameplay pauses through the usual
+        /// focus-loss handling; <see cref="updateActiveState"/> lifts the mute again.
+        /// </summary>
+        private void bossKey()
+        {
+            if (!volume.IsMuted.Value)
+            {
+                volume.IsMuted.Value = true;
+                bossKeyMuted = true;
+            }
+
+            if (Host.Window != null)
+                Host.Window.WindowState = Framework.Platform.WindowState.Minimised;
+        }
+
+        /// <summary>
+        /// Banchosucks: adds the Classic mod of the current ruleset to the selected mods (preset "Stable feel").
+        /// </summary>
+        /// <returns>Whether the mod is selected now.</returns>
+        public bool BanchosucksSelectClassicMod()
+        {
+            if (SelectedMods.Disabled)
+                return false;
+
+            if (SelectedMods.Value.Any(m => m is ModClassic))
+                return true;
+
+            var classic = Ruleset.Value.CreateInstance().CreateMod<ModClassic>();
+            if (classic == null)
+                return false;
+
+            SelectedMods.Value = SelectedMods.Value.Append(classic).ToArray();
+            return true;
+        }
+
         /// <summary>
         /// Banchosucks: applies the menu opacity setting through the screen's colour alpha, which multiplies with
         /// (and so never fights) the alpha the screens animate themselves during transitions.
@@ -1807,6 +1856,22 @@ namespace osu.Game
         protected virtual void ScreenChanged([CanBeNull] IOsuScreen current, [CanBeNull] IOsuScreen newScreen)
         {
             applyMenuOpacity(newScreen);
+
+            // Banchosucks: one-time pointer at the presets (Settings > General), once the main menu is up
+            if (newScreen is MainMenu && !LocalConfig.Get<bool>(OsuSetting.BanchosucksPresetsHintShown))
+            {
+                LocalConfig.SetValue(OsuSetting.BanchosucksPresetsHintShown, true);
+                waitForReady(() => Notifications, _ => Notifications.Post(new SimpleNotification
+                {
+                    Icon = FontAwesome.Solid.SlidersH,
+                    Text = "Neu: Voreinstellungen „Flüssig“ und „Stable-Gefühl“ unter Einstellungen → Allgemein. / New: presets in Settings > General.",
+                    Activated = () =>
+                    {
+                        Settings.Show();
+                        return true;
+                    }
+                }));
+            }
 
             SentrySdk.ConfigureScope(scope =>
             {

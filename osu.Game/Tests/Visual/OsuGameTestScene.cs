@@ -175,6 +175,8 @@ namespace osu.Game.Tests.Visual
                 base.LoadComplete();
 
                 LocalConfig.SetValue(OsuSetting.ShowFirstRunSetup, false);
+                // Banchosucks: the one-time presets hint would cover the screen under test
+                LocalConfig.SetValue(OsuSetting.BanchosucksPresetsHintShown, true);
 
                 API.Login("Rhythm Champion", "osu!");
                 ((DummyAPIAccess)API).AuthenticateSecondFactor("abcdefgh");
