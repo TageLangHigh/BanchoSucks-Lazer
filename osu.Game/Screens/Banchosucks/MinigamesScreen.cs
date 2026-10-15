@@ -14,6 +14,7 @@ using osu.Framework.Screens;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Screens.Banchosucks.CircleRush;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
@@ -73,6 +74,10 @@ namespace osu.Game.Screens.Banchosucks
                                 ClickerStrings.Text("Click the circle, collect PP, buy taiko drums and mappers. With prestige tree, medals and leaderboards.",
                                     "Klick den Kreis, sammle PP, kauf dir Taiko-Trommeln und Mapper. Mit Prestige-Baum, Medaillen und Ranglisten."),
                                 FontAwesome.Solid.MousePointer, colours.Pink, () => this.Push(new OsuClickerScreen())),
+                            new GameTile("Circle Rush",
+                                ClickerStrings.Text("Click circles before they vanish, faster and faster. One minute or five lives, four difficulties, EZ/HD/HR/FL, leaderboards.",
+                                    "Klick Kreise, bevor sie verschwinden, immer schneller. Eine Minute oder fünf Leben, vier Schwierigkeiten, EZ/HD/HR/FL, Ranglisten."),
+                                FontAwesome.Solid.Bullseye, colours.Blue, () => this.Push(new CircleRushScreen())),
                         },
                     },
                 },

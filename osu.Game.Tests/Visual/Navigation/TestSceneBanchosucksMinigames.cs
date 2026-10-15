@@ -25,6 +25,7 @@ using osu.Game.Online.API;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Dialog;
 using osu.Game.Screens.Banchosucks;
+using osu.Game.Screens.Banchosucks.CircleRush;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osu.Game.Screens.Menu;
 using osuTK.Input;
@@ -94,6 +95,59 @@ namespace osu.Game.Tests.Visual.Navigation
             AddStep("open clicker again", () => ((MinigamesScreen)Game.ScreenStack.CurrentScreen).Push(new OsuClickerScreen()));
             AddUntilStep("clicker open", () => Game.ScreenStack.CurrentScreen is OsuClickerScreen screen && screen.IsLoaded);
             AddAssert("cursor trail restored", () => hasTextStarting("1× · "));
+        }
+
+        [Test]
+        public void TestCircleRushFromMinigames()
+        {
+            AddStep("open play menu", () =>
+            {
+                InputManager.Key(Key.P);
+                InputManager.Key(Key.P);
+            });
+            AddStep("press G", () => InputManager.Key(Key.G));
+            AddUntilStep("minigames open", () => Game.ScreenStack.CurrentScreen is MinigamesScreen screen && screen.IsLoaded && screen.Alpha == 1);
+
+            AddStep("click circle rush tile", () =>
+            {
+                InputManager.MoveMouseTo(((Drawable)Game.ScreenStack.CurrentScreen).ChildrenOfType<OsuClickableContainer>().ElementAt(1));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("circle rush open", () => Game.ScreenStack.CurrentScreen is CircleRushScreen screen && screen.IsLoaded);
+            AddAssert("difficulties shown", () => hasText("Extreme"));
+
+            // big, slow circles so the test has time to aim
+            AddStep("pick easy", () => clickOption("Easy"));
+            AddStep("pick EZ", () => clickOption("EZ"));
+            AddUntilStep("multiplier shown", () => hasTextContaining("1.20"));
+
+            AddStep("start", () =>
+            {
+                InputManager.MoveMouseTo(circleRush().ChildrenOfType<OsuClickableContainer>().First(b => b.GetType().Name == "ClickerPillButton"));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("countdown over", () => hasTextContaining("ms per circle"));
+            AddUntilStep("circle on the field", () => circleRush().ChildrenOfType<Drawable>().Any(d => d.GetType().Name == "CircleRushCircle" && d.IsPresent));
+            AddStep("click the circle", () =>
+            {
+                InputManager.MoveMouseTo(circleRush().ChildrenOfType<Drawable>().First(d => d.GetType().Name == "CircleRushCircle" && d.IsPresent));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("hit counted", () => hasTextContaining("1 hits"));
+
+            AddStep("escape the run", () => InputManager.Key(Key.Escape));
+            AddUntilStep("back in the circle rush menu", () => Game.ScreenStack.CurrentScreen is CircleRushScreen && hasText("Start"));
+            AddStep("escape the screen", () => InputManager.Key(Key.Escape));
+            AddUntilStep("back on minigames", () => Game.ScreenStack.CurrentScreen is MinigamesScreen);
+        }
+
+        private Drawable circleRush() => (Drawable)Game.ScreenStack.CurrentScreen;
+
+        private void clickOption(string text)
+        {
+            InputManager.MoveMouseTo(circleRush().ChildrenOfType<OsuClickableContainer>()
+                                                 .First(b => b.GetType().Name == "OptionButton" && b.ChildrenOfType<OsuSpriteText>().Any(t => t.Text.ToString() == text)));
+            InputManager.Click(MouseButton.Left);
         }
 
         [Test]

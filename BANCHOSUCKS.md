@@ -121,3 +121,20 @@ and restart the app container.
   save, awards five real profile medals and rejects saves from an older season
   (`old_season`); the season 2 reset (2026-09-27) and the season 3 rebalance reset (2026-09-29) each wiped
   every save and record once.
+- **Circle Rush** (main menu > Play > minigames, second tile, since 2026.913.15):
+  `osu.Game/Screens/Banchosucks/CircleRush/`, an aim and reaction game. Circles appear on an
+  800x600 field and must be clicked (mouse, touch, Z/X at the cursor) before they expire; the
+  spawn interval and the lifetime shrink over the run (the ramp, 50 s in minute mode, 90 s in
+  endless mode, where they keep shrinking slowly afterwards so every run ends). Modes: one minute,
+  or endless with five lives (an expired circle or a click into nothing is a miss). Difficulties
+  Easy/Medium/Hard/Extreme start at 750/600/450/300 ms per circle (osu! AR 8 to 11) with radii
+  50/42/34/28 px. Mods: EZ (bigger, slower, x1.20), HD (circle fades, no approach ring, x1.06),
+  HR (smaller, faster, x1.06), FL (only a disc around the cursor is lit, x1.12); EZ and HR exclude
+  each other. A hit gives 100 to 200 points by reaction time, times a combo multiplier up to x3
+  after 100 hits in a row. `CircleRushRules.cs` holds every formula in integer arithmetic and is
+  mirrored by the plugin `banchosucks_circlerush/rules.py`; the client sends the event log
+  (hit / expiry / empty click with run times) and the server replays it, refusing impossible
+  reactions, skipped expiries or a wrong duration. Eight leaderboards (mode x difficulty), best run
+  per player, shown in the screen and on banchosucks.cc/lazer/circle-rush. Tests:
+  `osu.Game.Tests/NonVisual/BanchosucksCircleRushRulesTest.cs` (same numbers as the plugin tests)
+  and `TestSceneBanchosucksMinigames`.
