@@ -19,6 +19,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API;
+using osu.Game.Overlays;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
@@ -54,6 +55,9 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
         [Resolved]
         private OsuColour colours { get; set; } = null!;
+
+        [Resolved(canBeNull: true)]
+        private OsuGame? game { get; set; }
 
         private RunState state = RunState.Menu;
         private CircleRushMode mode = lastMode;
@@ -235,12 +239,13 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                         Text = "Circle Rush",
                         Font = OsuFont.GetFont(size: 54, weight: FontWeight.Bold),
                     },
-                    new OsuSpriteText
+                    new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 18))
                     {
-                        Text = ClickerStrings.Text("Click the circles before they vanish: singles, bursts and streams, faster and faster.", "Klick die Kreise, bevor sie verschwinden: einzeln, als Burst und als Stream, immer schneller."),
-                        Font = OsuFont.GetFont(size: 18),
+                        Width = 640,
+                        AutoSizeAxes = Axes.Y,
                         Colour = colours.Gray9,
                         Margin = new MarginPadding { Bottom = 8 },
+                        Text = ClickerStrings.Text("Click the circles before they vanish: singles, bursts and streams, faster and faster.", "Klick die Kreise, bevor sie verschwinden: einzeln, als Burst und als Stream, immer schneller."),
                     },
                     heading(ClickerStrings.Text("Mode", "Modus")),
                     row(modeRow),
@@ -262,13 +267,14 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     {
                         Margin = new MarginPadding { Top = 10 },
                     },
-                    new OsuSpriteText
+                    new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 13))
                     {
-                        Text = ClickerStrings.Text("Mouse, touch or Z / X at the cursor. Numbered circles belong to one group. Escape leaves the run. A click into nothing is a miss.",
-                            "Maus, Touch oder Z / X am Cursor. Nummerierte Kreise gehören zu einer Gruppe. Escape bricht den Lauf ab. Ein Klick ins Leere ist ein Miss."),
-                        Font = OsuFont.GetFont(size: 13),
+                        Width = 640,
+                        AutoSizeAxes = Axes.Y,
                         Colour = colours.Gray9,
                         Margin = new MarginPadding { Top = 10 },
+                        Text = ClickerStrings.Text("Mouse, touch or Z / X at the cursor. Numbered circles belong to one group. Escape leaves the run. A click into nothing is a miss.",
+                            "Maus, Touch oder Z / X am Cursor. Nummerierte Kreise gehören zu einer Gruppe. Escape bricht den Lauf ab. Ein Klick ins Leere ist ein Miss."),
                     },
                 },
             };
@@ -474,6 +480,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             var run = new CircleRushRun(mode, difficulty, mods, seed);
 
             state = RunState.Countdown;
+            // like gameplay: the toolbar and every other overlay stay out of the way until the menu is back
+            OverlayActivationMode.Value = OverlayActivation.Disabled;
             countdownStart = Time.Current;
             playfield.Begin(run, countdownStart + countdown_ms);
 
@@ -493,6 +501,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         {
             playfield.Clear();
             state = RunState.Menu;
+            OverlayActivationMode.Value = OverlayActivation.All;
+            game?.Toolbar.Show();
             results.FadeOut(150);
             playArea.FadeOut(200);
             menu.FadeIn(200);
@@ -690,7 +700,13 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         public override void OnSuspending(ScreenTransitionEvent e)
         {
             base.OnSuspending(e);
-            playfield.Clear();
+
+            // leaving in the middle of a run (a dialog, another screen): back to the menu, the run is not submitted
+            if (state != RunState.Menu)
+                showMenu();
+            else
+                playfield.Clear();
+
             this.FadeOut(200);
         }
 
