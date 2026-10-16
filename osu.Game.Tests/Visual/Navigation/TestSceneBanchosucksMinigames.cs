@@ -127,6 +127,12 @@ namespace osu.Game.Tests.Visual.Navigation
                 InputManager.Click(MouseButton.Left);
             });
             AddUntilStep("countdown over", () => hasTextContaining("ms per circle"));
+            AddAssert("field sits below the HUD", () =>
+            {
+                var field = circleRush().ChildrenOfType<Drawable>().First(d => d.GetType().Name == "CircleRushPlayfield");
+                var speed = circleRush().ChildrenOfType<OsuSpriteText>().First(t => t.Text.ToString().Contains("ms per circle"));
+                return field.ScreenSpaceDrawQuad.AABBFloat.Top >= speed.ScreenSpaceDrawQuad.AABBFloat.Bottom - 1;
+            });
             AddUntilStep("circle on the field", () => circleRush().ChildrenOfType<Drawable>().Any(d => d.GetType().Name == "CircleRushCircle" && d.IsPresent));
             AddStep("click the circle", () =>
             {

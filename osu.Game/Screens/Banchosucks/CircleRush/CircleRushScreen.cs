@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics;
@@ -15,6 +16,7 @@ using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Screens;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
@@ -59,13 +61,18 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         [Resolved(canBeNull: true)]
         private OsuGame? game { get; set; }
 
+        [Resolved]
+        private OsuConfigManager config { get; set; } = null!;
+
+        private Bindable<float> cursorSize = null!;
+
         private RunState state = RunState.Menu;
         private CircleRushMode mode = lastMode;
         private CircleRushDifficulty difficulty = lastDifficulty;
         private CircleRushMods mods = lastMods;
 
         private Container menu = null!;
-        private Container playArea = null!;
+        private CircleRushCursorHost playArea = null!;
         private Container fieldHost = null!;
         private Container boardHost = null!;
         private Container results = null!;
@@ -99,6 +106,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         [BackgroundDependencyLoader]
         private void load()
         {
+            cursorSize = config.GetBindable<float>(OsuSetting.GameplayCursorSize);
+
             InternalChildren = new Drawable[]
             {
                 new Box
@@ -121,9 +130,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     Padding = new MarginPadding { Vertical = 40, Right = 30 },
                     Child = board = new CircleRushLeaderboardPanel(),
                 },
-                playArea = new Container
+                playArea = new CircleRushCursorHost
                 {
-                    RelativeSizeAxes = Axes.Both,
                     Alpha = 0,
                     Children = new Drawable[]
                     {
@@ -480,8 +488,9 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             var run = new CircleRushRun(mode, difficulty, mods, seed);
 
             state = RunState.Countdown;
-            // like gameplay: the toolbar and every other overlay stay out of the way until the menu is back
+            // like gameplay: the toolbar and every other overlay stay out of the way until the menu is back, the skin cursor takes over
             OverlayActivationMode.Value = OverlayActivation.Disabled;
+            playArea.ProvideCursor = true;
             countdownStart = Time.Current;
             playfield.Begin(run, countdownStart + countdown_ms);
 
@@ -501,6 +510,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         {
             playfield.Stop();
             state = RunState.Menu;
+            playArea.ProvideCursor = false;
             OverlayActivationMode.Value = OverlayActivation.All;
             game?.Toolbar.Show();
             results.FadeOut(150);
@@ -515,9 +525,15 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         {
             base.Update();
 
-            // the field scales to whatever space the window leaves, keeping its 4:3 shape
-            float scale = Math.Min(fieldHost.DrawWidth / CircleRushRules.PLAYFIELD_WIDTH, fieldHost.DrawHeight / CircleRushRules.PLAYFIELD_HEIGHT);
-            if (scale > 0) playfield.Scale = new Vector2(scale);
+            // the field scales to the space inside the host's padding (below the HUD), keeping its 4:3 shape
+            float scale = Math.Min(fieldHost.ChildSize.X / CircleRushRules.PLAYFIELD_WIDTH, fieldHost.ChildSize.Y / CircleRushRules.PLAYFIELD_HEIGHT);
+
+            if (scale > 0)
+            {
+                playfield.Scale = new Vector2(scale);
+                // the skin cursor as big as in osu!: 1 skin pixel = 1 / 480 of the window height, times the cursor size setting
+                playArea.CursorScale = scale * 1.25f * cursorSize.Value;
+            }
 
             switch (state)
             {
@@ -594,6 +610,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             if (run == null) return;
 
             state = RunState.Results;
+            playArea.ProvideCursor = false;
             updateHud(run);
             showResults(run);
             submit(run);

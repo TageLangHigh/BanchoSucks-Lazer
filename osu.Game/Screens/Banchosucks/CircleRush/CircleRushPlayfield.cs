@@ -4,7 +4,6 @@
 using System;
 using System.Collections.Generic;
 using osu.Framework.Allocation;
-using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
@@ -12,14 +11,17 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
+using osu.Game.Audio;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Input.Bindings;
 using osu.Game.Rulesets;
 using osu.Game.Screens.Banchosucks.Clicker;
+using osu.Game.Skinning;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
@@ -40,7 +42,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
     /// <summary>
     /// The field circles appear on. Coordinates are <see cref="CircleRushRules.PLAYFIELD_WIDTH"/> × <see cref="CircleRushRules.PLAYFIELD_HEIGHT"/>;
     /// the parent scales the field to fit. Circles come in the groups the schedule dictates: a single anywhere, a burst of
-    /// two as a jump, a stream of three to five along a gently bent line, numbered and coloured per group like osu! combos.
+    /// two as a jump, a stream of three to five along a gently bent line, numbered and coloured with the skin's combo colours.
     /// Input is the osu! ruleset's left / right button (the player's own bindings, mouse buttons included, honouring
     /// "disable mouse buttons during gameplay") and touch; a press goes to the oldest circle under the cursor, anything
     /// else is a miss. Expiries are recorded at the exact deadline, before any click of the same frame, so the event log
@@ -82,6 +84,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private readonly List<CircleRushCircle> active = new List<CircleRushCircle>();
 
         private OsuKeyBindings? bindings;
+        private IReadOnlyList<Color4>? comboColours;
 
         private Random positions = new Random();
         private Vector2 lastPosition = centre;
@@ -94,11 +97,11 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private int nextIndex;
         private int hitCount;
 
-        private Sample? hitNormal;
-        private Sample? hitClap;
-        private Sample? hitFinish;
-        private Sample? comboBreak;
-        private Sample? sectionPass;
+        private ISample? hitNormal;
+        private ISample? hitClap;
+        private ISample? hitFinish;
+        private ISample? comboBreak;
+        private ISample? sectionPass;
 
         public CircleRushPlayfield()
         {
@@ -125,13 +128,15 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         }
 
         [BackgroundDependencyLoader]
-        private void load(AudioManager audio, RulesetStore rulesets)
+        private void load(RulesetStore rulesets, ISkinSource skin)
         {
-            hitNormal = audio.Samples.Get(@"Gameplay/normal-hitnormal");
-            hitClap = audio.Samples.Get(@"Gameplay/normal-hitclap");
-            hitFinish = audio.Samples.Get(@"Gameplay/normal-hitfinish");
-            comboBreak = audio.Samples.Get(@"Gameplay/combobreak");
-            sectionPass = audio.Samples.Get(@"Gameplay/sectionpass");
+            // the skin's hitsounds and combo colours, falling back to the default skin like gameplay does
+            hitNormal = skin.GetSample(new HitSampleInfo(HitSampleInfo.HIT_NORMAL));
+            hitClap = skin.GetSample(new HitSampleInfo(HitSampleInfo.HIT_CLAP));
+            hitFinish = skin.GetSample(new HitSampleInfo(HitSampleInfo.HIT_FINISH));
+            comboBreak = skin.GetSample(new SampleInfo(@"Gameplay/combobreak"));
+            sectionPass = skin.GetSample(new SampleInfo(@"Gameplay/sectionpass"));
+            comboColours = skin.GetConfig<GlobalSkinColours, IReadOnlyList<Color4>>(GlobalSkinColours.ComboColours)?.Value;
 
             var layers = new Container
             {
@@ -253,8 +258,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private void startGroup(int size, float radius)
         {
             groupOrdinal++;
-            Color4[] palette = { colours.Pink, colours.Blue, colours.Yellow, colours.Green };
-            groupColour = palette[groupOrdinal % palette.Length];
+            IReadOnlyList<Color4> palette = comboColours is { Count: > 0 } ? comboColours : new[] { colours.Pink, colours.Blue, colours.Yellow, colours.Green };
+            groupColour = palette[groupOrdinal % palette.Count];
 
             float margin = radius + 8;
             float clearance = radius * 2.3f;
@@ -632,20 +637,26 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
     }
 
     /// <summary>
-    /// One circle on the field: body in its group's colour, white rim, the number inside the group, hidden-mod fade.
-    /// No approach ring on purpose: there is no timing window to wait for, the faster the hit the more it scores.
+    /// One circle on the field, drawn with the current skin like an osu! hit circle: <c>hitcircle</c> tinted in the group's
+    /// combo colour, <c>hitcircleoverlay</c>, the number in the skin's hit circle font. Skins without those textures (Argon,
+    /// Triangles) get a plain disc with a white rim. No approach ring on purpose: there is no timing window to wait for,
+    /// the faster the hit the more it scores.
     /// </summary>
     internal partial class CircleRushCircle : CompositeDrawable
     {
         public readonly int Index;
         public readonly float Radius;
 
+        /// <summary>osu!'s hit circle textures are drawn for this size and scaled from there.</summary>
+        private const float legacy_size = 128;
+
         private readonly int lifetime;
         private readonly bool hidden;
-        private readonly Circle body;
-        private readonly CircularContainer ring;
-        private readonly OsuSpriteText number;
+        private readonly int numberInGroup;
         private readonly Color4 colour;
+        private readonly Container pieces;
+
+        private Drawable tinted = null!;
 
         private float visibility = 1;
 
@@ -666,39 +677,88 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             this.lifetime = lifetime;
             this.hidden = hidden;
             this.colour = colour;
+            this.numberInGroup = numberInGroup;
 
             Origin = Anchor.Centre;
             Size = new Vector2(radius * 2);
 
-            InternalChildren = new Drawable[]
+            InternalChild = pieces = new Container
             {
-                body = new Circle
-                {
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    RelativeSizeAxes = Axes.Both,
-                    Colour = ColourInfo.GradientVertical(colour.Lighten(0.15f), colour.Darken(0.35f)),
-                },
-                ring = new CircularContainer
-                {
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    RelativeSizeAxes = Axes.Both,
-                    Masking = true,
-                    BorderThickness = radius * 0.14f,
-                    BorderColour = Color4.White,
-                    Child = new Box { RelativeSizeAxes = Axes.Both, Alpha = 0, AlwaysPresent = true },
-                },
-                number = new OsuSpriteText
-                {
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    Text = numberInGroup.ToString(),
-                    Font = OsuFont.Numeric.With(size: radius * 0.85f),
-                    Colour = Color4.White,
-                    Shadow = true,
-                },
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                Size = new Vector2(legacy_size),
+                Scale = new Vector2(radius * 2 / legacy_size),
             };
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(ISkinSource skin)
+        {
+            var circleTexture = skin.GetTexture("hitcircle");
+
+            if (circleTexture != null)
+            {
+                bool overlayAboveNumber = skin.GetConfig<CircleRushSkinSetting, bool>(CircleRushSkinSetting.HitCircleOverlayAboveNumber)?.Value ?? true;
+
+                var overlay = new Sprite
+                {
+                    Texture = skin.GetTexture("hitcircleoverlay"),
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                };
+                var number = new LegacySpriteText(LegacyFont.HitCircle)
+                {
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                    Scale = new Vector2(0.8f),
+                    Text = numberInGroup.ToString(),
+                };
+
+                pieces.Children = new Drawable[]
+                {
+                    tinted = new Sprite
+                    {
+                        Texture = circleTexture,
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Colour = colour,
+                    },
+                    overlayAboveNumber ? (Drawable)number : overlay,
+                    overlayAboveNumber ? overlay : (Drawable)number,
+                };
+            }
+            else
+            {
+                pieces.Children = new Drawable[]
+                {
+                    tinted = new Circle
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = ColourInfo.GradientVertical(colour.Lighten(0.15f), colour.Darken(0.35f)),
+                    },
+                    new CircularContainer
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        RelativeSizeAxes = Axes.Both,
+                        Masking = true,
+                        BorderThickness = legacy_size * 0.07f,
+                        BorderColour = Color4.White,
+                        Child = new Box { RelativeSizeAxes = Axes.Both, Alpha = 0, AlwaysPresent = true },
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Text = numberInGroup.ToString(),
+                        Font = OsuFont.Numeric.With(size: legacy_size * 0.42f),
+                        Colour = Color4.White,
+                        Shadow = true,
+                    },
+                };
+            }
         }
 
         protected override void LoadComplete()
@@ -707,31 +767,28 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
             int fade = Math.Min(80, lifetime / 4);
             this.ScaleTo(0.6f).ScaleTo(1, fade, Easing.OutQuint);
-            body.FadeInFromZero(fade);
-            ring.FadeInFromZero(fade);
-            number.FadeInFromZero(fade);
+            pieces.FadeInFromZero(fade);
 
             if (hidden)
             {
                 // like osu!'s hidden: the circle fades away well before its time is up
-                body.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
-                ring.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
-                number.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
+                pieces.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
             }
         }
 
         public void Hit()
         {
             ClearTransforms();
-            number.FadeOut(80);
-            body.FadeColour(colour.Lighten(0.6f), 60);
+            pieces.ClearTransforms();
+            tinted.FadeColour(colour.Lighten(0.6f), 60);
             this.FadeTo(Math.Max(visibility, 0.6f)).ScaleTo(1.45f, 220, Easing.OutQuint).FadeOut(220).Expire();
         }
 
         public void Miss()
         {
             ClearTransforms();
-            body.FadeColour(Color4Extensions.FromHex("c0392b"), 80);
+            pieces.ClearTransforms();
+            tinted.FadeColour(Color4Extensions.FromHex("c0392b"), 80);
             this.FadeTo(Math.Max(visibility, 0.5f)).ScaleTo(0.75f, 260, Easing.InQuint).FadeOut(260).Expire();
         }
     }
