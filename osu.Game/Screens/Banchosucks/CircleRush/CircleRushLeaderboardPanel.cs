@@ -252,14 +252,13 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                         X = 48,
                         Size = new Vector2(24, 17),
                     },
-                    new OsuSpriteText
+                    new TruncatingSpriteText
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
                         X = 80,
                         Text = entry.Username,
                         Font = OsuFont.GetFont(size: 15, weight: own ? FontWeight.Bold : FontWeight.SemiBold),
-                        Truncate = true,
                         MaxWidth = 128,
                     },
                     new OsuSpriteText

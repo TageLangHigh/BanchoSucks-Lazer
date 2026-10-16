@@ -499,7 +499,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
         private void showMenu()
         {
-            playfield.Clear();
+            playfield.Stop();
             state = RunState.Menu;
             OverlayActivationMode.Value = OverlayActivation.All;
             game?.Toolbar.Show();
@@ -705,14 +705,14 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             if (state != RunState.Menu)
                 showMenu();
             else
-                playfield.Clear();
+                playfield.Stop();
 
             this.FadeOut(200);
         }
 
         public override bool OnExiting(ScreenExitEvent e)
         {
-            playfield.Clear();
+            playfield.Stop();
             bestRequest?.Cancel();
             this.FadeOut(200);
             return base.OnExiting(e);

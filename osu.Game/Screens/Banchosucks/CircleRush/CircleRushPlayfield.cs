@@ -147,7 +147,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         /// <summary>Clears the field and starts <paramref name="run"/> at the given clock time (now or a little later for the countdown).</summary>
         public void Begin(CircleRushRun run, double startAtClockTime)
         {
-            Clear();
+            Stop();
             Run = run;
             positions = new Random((int)(run.Seed & 0x7fffffff));
             startTime = startAtClockTime;
@@ -160,7 +160,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         }
 
         /// <summary>Removes every circle; a running run is aborted and not submitted.</summary>
-        public void Clear()
+        public void Stop()
         {
             Run?.Abort(RunTime);
             startTime = double.NaN;
