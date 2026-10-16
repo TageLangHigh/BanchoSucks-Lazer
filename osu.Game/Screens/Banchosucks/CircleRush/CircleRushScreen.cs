@@ -20,6 +20,7 @@ using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Input;
 using osu.Game.Online.API;
 using osu.Game.Overlays;
 using osu.Game.Screens.Banchosucks.Clicker;
@@ -64,7 +65,11 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
 
+        [Resolved]
+        private RealmKeyBindingStore keyBindingStore { get; set; } = null!;
+
         private Bindable<float> cursorSize = null!;
+        private bool bestBeaten;
 
         private RunState state = RunState.Menu;
         private CircleRushMode mode = lastMode;
@@ -91,6 +96,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private FillFlowContainer livesFlow = null!;
         private readonly List<SpriteIcon> hearts = new List<SpriteIcon>();
         private OsuSpriteText speedText = null!;
+        private OsuSpriteText chaseText = null!;
+        private OsuTextFlowContainer hintText = null!;
         private OsuSpriteText countdownText = null!;
         private OsuSpriteText resultTitle = null!;
         private FillFlowContainer resultLines = null!;
@@ -157,6 +164,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             playfield.Hit += onHit;
             playfield.Missed += onMissed;
             playfield.Finished += onFinished;
+            playfield.ButtonStateChanged += pressed => playArea.SetButtonPressed(pressed);
 
             for (int i = 0; i < CircleRushRules.ENDLESS_LIVES; i++)
             {
@@ -182,8 +190,22 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         {
             base.LoadComplete();
             applySelection();
+            updateKeysHint();
             board.SetBoard(mode, difficulty);
             loadBests();
+        }
+
+        /// <summary>The player's actual osu! bindings for left and right button, as the settings show them.</summary>
+        private void updateKeysHint()
+        {
+            string left = string.Join(", ", keyBindingStore.GetReadableKeyCombinationsFor("osu", 0, (int)CircleRushAction.LeftButton));
+            string right = string.Join(", ", keyBindingStore.GetReadableKeyCombinationsFor("osu", 0, (int)CircleRushAction.RightButton));
+            if (left.Length == 0) left = "Z";
+            if (right.Length == 0) right = "X";
+
+            hintText.Text = ClickerStrings.Pick(
+                $"Your osu! keys: left button {left}, right button {right} (change them in the osu! settings), or touch. Numbered circles belong to one group. Escape leaves the run. A click into nothing is a miss.",
+                $"Deine osu!-Tasten: linke Taste {left}, rechte Taste {right} (änderbar in den osu!-Einstellungen), oder Touch. Nummerierte Kreise gehören zu einer Gruppe. Escape bricht den Lauf ab. Ein Klick ins Leere ist ein Miss.");
         }
 
         // ---------------------------------------------------------------- layout
@@ -275,14 +297,12 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     {
                         Margin = new MarginPadding { Top = 10 },
                     },
-                    new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 13))
+                    hintText = new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 13))
                     {
                         Width = 640,
                         AutoSizeAxes = Axes.Y,
                         Colour = colours.Gray9,
                         Margin = new MarginPadding { Top = 10 },
-                        Text = ClickerStrings.Text("Your osu! keys (left / right button, Z and X by default), mouse or touch at the cursor. Numbered circles belong to one group. Escape leaves the run. A click into nothing is a miss.",
-                            "Deine osu!-Tasten (linke / rechte Taste, standardmäßig Z und X), Maus oder Touch am Cursor. Nummerierte Kreise gehören zu einer Gruppe. Escape bricht den Lauf ab. Ein Klick ins Leere ist ein Miss."),
                     },
                 },
             };
@@ -330,6 +350,14 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                         Anchor = Anchor.TopRight,
                         Origin = Anchor.TopRight,
                         Font = OsuFont.GetFont(size: 16, weight: FontWeight.SemiBold),
+                        Colour = colours.Gray9,
+                    },
+                    chaseText = new OsuSpriteText
+                    {
+                        Anchor = Anchor.TopRight,
+                        Origin = Anchor.TopRight,
+                        Y = 24,
+                        Font = OsuFont.GetFont(size: 14, weight: FontWeight.SemiBold),
                         Colour = colours.Gray9,
                     },
                 },
@@ -495,6 +523,10 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             playfield.Begin(run, countdownStart + countdown_ms);
 
             previousBest = bests.TryGetValue(boardKey(mode, difficulty), out var best) ? best.Score : (int?)null;
+            bestBeaten = false;
+            chaseText.ClearTransforms();
+            chaseText.Colour = colours.Gray9;
+            chaseText.Scale = Vector2.One;
             menu.FadeOut(200);
             boardHost.FadeOut(200);
             results.FadeOut(150);
@@ -586,6 +618,22 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             speedText.Text = ClickerStrings.Pick(
                 $"{CircleRushStrings.DifficultyName(run.Difficulty)}{(acronyms.Length > 0 ? " +" + acronyms : string.Empty)} · {CircleRushRules.Lifetime(run.Mode, run.Difficulty, run.Mods, time)} ms per circle",
                 $"{CircleRushStrings.DifficultyName(run.Difficulty)}{(acronyms.Length > 0 ? " +" + acronyms : string.Empty)} · {CircleRushRules.Lifetime(run.Mode, run.Difficulty, run.Mods, time)} ms pro Kreis");
+
+            // the chase: how far the personal best is, and a one-time cheer when it falls
+            if (previousBest is int before)
+            {
+                if (run.Score <= before)
+                    chaseText.Text = ClickerStrings.Pick($"Best {before.ToString("N0", culture)} · {(before - run.Score + 1).ToString("N0", culture)} to go", $"Bestleistung {before.ToString("N0", culture)} · noch {(before - run.Score + 1).ToString("N0", culture)}");
+                else if (!bestBeaten)
+                {
+                    bestBeaten = true;
+                    chaseText.Text = ClickerStrings.Text("New personal best!", "Neue Bestleistung!");
+                    chaseText.Colour = colours.Yellow;
+                    chaseText.ScaleTo(1.35f).ScaleTo(1, 500, Easing.OutQuint);
+                }
+            }
+            else
+                chaseText.Text = ClickerStrings.Text("First run on this board", "Erster Lauf auf dieser Rangliste");
         }
 
         private void onHit(int points, int combo, CircleRushJudgement judgement)
@@ -711,6 +759,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         public override void OnResuming(ScreenTransitionEvent e)
         {
             base.OnResuming(e);
+            // the player may have changed the osu! bindings in the settings meanwhile
+            updateKeysHint();
             this.FadeIn(250, Easing.OutQuint);
         }
 

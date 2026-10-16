@@ -58,6 +58,9 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         /// <summary>The run ended (clock or lives); <see cref="Run"/> holds the result.</summary>
         public event Action? Finished;
 
+        /// <summary>An osu! button went down (true) or up (false), run or not; the skin cursor grows while one is held.</summary>
+        public event Action<bool>? ButtonStateChanged;
+
         public CircleRushRun? Run { get; private set; }
 
         public bool Running => Run != null && !Run.Ended && !double.IsNaN(startTime) && Time.Current >= startTime;
@@ -141,7 +144,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             var layers = new Container
             {
                 RelativeSizeAxes = Axes.Both,
-                Children = new Drawable[] { background, light, circleLayer, effectLayer, new ActionReceiver(onAction) },
+                Children = new Drawable[] { background, light, circleLayer, effectLayer, new ActionReceiver(onAction, onRelease) },
             };
 
             // the osu! ruleset's bindings from the player's database; without the ruleset (never in this client) plain Z / X below
@@ -470,10 +473,20 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         /// <summary>The osu! left or right button was pressed (key or mouse, as bound in the osu! settings): a click at the cursor.</summary>
         private bool onAction(KeyBindingPressEvent<CircleRushAction> e)
         {
-            if (!Running || e.Repeat) return false;
+            if (e.Repeat) return false;
             if (e.Action != CircleRushAction.LeftButton && e.Action != CircleRushAction.RightButton) return false;
 
+            ButtonStateChanged?.Invoke(true);
+
+            if (!Running) return false;
+
             return clickAtCursor();
+        }
+
+        private void onRelease(KeyBindingReleaseEvent<CircleRushAction> e)
+        {
+            if (e.Action == CircleRushAction.LeftButton || e.Action == CircleRushAction.RightButton)
+                ButtonStateChanged?.Invoke(false);
         }
 
         private bool clickAtCursor()
@@ -541,18 +554,18 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private partial class ActionReceiver : CompositeDrawable, IKeyBindingHandler<CircleRushAction>
         {
             private readonly Func<KeyBindingPressEvent<CircleRushAction>, bool> pressed;
+            private readonly Action<KeyBindingReleaseEvent<CircleRushAction>> released;
 
-            public ActionReceiver(Func<KeyBindingPressEvent<CircleRushAction>, bool> pressed)
+            public ActionReceiver(Func<KeyBindingPressEvent<CircleRushAction>, bool> pressed, Action<KeyBindingReleaseEvent<CircleRushAction>> released)
             {
                 this.pressed = pressed;
+                this.released = released;
                 RelativeSizeAxes = Axes.Both;
             }
 
             public bool OnPressed(KeyBindingPressEvent<CircleRushAction> e) => pressed(e);
 
-            public void OnReleased(KeyBindingReleaseEvent<CircleRushAction> e)
-            {
-            }
+            public void OnReleased(KeyBindingReleaseEvent<CircleRushAction> e) => released(e);
         }
 
         /// <summary>"+183" and the judgement drifting up from a hit circle, coloured like osu!'s 300 / 100 / 50; every 25th combo is called out.</summary>

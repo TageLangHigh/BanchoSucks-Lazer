@@ -125,7 +125,7 @@ and restart the app container.
   `osu.Game/Screens/Banchosucks/CircleRush/`, an aim and reaction game. Circles appear on an
   800x600 field in patterns drawn from the run's seed (xorshift32, identical on the server): 55 %
   singles, 30 % bursts of two (gap 60 % of the base interval) and 15 % streams of three to five
-  along a gently bent line (gap 45 %), drawn with the current skin (hitcircle, hitcircleoverlay, hit circle font, combo colours, hitsounds; the skin cursor replaces the menu cursor during a run) and numbered per group. They must
+  along a gently bent line (gap 45 %), drawn with the current skin (hitcircle, hitcircleoverlay, hit circle font, combo colours, hitsounds; the skin cursor with trail replaces the menu cursor during a run and grows while a button is held) and numbered per group. The menu shows the actual osu! bindings, the HUD how far the personal best is. They must
   be clicked before they expire, with the osu! ruleset's own left / right button bindings (Z/X by default, mouse buttons, honouring "disable mouse buttons during gameplay") or touch; there is no approach ring, the faster the hit the more it scores; base interval and lifetime
   shrink over the run (the ramp, 40 s in minute mode, 75 s in endless mode, where they keep
   shrinking slowly afterwards and the circles get smaller, so every run ends). Modes: one minute,
