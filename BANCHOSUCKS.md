@@ -130,7 +130,7 @@ and restart the app container.
   shrink over the run (the ramp, 40 s in minute mode, 75 s in endless mode, where they keep
   shrinking slowly afterwards and the circles get smaller, so every run ends). Modes: one minute,
   or endless with five lives (an expired circle or a click into nothing is a miss). Difficulties
-  Easy/Medium/Hard/Extreme start at 750/600/450/300 ms per circle (osu! AR 8 to 11) with a base
+  Easy/Medium/Hard/Extreme start at 850/700/550/400 ms per circle (osu! AR 8 to 11 plus 100 ms of grace; a circle dims in its last quarter, a press on a circle that has just vanished is ignored rather than counted as a second miss, and the hit area is 10 % wider than the circle) with a base
   interval of 800/650/520/400 ms (floors 380/300/240/180) and radii 50/42/34/28 px. Mods: EZ
   (bigger, slower, x1.20), HD (circle fades early, x1.06), HR (smaller, faster, x1.06),
   FL (only a disc around the cursor is lit, x1.12); EZ and HR exclude each other. A hit gives 100

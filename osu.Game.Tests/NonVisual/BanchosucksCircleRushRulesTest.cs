@@ -16,10 +16,10 @@ namespace osu.Game.Tests.NonVisual
         [Test]
         public void TestStartValuesAreTheOsuApproachRates()
         {
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Easy, CircleRushMods.None, 0), Is.EqualTo(750));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 0), Is.EqualTo(600));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Hard, CircleRushMods.None, 0), Is.EqualTo(450));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Extreme, CircleRushMods.None, 0), Is.EqualTo(300));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Easy, CircleRushMods.None, 0), Is.EqualTo(850));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 0), Is.EqualTo(700));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Hard, CircleRushMods.None, 0), Is.EqualTo(550));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Extreme, CircleRushMods.None, 0), Is.EqualTo(400));
             Assert.That(CircleRushRules.BaseInterval(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 0), Is.EqualTo(650));
             Assert.That(CircleRushRules.Radius(CircleRushDifficulty.Easy, CircleRushMods.None), Is.EqualTo(50));
             Assert.That(CircleRushRules.Radius(CircleRushDifficulty.Extreme, CircleRushMods.None), Is.EqualTo(28));
@@ -28,22 +28,22 @@ namespace osu.Game.Tests.NonVisual
         [Test]
         public void TestRampAndSqueeze()
         {
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 720), Is.EqualTo(596));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 720), Is.EqualTo(696));
             Assert.That(CircleRushRules.BaseInterval(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 720), Is.EqualTo(644));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, CircleRushRules.RAMP_MINUTE), Is.EqualTo(360));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, CircleRushRules.RAMP_MINUTE), Is.EqualTo(460));
             Assert.That(CircleRushRules.BaseInterval(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, CircleRushRules.RAMP_MINUTE), Is.EqualTo(300));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 59_000), Is.EqualTo(360));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Endless, CircleRushDifficulty.Easy, CircleRushMods.None, CircleRushRules.RAMP_ENDLESS), Is.EqualTo(450));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Endless, CircleRushDifficulty.Easy, CircleRushMods.None, CircleRushRules.RAMP_ENDLESS + 25_000), Is.EqualTo(350));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Endless, CircleRushDifficulty.Easy, CircleRushMods.None, CircleRushRules.RAMP_ENDLESS + 500_000), Is.EqualTo(225));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Endless, CircleRushDifficulty.Extreme, CircleRushMods.None, 1_000_000), Is.EqualTo(CircleRushRules.MIN_LIFETIME));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 59_000), Is.EqualTo(460));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Endless, CircleRushDifficulty.Easy, CircleRushMods.None, CircleRushRules.RAMP_ENDLESS), Is.EqualTo(550));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Endless, CircleRushDifficulty.Easy, CircleRushMods.None, CircleRushRules.RAMP_ENDLESS + 25_000), Is.EqualTo(450));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Endless, CircleRushDifficulty.Easy, CircleRushMods.None, CircleRushRules.RAMP_ENDLESS + 500_000), Is.EqualTo(275));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Endless, CircleRushDifficulty.Extreme, CircleRushMods.None, 1_000_000), Is.EqualTo(150));
         }
 
         [Test]
         public void TestModsChangeSizeAndSpeed()
         {
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Hard, CircleRushMods.Easy, 0), Is.EqualTo(720));
-            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Hard, CircleRushMods.HardRock, 0), Is.EqualTo(337));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Hard, CircleRushMods.Easy, 0), Is.EqualTo(880));
+            Assert.That(CircleRushRules.Lifetime(CircleRushMode.Minute, CircleRushDifficulty.Hard, CircleRushMods.HardRock, 0), Is.EqualTo(412));
             Assert.That(CircleRushRules.Radius(CircleRushDifficulty.Medium, CircleRushMods.Easy), Is.EqualTo(58));
             Assert.That(CircleRushRules.Radius(CircleRushDifficulty.Medium, CircleRushMods.HardRock), Is.EqualTo(33));
             Assert.That(CircleRushRules.ModsValid(CircleRushMods.Hidden | CircleRushMods.HardRock | CircleRushMods.Flashlight), Is.True);
@@ -78,8 +78,8 @@ namespace osu.Game.Tests.NonVisual
             Assert.That(Enumerable.Range(0, 10).Select(schedule.SpawnTime), Is.EqualTo(new[] { 0, 390, 1037, 1325, 1612, 2248, 2531, 2813, 3094, 3374 }));
             Assert.That(Enumerable.Range(0, 6).Select(i => (schedule.Circle(i).GroupSize, schedule.Circle(i).GroupIndex)),
                 Is.EqualTo(new[] { (2, 0), (2, 1), (3, 0), (3, 1), (3, 2), (5, 0) }));
-            Assert.That(Enumerable.Range(0, 4).Select(schedule.Lifetime), Is.EqualTo(new[] { 600, 598, 594, 593 }));
-            Assert.That(schedule.Deadline(2), Is.EqualTo(1631));
+            Assert.That(Enumerable.Range(0, 4).Select(schedule.Lifetime), Is.EqualTo(new[] { 700, 698, 694, 693 }));
+            Assert.That(schedule.Deadline(2), Is.EqualTo(1731));
 
             var other = new CircleRushSchedule(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 12345);
             Assert.That(Enumerable.Range(0, 4).Select(other.SpawnTime), Is.EqualTo(new[] { 0, 650, 1295, 1934 }));
@@ -91,12 +91,12 @@ namespace osu.Game.Tests.NonVisual
             var run = new CircleRushRun(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.None, 1);
 
             Assert.That(run.Hit(0, 200), Is.EqualTo(CircleRushJudgement.Perfect));
-            Assert.That(run.BaseScore, Is.EqualTo(166));
+            Assert.That(run.BaseScore, Is.EqualTo(171));
             Assert.That(run.Schedule.SpawnTime(1), Is.EqualTo(390));
             Assert.That(run.Hit(1, 690), Is.EqualTo(CircleRushJudgement.Good));
-            Assert.That(run.BaseScore, Is.EqualTo(317));
+            Assert.That(run.BaseScore, Is.EqualTo(331));
             Assert.That(run.Combo, Is.EqualTo(2));
-            Assert.That(run.Schedule.Deadline(2), Is.EqualTo(1631));
+            Assert.That(run.Schedule.Deadline(2), Is.EqualTo(1731));
             Assert.That(run.Expire(2), Is.True);
             Assert.That(run.Combo, Is.EqualTo(0));
             Assert.That(run.Misses, Is.EqualTo(1));
@@ -107,14 +107,14 @@ namespace osu.Game.Tests.NonVisual
             run.FinishMinute();
             Assert.That(run.Ended, Is.True);
             Assert.That(run.DurationMs, Is.EqualTo(CircleRushRules.MINUTE_DURATION));
-            Assert.That(run.Score, Is.EqualTo(317));
+            Assert.That(run.Score, Is.EqualTo(331));
             Assert.That((run.Perfect, run.Good, run.Late), Is.EqualTo((1, 1, 0)));
             Assert.That(run.Events.Count, Is.EqualTo(3));
 
             var hidden = new CircleRushRun(CircleRushMode.Minute, CircleRushDifficulty.Medium, CircleRushMods.Hidden, 1);
             hidden.Hit(0, 200);
             hidden.Hit(1, 690);
-            Assert.That(hidden.Score, Is.EqualTo(336));
+            Assert.That(hidden.Score, Is.EqualTo(350));
         }
 
         [Test]

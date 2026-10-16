@@ -104,10 +104,10 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
         public static CircleRushDifficultyParams Params(CircleRushDifficulty difficulty) => difficulty switch
         {
-            CircleRushDifficulty.Easy => new CircleRushDifficultyParams(750, 450, 800, 380, 50),
-            CircleRushDifficulty.Medium => new CircleRushDifficultyParams(600, 360, 650, 300, 42),
-            CircleRushDifficulty.Hard => new CircleRushDifficultyParams(450, 280, 520, 240, 34),
-            _ => new CircleRushDifficultyParams(300, 200, 400, 180, 28),
+            CircleRushDifficulty.Easy => new CircleRushDifficultyParams(850, 550, 800, 380, 50),
+            CircleRushDifficulty.Medium => new CircleRushDifficultyParams(700, 460, 650, 300, 42),
+            CircleRushDifficulty.Hard => new CircleRushDifficultyParams(550, 380, 520, 240, 34),
+            _ => new CircleRushDifficultyParams(400, 300, 400, 180, 28),
         };
 
         public static bool ModsValid(CircleRushMods mods) => (mods & (CircleRushMods.Easy | CircleRushMods.HardRock)) != (CircleRushMods.Easy | CircleRushMods.HardRock);

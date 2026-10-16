@@ -75,6 +75,12 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private const float endless_min_scale = 0.7f;
         private const float endless_shrink_ms = 150_000;
 
+        /// <summary>A press this close to a circle counts as a hit on it: skins draw circles a little larger than the hit radius.</summary>
+        private const float click_leniency = 1.1f;
+
+        /// <summary>A press on a circle that expired this recently is a slow reaction, not a second miss, and is ignored.</summary>
+        private const double fading_grace = 300;
+
         private static readonly Vector2 centre = new Vector2(CircleRushRules.PLAYFIELD_WIDTH / 2f, CircleRushRules.PLAYFIELD_HEIGHT / 2f);
 
         [Resolved]
@@ -85,6 +91,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private readonly Box background;
         private readonly Circle light;
         private readonly List<CircleRushCircle> active = new List<CircleRushCircle>();
+        private readonly List<(CircleRushCircle circle, double until)> fading = new List<(CircleRushCircle, double)>();
 
         private OsuKeyBindings? bindings;
         private IReadOnlyList<Color4>? comboColours;
@@ -174,6 +181,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             startTime = double.NaN;
             Run = null;
             active.Clear();
+            fading.Clear();
             circleLayer.Clear();
             effectLayer.Clear();
         }
@@ -185,6 +193,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             if (!Running)
                 return;
 
+            fading.RemoveAll(f => f.until <= Time.Current);
             advanceTo(RunTime);
             updateFlashlight();
         }
@@ -199,6 +208,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             {
                 var circle = active[0];
                 active.RemoveAt(0);
+                fading.Add((circle, Time.Current + fading_grace));
                 run.Expire(circle.Index);
                 circle.Miss();
                 comboBreak?.Play();
@@ -401,7 +411,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
             foreach (var circle in active)
             {
-                if (Vector2.Distance(circle.Position, position) <= circle.Radius)
+                if (Vector2.Distance(circle.Position, position) <= circle.Radius * click_leniency)
                 {
                     target = circle;
                     break;
@@ -423,6 +433,13 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                 }
 
                 return true;
+            }
+
+            foreach (var (circle, _) in fading)
+            {
+                // the circle has just vanished under the cursor: too slow, but not a click into nothing
+                if (Vector2.Distance(circle.Position, position) <= circle.Radius * click_leniency)
+                    return true;
             }
 
             run.EmptyClick(time);
@@ -786,6 +803,11 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             {
                 // like osu!'s hidden: the circle fades away well before its time is up
                 pieces.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
+            }
+            else
+            {
+                // the last quarter: the circle dims, a warning that it is about to vanish (no approach ring on purpose)
+                pieces.Delay(lifetime * 0.75).FadeTo(0.55f, lifetime * 0.25);
             }
         }
 
