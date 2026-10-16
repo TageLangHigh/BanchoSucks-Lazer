@@ -273,8 +273,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                         AutoSizeAxes = Axes.Y,
                         Colour = colours.Gray9,
                         Margin = new MarginPadding { Top = 10 },
-                        Text = ClickerStrings.Text("Mouse, touch or Z / X at the cursor. Numbered circles belong to one group. Escape leaves the run. A click into nothing is a miss.",
-                            "Maus, Touch oder Z / X am Cursor. Nummerierte Kreise gehören zu einer Gruppe. Escape bricht den Lauf ab. Ein Klick ins Leere ist ein Miss."),
+                        Text = ClickerStrings.Text("Your osu! keys (left / right button, Z and X by default), mouse or touch at the cursor. Numbered circles belong to one group. Escape leaves the run. A click into nothing is a miss.",
+                            "Deine osu!-Tasten (linke / rechte Taste, standardmäßig Z und X), Maus oder Touch am Cursor. Nummerierte Kreise gehören zu einer Gruppe. Escape bricht den Lauf ab. Ein Klick ins Leere ist ein Miss."),
                     },
                 },
             };

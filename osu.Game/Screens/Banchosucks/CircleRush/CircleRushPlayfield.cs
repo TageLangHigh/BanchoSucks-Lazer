@@ -6,14 +6,19 @@ using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Input.Bindings;
+using osu.Game.Rulesets;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
@@ -22,12 +27,24 @@ using osuTK.Input;
 namespace osu.Game.Screens.Banchosucks.CircleRush
 {
     /// <summary>
+    /// The osu! ruleset's actions, with the same values, so the player's own osu! key bindings
+    /// (left / right button, Z and X by default, mouse buttons) drive Circle Rush.
+    /// </summary>
+    public enum CircleRushAction
+    {
+        LeftButton = 0,
+        RightButton = 1,
+        Smoke = 2,
+    }
+
+    /// <summary>
     /// The field circles appear on. Coordinates are <see cref="CircleRushRules.PLAYFIELD_WIDTH"/> × <see cref="CircleRushRules.PLAYFIELD_HEIGHT"/>;
     /// the parent scales the field to fit. Circles come in the groups the schedule dictates: a single anywhere, a burst of
     /// two as a jump, a stream of three to five along a gently bent line, numbered and coloured per group like osu! combos.
-    /// Clicks (mouse, touch, Z or X at the cursor) go to the oldest circle under the cursor, anything else is a miss.
-    /// Expiries are recorded at the exact deadline, before any click of the same frame, so the event log replays
-    /// identically on the server. Only timing is verified there; where a circle sits is the client's business.
+    /// Input is the osu! ruleset's left / right button (the player's own bindings, mouse buttons included, honouring
+    /// "disable mouse buttons during gameplay") and touch; a press goes to the oldest circle under the cursor, anything
+    /// else is a miss. Expiries are recorded at the exact deadline, before any click of the same frame, so the event log
+    /// replays identically on the server. Only timing is verified there; where a circle sits is the client's business.
     /// </summary>
     internal partial class CircleRushPlayfield : Container
     {
@@ -64,6 +81,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private readonly Circle light;
         private readonly List<CircleRushCircle> active = new List<CircleRushCircle>();
 
+        private OsuKeyBindings? bindings;
+
         private Random positions = new Random();
         private Vector2 lastPosition = centre;
         private Vector2 groupOrigin = centre;
@@ -89,33 +108,40 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             Masking = true;
             CornerRadius = 12;
 
-            InternalChildren = new Drawable[]
+            background = new Box
             {
-                background = new Box
-                {
-                    RelativeSizeAxes = Axes.Both,
-                    Colour = Color4Extensions.FromHex("12141b"),
-                },
-                light = new Circle
-                {
-                    Origin = Anchor.Centre,
-                    Size = new Vector2(flashlight_radius * 2 + flashlight_edge),
-                    Colour = Color4.White.Opacity(0.11f),
-                    Alpha = 0,
-                },
-                circleLayer = new Container { RelativeSizeAxes = Axes.Both },
-                effectLayer = new Container { RelativeSizeAxes = Axes.Both },
+                RelativeSizeAxes = Axes.Both,
+                Colour = Color4Extensions.FromHex("12141b"),
             };
+            light = new Circle
+            {
+                Origin = Anchor.Centre,
+                Size = new Vector2(flashlight_radius * 2 + flashlight_edge),
+                Colour = Color4.White.Opacity(0.11f),
+                Alpha = 0,
+            };
+            circleLayer = new Container { RelativeSizeAxes = Axes.Both };
+            effectLayer = new Container { RelativeSizeAxes = Axes.Both };
         }
 
         [BackgroundDependencyLoader]
-        private void load(AudioManager audio)
+        private void load(AudioManager audio, RulesetStore rulesets)
         {
             hitNormal = audio.Samples.Get(@"Gameplay/normal-hitnormal");
             hitClap = audio.Samples.Get(@"Gameplay/normal-hitclap");
             hitFinish = audio.Samples.Get(@"Gameplay/normal-hitfinish");
             comboBreak = audio.Samples.Get(@"Gameplay/combobreak");
             sectionPass = audio.Samples.Get(@"Gameplay/sectionpass");
+
+            var layers = new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                Children = new Drawable[] { background, light, circleLayer, effectLayer, new ActionReceiver(onAction) },
+            };
+
+            // the osu! ruleset's bindings from the player's database; without the ruleset (never in this client) plain Z / X below
+            var osuRuleset = rulesets.GetRuleset("osu");
+            InternalChild = osuRuleset != null ? bindings = new OsuKeyBindings(osuRuleset) { Child = layers } : layers;
         }
 
         /// <summary>Clears the field and starts <paramref name="run"/> at the given clock time (now or a little later for the countdown).</summary>
@@ -434,11 +460,23 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             }
         }
 
-        protected override bool OnMouseDown(MouseDownEvent e)
-        {
-            if (!Running) return false;
+        // ---------------------------------------------------------------- input
 
-            return click(ToLocalSpace(e.ScreenSpaceMouseDownPosition));
+        /// <summary>The osu! left or right button was pressed (key or mouse, as bound in the osu! settings): a click at the cursor.</summary>
+        private bool onAction(KeyBindingPressEvent<CircleRushAction> e)
+        {
+            if (!Running || e.Repeat) return false;
+            if (e.Action != CircleRushAction.LeftButton && e.Action != CircleRushAction.RightButton) return false;
+
+            return clickAtCursor();
+        }
+
+        private bool clickAtCursor()
+        {
+            var mouse = GetContainingInputManager()?.CurrentState.Mouse.Position;
+            if (mouse == null) return false;
+
+            return click(ToLocalSpace(mouse.Value));
         }
 
         protected override bool OnTouchDown(TouchDownEvent e)
@@ -448,17 +486,68 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             return click(ToLocalSpace(e.ScreenSpaceTouch.Position));
         }
 
+        // without the osu! ruleset's bindings (never the case in this client): plain mouse and Z / X
+        protected override bool OnMouseDown(MouseDownEvent e)
+        {
+            if (bindings != null || !Running) return false;
+
+            return click(ToLocalSpace(e.ScreenSpaceMouseDownPosition));
+        }
+
         protected override bool OnKeyDown(KeyDownEvent e)
         {
-            if (!Running || e.Repeat) return false;
+            if (bindings != null || !Running || e.Repeat) return false;
+            if (e.Key != Key.Z && e.Key != Key.X) return false;
 
-            if (e.Key != Key.Z && e.Key != Key.X)
-                return false;
+            return clickAtCursor();
+        }
 
-            var mouse = GetContainingInputManager()?.CurrentState.Mouse.Position;
-            if (mouse == null) return false;
+        /// <summary>
+        /// The osu! ruleset's key bindings from the player's database (variant 0), exactly what osu!standard gameplay uses,
+        /// including "disable mouse buttons during gameplay".
+        /// </summary>
+        private partial class OsuKeyBindings : DatabasedKeyBindingContainer<CircleRushAction>
+        {
+            private Bindable<bool>? mouseDisabled;
 
-            return click(ToLocalSpace(mouse.Value));
+            public OsuKeyBindings(RulesetInfo ruleset)
+                : base(ruleset, 0, SimultaneousBindingMode.Unique)
+            {
+                RelativeSizeAxes = Axes.Both;
+            }
+
+            [BackgroundDependencyLoader(true)]
+            private void load(OsuConfigManager? config)
+            {
+                mouseDisabled = config?.GetBindable<bool>(OsuSetting.MouseDisableButtons);
+            }
+
+            protected override bool Handle(UIEvent e)
+            {
+                // like RulesetInputManager: a disabled mouse button is swallowed, not a miss
+                if (e is MouseDownEvent && mouseDisabled?.Value == true)
+                    return true;
+
+                return base.Handle(e);
+            }
+        }
+
+        /// <summary>Receives the bound actions inside <see cref="OsuKeyBindings"/> and hands them to the field.</summary>
+        private partial class ActionReceiver : CompositeDrawable, IKeyBindingHandler<CircleRushAction>
+        {
+            private readonly Func<KeyBindingPressEvent<CircleRushAction>, bool> pressed;
+
+            public ActionReceiver(Func<KeyBindingPressEvent<CircleRushAction>, bool> pressed)
+            {
+                this.pressed = pressed;
+                RelativeSizeAxes = Axes.Both;
+            }
+
+            public bool OnPressed(KeyBindingPressEvent<CircleRushAction> e) => pressed(e);
+
+            public void OnReleased(KeyBindingReleaseEvent<CircleRushAction> e)
+            {
+            }
         }
 
         /// <summary>"+183" and the judgement drifting up from a hit circle, coloured like osu!'s 300 / 100 / 50; every 25th combo is called out.</summary>
@@ -543,8 +632,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
     }
 
     /// <summary>
-    /// One circle on the field: body in its group's colour, the number inside the group, an approach ring that closes
-    /// over the circle's lifetime, hidden-mod fade.
+    /// One circle on the field: body in its group's colour, white rim, the number inside the group, hidden-mod fade.
+    /// No approach ring on purpose: there is no timing window to wait for, the faster the hit the more it scores.
     /// </summary>
     internal partial class CircleRushCircle : CompositeDrawable
     {
@@ -554,7 +643,6 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private readonly int lifetime;
         private readonly bool hidden;
         private readonly Circle body;
-        private readonly CircularContainer approach;
         private readonly CircularContainer ring;
         private readonly OsuSpriteText number;
         private readonly Color4 colour;
@@ -584,16 +672,6 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
             InternalChildren = new Drawable[]
             {
-                approach = new CircularContainer
-                {
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    RelativeSizeAxes = Axes.Both,
-                    Masking = true,
-                    BorderThickness = 3,
-                    BorderColour = colour.Lighten(0.4f),
-                    Child = new Box { RelativeSizeAxes = Axes.Both, Alpha = 0, AlwaysPresent = true },
-                },
                 body = new Circle
                 {
                     Anchor = Anchor.Centre,
@@ -628,28 +706,23 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             base.LoadComplete();
 
             int fade = Math.Min(80, lifetime / 4);
+            this.ScaleTo(0.6f).ScaleTo(1, fade, Easing.OutQuint);
             body.FadeInFromZero(fade);
             ring.FadeInFromZero(fade);
             number.FadeInFromZero(fade);
 
             if (hidden)
             {
-                approach.Alpha = 0;
                 // like osu!'s hidden: the circle fades away well before its time is up
                 body.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
                 ring.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
                 number.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
-            }
-            else
-            {
-                approach.ScaleTo(3.2f).ScaleTo(1, lifetime);
             }
         }
 
         public void Hit()
         {
             ClearTransforms();
-            approach.FadeOut(80);
             number.FadeOut(80);
             body.FadeColour(colour.Lighten(0.6f), 60);
             this.FadeTo(Math.Max(visibility, 0.6f)).ScaleTo(1.45f, 220, Easing.OutQuint).FadeOut(220).Expire();
@@ -658,7 +731,6 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         public void Miss()
         {
             ClearTransforms();
-            approach.FadeOut(60);
             body.FadeColour(Color4Extensions.FromHex("c0392b"), 80);
             this.FadeTo(Math.Max(visibility, 0.5f)).ScaleTo(0.75f, 260, Easing.InQuint).FadeOut(260).Expire();
         }

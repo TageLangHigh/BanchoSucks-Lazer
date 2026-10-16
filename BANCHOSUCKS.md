@@ -126,13 +126,13 @@ and restart the app container.
   800x600 field in patterns drawn from the run's seed (xorshift32, identical on the server): 55 %
   singles, 30 % bursts of two (gap 60 % of the base interval) and 15 % streams of three to five
   along a gently bent line (gap 45 %), numbered and coloured per group like osu! combos. They must
-  be clicked (mouse, touch, Z/X at the cursor) before they expire; base interval and lifetime
+  be clicked before they expire, with the osu! ruleset's own left / right button bindings (Z/X by default, mouse buttons, honouring "disable mouse buttons during gameplay") or touch; there is no approach ring, the faster the hit the more it scores; base interval and lifetime
   shrink over the run (the ramp, 40 s in minute mode, 75 s in endless mode, where they keep
   shrinking slowly afterwards and the circles get smaller, so every run ends). Modes: one minute,
   or endless with five lives (an expired circle or a click into nothing is a miss). Difficulties
   Easy/Medium/Hard/Extreme start at 750/600/450/300 ms per circle (osu! AR 8 to 11) with a base
   interval of 800/650/520/400 ms (floors 380/300/240/180) and radii 50/42/34/28 px. Mods: EZ
-  (bigger, slower, x1.20), HD (circle fades, no approach ring, x1.06), HR (smaller, faster, x1.06),
+  (bigger, slower, x1.20), HD (circle fades early, x1.06), HR (smaller, faster, x1.06),
   FL (only a disc around the cursor is lit, x1.12); EZ and HR exclude each other. A hit gives 100
   to 200 points by reaction time, times a combo multiplier up to x3 after 100 hits in a row, and
   is judged perfect / good / late (within 35 % / 70 % of the lifetime). `CircleRushRules.cs` holds
