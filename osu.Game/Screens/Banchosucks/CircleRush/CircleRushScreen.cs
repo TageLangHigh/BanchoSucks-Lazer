@@ -237,7 +237,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     },
                     new OsuSpriteText
                     {
-                        Text = ClickerStrings.Text("Click the circles before they vanish. It only gets faster.", "Klick die Kreise, bevor sie verschwinden. Es wird nur schneller."),
+                        Text = ClickerStrings.Text("Click the circles before they vanish: singles, bursts and streams, faster and faster.", "Klick die Kreise, bevor sie verschwinden: einzeln, als Burst und als Stream, immer schneller."),
                         Font = OsuFont.GetFont(size: 18),
                         Colour = colours.Gray9,
                         Margin = new MarginPadding { Bottom = 8 },
@@ -264,8 +264,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     },
                     new OsuSpriteText
                     {
-                        Text = ClickerStrings.Text("Mouse, touch or Z / X at the cursor. Escape leaves the run. A click into nothing is a miss.",
-                            "Maus, Touch oder Z / X am Cursor. Escape bricht den Lauf ab. Ein Klick ins Leere ist ein Miss."),
+                        Text = ClickerStrings.Text("Mouse, touch or Z / X at the cursor. Numbered circles belong to one group. Escape leaves the run. A click into nothing is a miss.",
+                            "Maus, Touch oder Z / X am Cursor. Nummerierte Kreise gehören zu einer Gruppe. Escape bricht den Lauf ab. Ein Klick ins Leere ist ein Miss."),
                         Font = OsuFont.GetFont(size: 13),
                         Colour = colours.Gray9,
                         Margin = new MarginPadding { Top = 10 },
@@ -562,9 +562,12 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                 $"{CircleRushStrings.DifficultyName(run.Difficulty)}{(acronyms.Length > 0 ? " +" + acronyms : string.Empty)} · {CircleRushRules.Lifetime(run.Mode, run.Difficulty, run.Mods, time)} ms pro Kreis");
         }
 
-        private void onHit(int points, int combo)
+        private void onHit(int points, int combo, CircleRushJudgement judgement)
         {
             scoreText.ScaleTo(1.12f, 40).Then().ScaleTo(1, 180, Easing.OutQuint);
+
+            if (combo > 0 && combo % 25 == 0)
+                comboText.FlashColour(colours.Yellow, 400);
         }
 
         private void onMissed()
@@ -602,6 +605,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                          ClickerStrings.Pick($"Score {run.Score.ToString("N0", culture)}{(acronyms.Length > 0 ? $" (+{acronyms}, ×{CircleRushRules.ModMultiplier(run.Mods).ToString("0.00", culture)})" : string.Empty)}",
                              $"Score {run.Score.ToString("N0", culture)}{(acronyms.Length > 0 ? $" (+{acronyms}, ×{CircleRushRules.ModMultiplier(run.Mods).ToString("0.00", culture)})" : string.Empty)}"),
                          ClickerStrings.Pick($"{run.Hits} hits · {run.Misses} misses · {run.MaxCombo}x best combo", $"{run.Hits} Treffer · {run.Misses} Misses · {run.MaxCombo}x beste Combo"),
+                         ClickerStrings.Pick($"{run.Perfect} perfect · {run.Good} good · {run.Late} late", $"{run.Perfect} perfekt · {run.Good} gut · {run.Late} spät"),
                          ClickerStrings.Pick($"{run.AverageReaction} ms average reaction · {run.DurationMs / 1000.0:0.0} s", $"{run.AverageReaction} ms mittlere Reaktion · {run.DurationMs / 1000.0:0.0} s"),
                          $"{CircleRushStrings.ModeName(run.Mode)} · {CircleRushStrings.DifficultyName(run.Difficulty)}",
                          previousBest is int before

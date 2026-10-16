@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Events;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
@@ -22,14 +23,16 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 {
     /// <summary>
     /// The field circles appear on. Coordinates are <see cref="CircleRushRules.PLAYFIELD_WIDTH"/> × <see cref="CircleRushRules.PLAYFIELD_HEIGHT"/>;
-    /// the parent scales the field to fit. Clicks (mouse, touch, Z or X at the cursor) go to the oldest circle under the
-    /// cursor, anything else is a miss. Expiries are recorded at the exact deadline, before any click of the same frame,
-    /// so the event log replays identically on the server.
+    /// the parent scales the field to fit. Circles come in the groups the schedule dictates: a single anywhere, a burst of
+    /// two as a jump, a stream of three to five along a gently bent line, numbered and coloured per group like osu! combos.
+    /// Clicks (mouse, touch, Z or X at the cursor) go to the oldest circle under the cursor, anything else is a miss.
+    /// Expiries are recorded at the exact deadline, before any click of the same frame, so the event log replays
+    /// identically on the server. Only timing is verified there; where a circle sits is the client's business.
     /// </summary>
     internal partial class CircleRushPlayfield : Container
     {
-        /// <summary>Points of the hit and the combo after it.</summary>
-        public event Action<int, int>? Hit;
+        /// <summary>Points of the hit, the combo after it and how fast it came.</summary>
+        public event Action<int, int, CircleRushJudgement>? Hit;
 
         public event Action? Missed;
 
@@ -46,6 +49,12 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private const float flashlight_radius = 150;
         private const float flashlight_edge = 50;
 
+        /// <summary>Endless mode after the ramp: circles shrink to this share of their radius over <see cref="endless_shrink_ms"/>.</summary>
+        private const float endless_min_scale = 0.7f;
+        private const float endless_shrink_ms = 150_000;
+
+        private static readonly Vector2 centre = new Vector2(CircleRushRules.PLAYFIELD_WIDTH / 2f, CircleRushRules.PLAYFIELD_HEIGHT / 2f);
+
         [Resolved]
         private OsuColour colours { get; set; } = null!;
 
@@ -56,11 +65,21 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private readonly List<CircleRushCircle> active = new List<CircleRushCircle>();
 
         private Random positions = new Random();
-        private Vector2 lastPosition = new Vector2(CircleRushRules.PLAYFIELD_WIDTH / 2f, CircleRushRules.PLAYFIELD_HEIGHT / 2f);
+        private Vector2 lastPosition = centre;
+        private Vector2 groupOrigin = centre;
+        private Vector2 groupStep;
+        private Vector2 groupBend;
+        private int groupOrdinal = -1;
+        private Color4 groupColour;
         private double startTime = double.NaN;
         private int nextIndex;
-        private Sample? hitSample;
-        private Sample? missSample;
+        private int hitCount;
+
+        private Sample? hitNormal;
+        private Sample? hitClap;
+        private Sample? hitFinish;
+        private Sample? comboBreak;
+        private Sample? sectionPass;
 
         public CircleRushPlayfield()
         {
@@ -92,8 +111,11 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         [BackgroundDependencyLoader]
         private void load(AudioManager audio)
         {
-            hitSample = audio.Samples.Get(@"Gameplay/normal-hitnormal");
-            missSample = audio.Samples.Get(@"Gameplay/combobreak");
+            hitNormal = audio.Samples.Get(@"Gameplay/normal-hitnormal");
+            hitClap = audio.Samples.Get(@"Gameplay/normal-hitclap");
+            hitFinish = audio.Samples.Get(@"Gameplay/normal-hitfinish");
+            comboBreak = audio.Samples.Get(@"Gameplay/combobreak");
+            sectionPass = audio.Samples.Get(@"Gameplay/sectionpass");
         }
 
         /// <summary>Clears the field and starts <paramref name="run"/> at the given clock time (now or a little later for the countdown).</summary>
@@ -104,6 +126,9 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             positions = new Random((int)(run.Seed & 0x7fffffff));
             startTime = startAtClockTime;
             nextIndex = 0;
+            hitCount = 0;
+            groupOrdinal = -1;
+            lastPosition = centre;
             light.Alpha = run.Mods.HasFlag(CircleRushMods.Flashlight) ? 1 : 0;
             background.Colour = run.Mods.HasFlag(CircleRushMods.Flashlight) ? Color4Extensions.FromHex("07080c") : Color4Extensions.FromHex("12141b");
         }
@@ -142,7 +167,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                 active.RemoveAt(0);
                 run.Expire(circle.Index);
                 circle.Miss();
-                missSample?.Play();
+                comboBreak?.Play();
                 Missed?.Invoke();
 
                 if (run.Ended)
@@ -171,42 +196,149 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private void spawn(int index)
         {
             var run = Run!;
-            int radius = CircleRushRules.Radius(run.Difficulty, run.Mods);
-            var position = nextPosition(radius);
+            var info = run.Schedule.Circle(index);
+            float radius = visualRadius(run, info.Spawn);
 
-            var circle = new CircleRushCircle(index, radius, run.Schedule.Lifetime(index), colours.Pink, run.Mods.HasFlag(CircleRushMods.Hidden))
+            if (info.GroupIndex == 0)
+                startGroup(info.GroupSize, radius);
+
+            var circle = new CircleRushCircle(index, radius, run.Schedule.Lifetime(index), groupColour, run.Mods.HasFlag(CircleRushMods.Hidden), info.GroupIndex + 1)
             {
-                Position = position,
+                Position = positionInGroup(info.GroupIndex, info.GroupSize, radius),
             };
 
             active.Add(circle);
             circleLayer.Add(circle);
         }
 
-        private Vector2 nextPosition(int radius)
+        /// <summary>The rules' radius; in endless mode the circles also get smaller once the ramp is over.</summary>
+        private static float visualRadius(CircleRushRun run, int spawnTime)
         {
-            float margin = radius + 8;
-            float minDistance = radius * 2.5f;
+            float radius = CircleRushRules.Radius(run.Difficulty, run.Mods);
 
+            if (run.Mode != CircleRushMode.Endless || spawnTime <= CircleRushRules.RAMP_ENDLESS)
+                return radius;
+
+            float scale = Math.Max(endless_min_scale, 1 - (spawnTime - CircleRushRules.RAMP_ENDLESS) / endless_shrink_ms);
+            return radius * scale;
+        }
+
+        /// <summary>Picks colour and placement of a new group: a free spot for a single, a line that fits the field for a burst or stream.</summary>
+        private void startGroup(int size, float radius)
+        {
+            groupOrdinal++;
+            Color4[] palette = { colours.Pink, colours.Blue, colours.Yellow, colours.Green };
+            groupColour = palette[groupOrdinal % palette.Length];
+
+            float margin = radius + 8;
+            float clearance = radius * 2.3f;
+            groupStep = Vector2.Zero;
+            groupBend = Vector2.Zero;
+
+            if (size == 1)
+            {
+                groupOrigin = freePosition(margin, clearance, radius * 2.5f);
+                lastPosition = groupOrigin;
+                return;
+            }
+
+            // a burst is a jump, a stream sits tight like in osu!
+            float spacing = size == 2 ? radius * 3.4f : radius * 2.4f;
+            var bestStart = centre;
+            var bestDirection = new Vector2(1, 0);
+            bool found = false;
+
+            for (int attempt = 0; attempt < 16; attempt++)
+            {
+                double angle = positions.NextDouble() * Math.PI * 2;
+                var direction = new Vector2((float)Math.Cos(angle), (float)Math.Sin(angle));
+                var offset = direction * (spacing * (size - 1));
+
+                float minX = margin + Math.Max(0, -offset.X), maxX = CircleRushRules.PLAYFIELD_WIDTH - margin - Math.Max(0, offset.X);
+                float minY = margin + Math.Max(0, -offset.Y), maxY = CircleRushRules.PLAYFIELD_HEIGHT - margin - Math.Max(0, offset.Y);
+
+                if (maxX < minX || maxY < minY)
+                {
+                    // the line does not fit this way round: tighter spacing, another direction
+                    spacing = Math.Max(radius * 2.1f, spacing * 0.85f);
+                    continue;
+                }
+
+                var start = new Vector2(minX + (float)positions.NextDouble() * (maxX - minX), minY + (float)positions.NextDouble() * (maxY - minY));
+                bool clear = Vector2.Distance(start, lastPosition) >= radius * 2.5f;
+
+                for (int k = 0; k < size && clear; k++)
+                {
+                    var point = start + direction * (spacing * k);
+
+                    foreach (var other in active)
+                    {
+                        if (Vector2.Distance(point, other.Position) < clearance)
+                        {
+                            clear = false;
+                            break;
+                        }
+                    }
+                }
+
+                bestStart = start;
+                bestDirection = direction;
+                found = true;
+
+                if (clear)
+                    break;
+            }
+
+            if (!found)
+            {
+                // cannot happen with the field this size, but a stream in the centre beats an exception
+                bestStart = centre - bestDirection * (spacing * (size - 1) / 2);
+            }
+
+            groupOrigin = bestStart;
+            groupStep = bestDirection * spacing;
+
+            if (size >= 3)
+            {
+                // streams bend a little, to one side or the other
+                var perpendicular = new Vector2(-bestDirection.Y, bestDirection.X);
+                groupBend = perpendicular * (radius * 0.9f) * (positions.Next(2) == 0 ? 1 : -1);
+            }
+
+            lastPosition = positionInGroup(size - 1, size, radius);
+        }
+
+        private Vector2 positionInGroup(int index, int size, float radius)
+        {
+            if (size == 1 || index == 0)
+                return groupOrigin;
+
+            var position = groupOrigin + groupStep * index + groupBend * (float)Math.Sin(Math.PI * index / (size - 1));
+            float margin = radius + 8;
+
+            return new Vector2(
+                Math.Clamp(position.X, margin, CircleRushRules.PLAYFIELD_WIDTH - margin),
+                Math.Clamp(position.Y, margin, CircleRushRules.PLAYFIELD_HEIGHT - margin));
+        }
+
+        private Vector2 freePosition(float margin, float clearance, float jump)
+        {
             for (int attempt = 0; attempt < 12; attempt++)
             {
                 var candidate = new Vector2(
                     margin + (float)positions.NextDouble() * (CircleRushRules.PLAYFIELD_WIDTH - 2 * margin),
                     margin + (float)positions.NextDouble() * (CircleRushRules.PLAYFIELD_HEIGHT - 2 * margin));
 
-                bool clear = Vector2.Distance(candidate, lastPosition) >= minDistance;
+                bool clear = Vector2.Distance(candidate, lastPosition) >= jump;
 
                 foreach (var other in active)
                 {
-                    if (Vector2.Distance(candidate, other.Position) < minDistance)
+                    if (Vector2.Distance(candidate, other.Position) < clearance)
                         clear = false;
                 }
 
                 if (clear || attempt == 11)
-                {
-                    lastPosition = candidate;
                     return candidate;
-                }
             }
 
             return lastPosition;
@@ -245,14 +377,15 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             if (target != null)
             {
                 int points = run.HitScoreAt(target.Index, time);
+                var judgement = run.Hit(target.Index, time);
 
-                if (run.Hit(target.Index, time))
+                if (judgement != null)
                 {
                     active.Remove(target);
                     target.Hit();
-                    hitSample?.Play();
-                    effectLayer.Add(new ScorePopup(target.Position, points, run.Combo, colours));
-                    Hit?.Invoke(points, run.Combo);
+                    playHit(run, target.Index, run.Combo);
+                    effectLayer.Add(new ScorePopup(target.Position, points, run.Combo, judgement.Value));
+                    Hit?.Invoke(points, run.Combo, judgement.Value);
                 }
 
                 return true;
@@ -260,13 +393,27 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
             run.EmptyClick(time);
             effectLayer.Add(new MissMarker(position, colours.Red));
-            missSample?.Play();
+            comboBreak?.Play();
             Missed?.Invoke();
 
             if (run.Ended)
                 finish();
 
             return true;
+        }
+
+        /// <summary>Hitnormal and clap alternate, the last circle of a stream adds a finish, every 25th combo a section pass.</summary>
+        private void playHit(CircleRushRun run, int index, int combo)
+        {
+            var info = run.Schedule.Circle(index);
+
+            (hitCount++ % 2 == 0 ? hitNormal : hitClap)?.Play();
+
+            if (info.GroupSize >= 3 && info.GroupIndex == info.GroupSize - 1)
+                hitFinish?.Play();
+
+            if (combo > 0 && combo % 25 == 0)
+                sectionPass?.Play();
         }
 
         private void updateFlashlight()
@@ -314,22 +461,56 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             return click(ToLocalSpace(mouse.Value));
         }
 
-        /// <summary>"+183" drifting up from a hit circle; every 25th combo is called out.</summary>
+        /// <summary>"+183" and the judgement drifting up from a hit circle, coloured like osu!'s 300 / 100 / 50; every 25th combo is called out.</summary>
         private partial class ScorePopup : CompositeDrawable
         {
-            public ScorePopup(Vector2 position, int points, int combo, OsuColour colours)
+            public ScorePopup(Vector2 position, int points, int combo, CircleRushJudgement judgement)
             {
                 Position = position;
                 Origin = Anchor.Centre;
                 AutoSizeAxes = Axes.Both;
                 bool milestone = combo > 0 && combo % 25 == 0;
 
-                InternalChild = new OsuSpriteText
+                Color4 colour = judgement switch
                 {
-                    Text = milestone ? $"+{points}  {combo}x!" : $"+{points}",
-                    Font = OsuFont.GetFont(size: milestone ? 30 : 22, weight: FontWeight.Bold),
-                    Colour = milestone ? colours.Yellow : Color4.White,
-                    Shadow = true,
+                    CircleRushJudgement.Perfect => Color4Extensions.FromHex("66ccff"),
+                    CircleRushJudgement.Good => Color4Extensions.FromHex("88e55a"),
+                    _ => Color4Extensions.FromHex("ffcc33"),
+                };
+
+                var label = judgement switch
+                {
+                    CircleRushJudgement.Perfect => ClickerStrings.Text("Perfect", "Perfekt"),
+                    CircleRushJudgement.Good => ClickerStrings.Text("Good", "Gut"),
+                    _ => ClickerStrings.Text("Late", "Spät"),
+                };
+
+                InternalChild = new FillFlowContainer
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, -3),
+                    Children = new Drawable[]
+                    {
+                        new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Text = milestone ? $"+{points}  {combo}x!" : $"+{points}",
+                            Font = OsuFont.GetFont(size: milestone ? 30 : 22, weight: FontWeight.Bold),
+                            Colour = milestone ? Color4.White : colour,
+                            Shadow = true,
+                        },
+                        new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Text = label,
+                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
+                            Colour = colour,
+                            Shadow = true,
+                        },
+                    },
                 };
             }
 
@@ -362,7 +543,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
     }
 
     /// <summary>
-    /// One circle on the field: body, approach ring that closes over the circle's lifetime, hidden-mod fade.
+    /// One circle on the field: body in its group's colour, the number inside the group, an approach ring that closes
+    /// over the circle's lifetime, hidden-mod fade.
     /// </summary>
     internal partial class CircleRushCircle : CompositeDrawable
     {
@@ -374,6 +556,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private readonly Circle body;
         private readonly CircularContainer approach;
         private readonly CircularContainer ring;
+        private readonly OsuSpriteText number;
         private readonly Color4 colour;
 
         private float visibility = 1;
@@ -388,7 +571,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             }
         }
 
-        public CircleRushCircle(int index, int radius, int lifetime, Color4 colour, bool hidden)
+        public CircleRushCircle(int index, float radius, int lifetime, Color4 colour, bool hidden, int numberInGroup)
         {
             Index = index;
             Radius = radius;
@@ -424,9 +607,18 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     Origin = Anchor.Centre,
                     RelativeSizeAxes = Axes.Both,
                     Masking = true,
-                    BorderThickness = radius * 0.16f,
+                    BorderThickness = radius * 0.14f,
                     BorderColour = Color4.White,
                     Child = new Box { RelativeSizeAxes = Axes.Both, Alpha = 0, AlwaysPresent = true },
+                },
+                number = new OsuSpriteText
+                {
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                    Text = numberInGroup.ToString(),
+                    Font = OsuFont.Numeric.With(size: radius * 0.85f),
+                    Colour = Color4.White,
+                    Shadow = true,
                 },
             };
         }
@@ -435,8 +627,10 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         {
             base.LoadComplete();
 
-            body.FadeInFromZero(Math.Min(80, lifetime / 4));
-            ring.FadeInFromZero(Math.Min(80, lifetime / 4));
+            int fade = Math.Min(80, lifetime / 4);
+            body.FadeInFromZero(fade);
+            ring.FadeInFromZero(fade);
+            number.FadeInFromZero(fade);
 
             if (hidden)
             {
@@ -444,6 +638,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                 // like osu!'s hidden: the circle fades away well before its time is up
                 body.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
                 ring.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
+                number.Delay(lifetime * 0.25).FadeOut(lifetime * 0.45);
             }
             else
             {
@@ -455,6 +650,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         {
             ClearTransforms();
             approach.FadeOut(80);
+            number.FadeOut(80);
             body.FadeColour(colour.Lighten(0.6f), 60);
             this.FadeTo(Math.Max(visibility, 0.6f)).ScaleTo(1.45f, 220, Easing.OutQuint).FadeOut(220).Expire();
         }

@@ -39,21 +39,32 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         Flashlight = 8,
     }
 
+    /// <summary>How quickly a circle was hit, as a share of its lifetime.</summary>
+    public enum CircleRushJudgement
+    {
+        Perfect,
+        Good,
+        Late,
+    }
+
     /// <summary>
     /// Milliseconds and playfield pixels of one difficulty, before mods and before the speed ramp.
     /// </summary>
-    public readonly record struct CircleRushDifficultyParams(int StartLifetime, int FloorLifetime, int StartSpawn, int FloorSpawn, int Radius);
+    public readonly record struct CircleRushDifficultyParams(int StartLifetime, int FloorLifetime, int StartInterval, int FloorInterval, int Radius);
+
+    /// <summary>When a circle appears and where it sits in its group (singles, bursts of two, streams of three to five).</summary>
+    public readonly record struct CircleRushCircleInfo(int Spawn, int GroupSize, int GroupIndex);
 
     /// <summary>
     /// Banchosucks: the rules of Circle Rush. Everything here is integer arithmetic so that the server plugin
     /// (<c>banchosucks_circlerush/rules.py</c>) recomputes a run from its event log and arrives at the same score.
     /// </summary>
     /// <remarks>
-    /// A run is a schedule of circles: circle <c>i</c> appears at <see cref="CircleRushSchedule.SpawnTime"/> and must be hit
-    /// before <see cref="CircleRushSchedule.Deadline"/>. Both the time between circles and the time a circle waits shrink
-    /// with the run time (the speed ramp); in endless mode they keep shrinking slowly after the ramp, so every run ends.
-    /// A hit scores more the faster it came and the longer the combo; a miss (an expired circle or a click into nothing)
-    /// resets the combo and, in endless mode, costs one of <see cref="CircleRushRules.ENDLESS_LIVES"/> lives.
+    /// A run is a schedule of circles drawn from the run's seed: singles, bursts of two and streams of three to five.
+    /// Inside a group the gap is a fraction of the base interval, after a group a full one; base interval and
+    /// lifetime shrink with the run time (the ramp) and, in endless mode, keep shrinking slowly afterwards so every run
+    /// ends. A hit scores more the faster it came and the longer the combo; a miss (an expired circle or a click into
+    /// nothing) resets the combo and, in endless mode, costs one of <see cref="CircleRushRules.ENDLESS_LIVES"/> lives.
     /// </remarks>
     public static class CircleRushRules
     {
@@ -63,14 +74,22 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         /// <summary>A hit faster than this after the circle appeared is not a human reaction; the server rejects such runs.</summary>
         public const int MIN_REACTION = 50;
 
-        public const int RAMP_MINUTE = 50_000;
-        public const int RAMP_ENDLESS = 90_000;
+        public const int RAMP_MINUTE = 40_000;
+        public const int RAMP_ENDLESS = 75_000;
 
-        /// <summary>Endless mode after the ramp: lifetime and spawn interval lose one millisecond per this many milliseconds.</summary>
+        /// <summary>Endless mode after the ramp: lifetime and base interval lose one millisecond per this many milliseconds.</summary>
         public const int SQUEEZE_DIVISOR = 250;
 
         public const int MIN_LIFETIME = 100;
-        public const int MIN_SPAWN = 120;
+        public const int MIN_SPAWN = 90;
+
+        /// <summary>Gap inside a burst / a stream, in percent of the base interval.</summary>
+        public const int BURST_PERCENT = 60;
+        public const int STREAM_PERCENT = 45;
+
+        /// <summary>A hit within this share of the lifetime is perfect, within the next one good, later than that late.</summary>
+        public const int PERFECT_PERCENT = 35;
+        public const int GOOD_PERCENT = 70;
 
         public const int PLAYFIELD_WIDTH = 800;
         public const int PLAYFIELD_HEIGHT = 600;
@@ -85,10 +104,10 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
         public static CircleRushDifficultyParams Params(CircleRushDifficulty difficulty) => difficulty switch
         {
-            CircleRushDifficulty.Easy => new CircleRushDifficultyParams(750, 450, 900, 450, 50),
-            CircleRushDifficulty.Medium => new CircleRushDifficultyParams(600, 360, 720, 360, 42),
-            CircleRushDifficulty.Hard => new CircleRushDifficultyParams(450, 280, 560, 280, 34),
-            _ => new CircleRushDifficultyParams(300, 200, 400, 200, 28),
+            CircleRushDifficulty.Easy => new CircleRushDifficultyParams(750, 450, 800, 380, 50),
+            CircleRushDifficulty.Medium => new CircleRushDifficultyParams(600, 360, 650, 300, 42),
+            CircleRushDifficulty.Hard => new CircleRushDifficultyParams(450, 280, 520, 240, 34),
+            _ => new CircleRushDifficultyParams(300, 200, 400, 180, 28),
         };
 
         public static bool ModsValid(CircleRushMods mods) => (mods & (CircleRushMods.Easy | CircleRushMods.HardRock)) != (CircleRushMods.Easy | CircleRushMods.HardRock);
@@ -165,11 +184,11 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             return Math.Max(MIN_LIFETIME, value);
         }
 
-        /// <summary>Milliseconds from a circle appearing at run time <paramref name="time"/> to the next one.</summary>
-        public static int SpawnInterval(CircleRushMode mode, CircleRushDifficulty difficulty, CircleRushMods mods, int time)
+        /// <summary>Milliseconds after the last circle of a group until the next group; inside a group a fraction of this.</summary>
+        public static int BaseInterval(CircleRushMode mode, CircleRushDifficulty difficulty, CircleRushMods mods, int time)
         {
             var p = Params(difficulty);
-            int start = p.StartSpawn, floor = p.FloorSpawn;
+            int start = p.StartInterval, floor = p.FloorInterval;
 
             if (mods.HasFlag(CircleRushMods.Easy))
             {
@@ -208,6 +227,14 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             return basePoints * (100 + 2 * combo) / 100;
         }
 
+        public static CircleRushJudgement Judgement(int reaction, int lifetime)
+        {
+            if (reaction * 100 <= lifetime * PERFECT_PERCENT) return CircleRushJudgement.Perfect;
+            if (reaction * 100 <= lifetime * GOOD_PERCENT) return CircleRushJudgement.Good;
+
+            return CircleRushJudgement.Late;
+        }
+
         /// <summary>The mod multipliers, applied one after the other with integer rounding down.</summary>
         public static int ApplyMods(int total, CircleRushMods mods)
         {
@@ -221,35 +248,94 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
     }
 
     /// <summary>
-    /// When each circle of a run appears and when it expires; computed on demand and cached.
+    /// xorshift32, identical on the server: the only randomness that shapes the schedule (which groups come when).
+    /// </summary>
+    public sealed class CircleRushXorshift
+    {
+        private uint state;
+
+        public CircleRushXorshift(long seed)
+        {
+            state = (uint)(seed & 0xffffffff);
+            if (state == 0) state = 1;
+        }
+
+        public uint Next()
+        {
+            uint x = state;
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            state = x;
+            return x;
+        }
+    }
+
+    /// <summary>
+    /// When each circle of a run appears, which group it belongs to and when it expires; generated group by group and cached.
     /// </summary>
     public class CircleRushSchedule
     {
         public readonly CircleRushMode Mode;
         public readonly CircleRushDifficulty Difficulty;
         public readonly CircleRushMods Mods;
+        public readonly long Seed;
 
-        private readonly List<int> spawns = new List<int> { 0 };
+        private readonly CircleRushXorshift rng;
+        private readonly List<CircleRushCircleInfo> circles = new List<CircleRushCircleInfo>();
+        private int nextSpawn;
 
-        public CircleRushSchedule(CircleRushMode mode, CircleRushDifficulty difficulty, CircleRushMods mods)
+        public CircleRushSchedule(CircleRushMode mode, CircleRushDifficulty difficulty, CircleRushMods mods, long seed)
         {
             Mode = mode;
             Difficulty = difficulty;
             Mods = mods;
+            Seed = seed;
+            rng = new CircleRushXorshift(seed);
         }
 
-        public int SpawnTime(int index)
+        private void generateGroup()
+        {
+            uint roll = rng.Next() % 100;
+            int count, factor;
+
+            if (roll < 55)
+            {
+                count = 1;
+                factor = 100;
+            }
+            else if (roll < 85)
+            {
+                count = 2;
+                factor = CircleRushRules.BURST_PERCENT;
+            }
+            else
+            {
+                count = 3 + (int)(rng.Next() % 3);
+                factor = CircleRushRules.STREAM_PERCENT;
+            }
+
+            for (int position = 0; position < count; position++)
+            {
+                int spawn = nextSpawn;
+                circles.Add(new CircleRushCircleInfo(spawn, count, position));
+                int baseInterval = CircleRushRules.BaseInterval(Mode, Difficulty, Mods, spawn);
+                int gap = position == count - 1 ? baseInterval : Math.Max(CircleRushRules.MIN_SPAWN, baseInterval * factor / 100);
+                nextSpawn = spawn + gap;
+            }
+        }
+
+        public CircleRushCircleInfo Circle(int index)
         {
             ArgumentOutOfRangeException.ThrowIfNegative(index);
 
-            while (spawns.Count <= index)
-            {
-                int last = spawns[^1];
-                spawns.Add(last + CircleRushRules.SpawnInterval(Mode, Difficulty, Mods, last));
-            }
+            while (circles.Count <= index)
+                generateGroup();
 
-            return spawns[index];
+            return circles[index];
         }
+
+        public int SpawnTime(int index) => Circle(index).Spawn;
 
         public int Lifetime(int index) => CircleRushRules.Lifetime(Mode, Difficulty, Mods, SpawnTime(index));
 
@@ -282,8 +368,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
     public class CircleRushRun
     {
         public readonly CircleRushSchedule Schedule;
-        public readonly long Seed;
 
+        public long Seed => Schedule.Seed;
         public CircleRushMode Mode => Schedule.Mode;
         public CircleRushDifficulty Difficulty => Schedule.Difficulty;
         public CircleRushMods Mods => Schedule.Mods;
@@ -295,6 +381,9 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         public int MaxCombo { get; private set; }
         public int Hits { get; private set; }
         public int Misses { get; private set; }
+        public int Perfect { get; private set; }
+        public int Good { get; private set; }
+        public int Late { get; private set; }
         public long ReactionSum { get; private set; }
         public bool Ended { get; private set; }
         public int DurationMs { get; private set; }
@@ -305,8 +394,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
         public CircleRushRun(CircleRushMode mode, CircleRushDifficulty difficulty, CircleRushMods mods, long seed)
         {
-            Schedule = new CircleRushSchedule(mode, difficulty, mods);
-            Seed = seed;
+            Schedule = new CircleRushSchedule(mode, difficulty, mods, seed);
         }
 
         public int Score => CircleRushRules.ApplyMods(BaseScore, Mods);
@@ -321,21 +409,40 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         /// <summary>Points a hit on circle <paramref name="index"/> at run time <paramref name="time"/> would give now.</summary>
         public int HitScoreAt(int index, int time) => CircleRushRules.HitScore(time - Schedule.SpawnTime(index), Schedule.Lifetime(index), Combo);
 
-        /// <summary>Registers a hit; false when the circle is not on the field at that time or was resolved before.</summary>
-        public bool Hit(int index, int time)
+        /// <summary>Registers a hit; null when the circle is not on the field at that time or was resolved before.</summary>
+        public CircleRushJudgement? Hit(int index, int time)
         {
-            if (Ended || resolved.Contains(index)) return false;
-            if (time < Schedule.SpawnTime(index) || time > Schedule.Deadline(index)) return false;
+            if (Ended || resolved.Contains(index)) return null;
+            if (time < Schedule.SpawnTime(index) || time > Schedule.Deadline(index)) return null;
 
             int reaction = time - Schedule.SpawnTime(index);
-            BaseScore += CircleRushRules.HitScore(reaction, Schedule.Lifetime(index), Combo);
+            int lifetime = Schedule.Lifetime(index);
+            BaseScore += CircleRushRules.HitScore(reaction, lifetime, Combo);
             Combo++;
             MaxCombo = Math.Max(MaxCombo, Combo);
             Hits++;
             ReactionSum += reaction;
             resolved.Add(index);
             Events.Add(new CircleRushEvent(CircleRushEvent.HIT, index, time, reaction));
-            return true;
+
+            var judgement = CircleRushRules.Judgement(reaction, lifetime);
+
+            switch (judgement)
+            {
+                case CircleRushJudgement.Perfect:
+                    Perfect++;
+                    break;
+
+                case CircleRushJudgement.Good:
+                    Good++;
+                    break;
+
+                default:
+                    Late++;
+                    break;
+            }
+
+            return judgement;
         }
 
         /// <summary>Circle <paramref name="index"/> waited too long: a miss at exactly its deadline.</summary>
