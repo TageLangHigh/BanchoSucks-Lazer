@@ -11,6 +11,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Screens;
@@ -21,6 +22,7 @@ using osu.Game.Online.API;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
+using osuTK.Input;
 
 namespace osu.Game.Screens.Banchosucks.CircleRush
 {
@@ -75,6 +77,8 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private OsuSpriteText scoreText = null!;
         private OsuSpriteText comboText = null!;
         private OsuSpriteText clockText = null!;
+        private FillFlowContainer livesFlow = null!;
+        private readonly List<SpriteIcon> hearts = new List<SpriteIcon>();
         private OsuSpriteText speedText = null!;
         private OsuSpriteText countdownText = null!;
         private OsuSpriteText resultTitle = null!;
@@ -83,6 +87,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private ClickerPillButton startButton = null!;
 
         private double countdownStart;
+        private int? previousBest;
         private GetCircleRushBestRequest? bestRequest;
         private SubmitCircleRushRequest? submitRequest;
         private readonly Dictionary<string, CircleRushLeaderboardEntry> bests = new Dictionary<string, CircleRushLeaderboardEntry>();
@@ -140,6 +145,25 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             playfield.Hit += onHit;
             playfield.Missed += onMissed;
             playfield.Finished += onFinished;
+
+            for (int i = 0; i < CircleRushRules.ENDLESS_LIVES; i++)
+            {
+                var heart = new SpriteIcon { Icon = FontAwesome.Solid.Heart, Size = new Vector2(16), Colour = colours.Red };
+                hearts.Add(heart);
+                livesFlow.Add(heart);
+            }
+        }
+
+        protected override bool OnKeyDown(KeyDownEvent e)
+        {
+            // Enter or Space starts (or restarts) a run from the menu and the results
+            if (!e.Repeat && (e.Key == Key.Enter || e.Key == Key.KeypadEnter || e.Key == Key.Space) && (state == RunState.Menu || state == RunState.Results))
+            {
+                startRun();
+                return true;
+            }
+
+            return base.OnKeyDown(e);
         }
 
         protected override void LoadComplete()
@@ -277,6 +301,16 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                         Colour = colours.Gray9,
                     },
                     clockText = big(Anchor.TopCentre, Color4.White),
+                    livesFlow = new FillFlowContainer
+                    {
+                        Anchor = Anchor.TopCentre,
+                        Origin = Anchor.TopCentre,
+                        Y = 38,
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(6, 0),
+                        Alpha = 0,
+                    },
                     speedText = new OsuSpriteText
                     {
                         Anchor = Anchor.TopRight,
@@ -443,11 +477,15 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             countdownStart = Time.Current;
             playfield.Begin(run, countdownStart + countdown_ms);
 
+            previousBest = bests.TryGetValue(boardKey(mode, difficulty), out var best) ? best.Score : (int?)null;
             menu.FadeOut(200);
             boardHost.FadeOut(200);
             results.FadeOut(150);
             playArea.FadeIn(200);
-            countdownText.FadeIn(100);
+            countdownText.ClearTransforms();
+            countdownText.Alpha = 1;
+            countdownText.Colour = Color4.White;
+            livesFlow.Alpha = run.Mode == CircleRushMode.Endless ? 1 : 0;
             updateHud(run);
         }
 
@@ -479,7 +517,9 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     if (remaining <= 0)
                     {
                         state = RunState.Playing;
-                        countdownText.FadeOut(150);
+                        countdownText.Text = "GO!";
+                        countdownText.Colour = colours.Pink;
+                        countdownText.ScaleTo(1).ScaleTo(1.3f, 350, Easing.OutQuint).FadeOut(350);
                     }
                     else
                         countdownText.Text = Math.Ceiling(remaining / 600).ToString(CultureInfo.InvariantCulture);
@@ -505,10 +545,15 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             {
                 int left = Math.Max(0, CircleRushRules.MINUTE_DURATION - time);
                 clockText.Text = $"{left / 1000}.{left % 1000 / 100}";
+                clockText.Colour = left <= 10_000 ? colours.Red : Color4.White;
             }
             else
             {
-                clockText.Text = ClickerStrings.Pick($"{run.LivesLeft} lives · {time / 1000} s", $"{run.LivesLeft} Leben · {time / 1000} s");
+                clockText.Text = $"{time / 1000} s";
+                clockText.Colour = Color4.White;
+
+                for (int i = 0; i < hearts.Count; i++)
+                    hearts[i].Colour = i < run.LivesLeft ? colours.Red : Color4.White.Opacity(0.18f);
             }
 
             string acronyms = CircleRushRules.ModsAcronyms(run.Mods);
@@ -525,6 +570,9 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
         private void onMissed()
         {
             comboText.FlashColour(colours.Red, 300);
+
+            if (playfield.Run?.Mode == CircleRushMode.Endless)
+                livesFlow.ScaleTo(1.25f, 60).Then().ScaleTo(1, 250, Easing.OutQuint);
         }
 
         private void onFinished()
@@ -556,6 +604,10 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                          ClickerStrings.Pick($"{run.Hits} hits · {run.Misses} misses · {run.MaxCombo}x best combo", $"{run.Hits} Treffer · {run.Misses} Misses · {run.MaxCombo}x beste Combo"),
                          ClickerStrings.Pick($"{run.AverageReaction} ms average reaction · {run.DurationMs / 1000.0:0.0} s", $"{run.AverageReaction} ms mittlere Reaktion · {run.DurationMs / 1000.0:0.0} s"),
                          $"{CircleRushStrings.ModeName(run.Mode)} · {CircleRushStrings.DifficultyName(run.Difficulty)}",
+                         previousBest is int before
+                             ? ClickerStrings.Pick($"Previous best: {before.ToString("N0", culture)} ({(run.Score >= before ? "+" : string.Empty)}{(run.Score - before).ToString("N0", culture)})",
+                                 $"Bisherige Bestleistung: {before.ToString("N0", culture)} ({(run.Score >= before ? "+" : string.Empty)}{(run.Score - before).ToString("N0", culture)})")
+                             : ClickerStrings.Pick("First run on this board", "Erster Lauf auf dieser Rangliste"),
                      })
             {
                 resultLines.Add(new OsuSpriteText { Text = line, Font = OsuFont.GetFont(size: 18, weight: FontWeight.SemiBold) });

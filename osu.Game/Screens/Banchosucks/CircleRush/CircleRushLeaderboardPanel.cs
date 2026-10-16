@@ -14,6 +14,8 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.API;
 using osu.Game.Screens.Banchosucks.Clicker;
+using osu.Game.Users;
+using osu.Game.Users.Drawables;
 using osuTK;
 using osuTK.Graphics;
 
@@ -225,6 +227,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
 
                 string mods = CircleRushRules.ModsAcronyms((CircleRushMods)entry.Mods);
                 var culture = ClickerStrings.IsGerman ? CultureInfo.GetCultureInfo("de-DE") : CultureInfo.InvariantCulture;
+                Enum.TryParse(entry.CountryCode, true, out CountryCode country);
 
                 InternalChildren = new Drawable[]
                 {
@@ -242,21 +245,28 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                         Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
                         Colour = entry.Rank <= 3 ? colours.Yellow : colours.Gray9,
                     },
-                    new OsuSpriteText
+                    new UpdateableFlag(country)
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
-                        X = 52,
-                        Text = entry.Username,
-                        Font = OsuFont.GetFont(size: 15, weight: own ? FontWeight.Bold : FontWeight.SemiBold),
-                        Truncate = true,
-                        MaxWidth = 150,
+                        X = 48,
+                        Size = new Vector2(24, 17),
                     },
                     new OsuSpriteText
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
-                        X = 208,
+                        X = 80,
+                        Text = entry.Username,
+                        Font = OsuFont.GetFont(size: 15, weight: own ? FontWeight.Bold : FontWeight.SemiBold),
+                        Truncate = true,
+                        MaxWidth = 128,
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 214,
                         Text = mods,
                         Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
                         Colour = colours.Blue,

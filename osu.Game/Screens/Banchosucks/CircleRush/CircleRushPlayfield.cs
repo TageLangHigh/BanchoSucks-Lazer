@@ -9,9 +9,11 @@ using osu.Framework.Audio.Sample;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Events;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Sprites;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
@@ -79,7 +81,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                 {
                     Origin = Anchor.Centre,
                     Size = new Vector2(flashlight_radius * 2 + flashlight_edge),
-                    Colour = Color4.White.Opacity(0.06f),
+                    Colour = Color4.White.Opacity(0.11f),
                     Alpha = 0,
                 },
                 circleLayer = new Container { RelativeSizeAxes = Axes.Both },
@@ -249,6 +251,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     active.Remove(target);
                     target.Hit();
                     hitSample?.Play();
+                    effectLayer.Add(new ScorePopup(target.Position, points, run.Combo, colours));
                     Hit?.Invoke(points, run.Combo);
                 }
 
@@ -309,6 +312,32 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
             if (mouse == null) return false;
 
             return click(ToLocalSpace(mouse.Value));
+        }
+
+        /// <summary>"+183" drifting up from a hit circle; every 25th combo is called out.</summary>
+        private partial class ScorePopup : CompositeDrawable
+        {
+            public ScorePopup(Vector2 position, int points, int combo, OsuColour colours)
+            {
+                Position = position;
+                Origin = Anchor.Centre;
+                AutoSizeAxes = Axes.Both;
+                bool milestone = combo > 0 && combo % 25 == 0;
+
+                InternalChild = new OsuSpriteText
+                {
+                    Text = milestone ? $"+{points}  {combo}x!" : $"+{points}",
+                    Font = OsuFont.GetFont(size: milestone ? 30 : 22, weight: FontWeight.Bold),
+                    Colour = milestone ? colours.Yellow : Color4.White,
+                    Shadow = true,
+                };
+            }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+                this.MoveToOffset(new Vector2(0, -46), 520, Easing.OutQuint).FadeOut(520, Easing.In).Expire();
+            }
         }
 
         private partial class MissMarker : CircularContainer
@@ -387,7 +416,7 @@ namespace osu.Game.Screens.Banchosucks.CircleRush
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colour,
+                    Colour = ColourInfo.GradientVertical(colour.Lighten(0.15f), colour.Darken(0.35f)),
                 },
                 ring = new CircularContainer
                 {
