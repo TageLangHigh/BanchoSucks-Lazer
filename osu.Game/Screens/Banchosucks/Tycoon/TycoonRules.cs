@@ -79,7 +79,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
     public readonly record struct TycoonPerk(int Legacy, string Key, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
-    public readonly record struct TycoonStaff(string Key, long BaseCost, double DonationPerHead, double InflowPerHead, double RegenPerHead, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
+    public readonly record struct TycoonStaff(string Key, long BaseCost, double DonationPerHead, double InflowPerHead, double RegenPerHead, int ComfortPerHead, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
     /// <summary>
     /// Banchosucks: the economy of the Private Server Tycoon, mirrored by the plugin's <c>economy.py</c> (same numbers in both test suites).
@@ -149,14 +149,17 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             new TycoonDecoration("fridge", 4_000, 3, "Fridge", "Kühlschrank", "Full of energy drinks.", "Voller Energy-Drinks."),
             new TycoonDecoration("aircon", 8_000, 4, "Air conditioning", "Klimaanlage", "The racks stop sweating.", "Die Racks hören auf zu schwitzen."),
             new TycoonDecoration("arcade", 15_000, 5, "Arcade cabinet", "Arcade-Automat", "osu! on a cabinet. Of course.", "osu! am Automaten. Natürlich."),
+            new TycoonDecoration("beanbag", 1_200, 2, "Bean bag", "Sitzsack", "Where the moderators fall asleep.", "Wo die Moderatoren einschlafen."),
+            new TycoonDecoration("aquarium", 12_000, 4, "Aquarium", "Aquarium", "The fish have better uptime than the server.", "Die Fische haben eine bessere Uptime als der Server."),
         };
 
         /// <summary>The team; every hire doubles the price, five per role.</summary>
         public static readonly TycoonStaff[] Staff =
         {
-            new TycoonStaff("moderator", 2_000, 0, 0, 0.25, "Moderator", "Moderator", "Reads the reports, answers the tickets. Reputation recovers 25 % faster per moderator.", "Liest die Reports, beantwortet die Tickets. Ruf erholt sich je Moderator 25 % schneller."),
-            new TycoonStaff("developer", 5_000, 0.05, 0, 0, "Developer", "Entwickler", "Ships features and fixes at 3 am. Donations +5 % per developer.", "Liefert Features und Fixes um drei Uhr nachts. Spenden +5 % je Entwickler."),
-            new TycoonStaff("community", 3_500, 0, 0.05, 0, "Community manager", "Community-Manager", "Keeps the Discord alive and the newcomers around. Inflow +5 % per manager.", "Hält den Discord lebendig und die Neuen bei der Stange. Zulauf +5 % je Manager."),
+            new TycoonStaff("moderator", 2_000, 0, 0, 0.25, 0, "Moderator", "Moderator", "Reads the reports, answers the tickets. Reputation recovers 25 % faster per moderator.", "Liest die Reports, beantwortet die Tickets. Ruf erholt sich je Moderator 25 % schneller."),
+            new TycoonStaff("developer", 5_000, 0.05, 0, 0, 0, "Developer", "Entwickler", "Ships features and fixes at 3 am. Donations +5 % per developer.", "Liefert Features und Fixes um drei Uhr nachts. Spenden +5 % je Entwickler."),
+            new TycoonStaff("community", 3_500, 0, 0.05, 0, 0, "Community manager", "Community-Manager", "Keeps the Discord alive and the newcomers around. Inflow +5 % per manager.", "Hält den Discord lebendig und die Neuen bei der Stange. Zulauf +5 % je Manager."),
+            new TycoonStaff("designer", 4_500, 0, 0, 0, 2, "Designer", "Designer", "Skins, banners, a logo that finally looks good. Comfort +2 per designer.", "Skins, Banner, ein Logo, das endlich gut aussieht. Gemütlichkeit +2 je Designer."),
         };
 
         public static readonly TycoonHardware[] Hardware =
@@ -195,8 +198,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             new TycoonFeature("backups", 60_000, 1.0, 1.0, 1.0, "Backups", "Backups", "Every night at 04:15 UTC. Database crashes cost nothing.", "Jede Nacht um 04:15 UTC. Datenbank-Crashs kosten nichts mehr."),
             new TycoonFeature("cloudflare", 120_000, 1.0, 1.0, 1.0, "Cloudflare", "Cloudflare", "DDoS attacks bounce off.", "DDoS-Angriffe prallen ab."),
             new TycoonFeature("lazer", 250_000, 1.0, 1.50, 1.0, "Lazer support", "Lazer-Support", "The new client, the new players. Inflow +50 %.", "Der neue Client, die neuen Spieler. Zulauf +50 %."),
+            new TycoonFeature("clans", 400_000, 1.0, 1.20, 1.0, "Clans", "Clans", "Tags, clan pages, clan wars. Inflow +20 %.", "Tags, Clan-Seiten, Clan-Kriege. Zulauf +20 %."),
             new TycoonFeature("multiplayer", 800_000, 1.0, 1.30, 1.0, "Multiplayer", "Multiplayer", "Rooms, playlists, arguments about mods. Inflow +30 %.", "Räume, Playlists, Streit um Mods. Zulauf +30 %."),
             new TycoonFeature("supporter", 2_500_000, 1.40, 1.0, 1.0, "Supporter tags", "Supporter-Tags", "A heart next to the name. Donations +40 %.", "Ein Herz neben dem Namen. Spenden +40 %."),
+            new TycoonFeature("replays", 4_000_000, 1.25, 1.0, 1.0, "Replays", "Replays", "Every top play can be watched. Donations +25 %.", "Jedes Top-Play lässt sich anschauen. Spenden +25 %."),
             new TycoonFeature("mirror", 8_000_000, 1.20, 1.10, 1.0, "Beatmap mirror", "Beatmap-Mirror", "Downloads in seconds. Donations +20 %, inflow +10 %.", "Downloads in Sekunden. Spenden +20 %, Zulauf +10 %."),
             new TycoonFeature("tests", 25_000_000, 1.0, 1.0, 1.0, "Unit tests and smoke checks", "Unit-Tests und Smoke-Checks", "Broken deploys and crashing medals are caught before they go live.", "Kaputte Deploys und abstürzende Medaillen werden gefangen, bevor sie live gehen."),
         };
@@ -243,10 +248,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
         public static long DecorationCost(string key) => DecorationOf(key)?.Cost ?? 0;
 
-        public static int ComfortPoints(IEnumerable<TycoonPlacement> layout) => layout.Sum(p => DecorationOf(p.Key)?.Comfort ?? 0);
+        public static int ComfortPoints(IEnumerable<TycoonPlacement> layout, int extra = 0) => layout.Sum(p => DecorationOf(p.Key)?.Comfort ?? 0) + extra;
 
-        /// <summary>Furniture makes the team happier and the donors more generous: +0.5 % per comfort point, up to +15 %.</summary>
-        public static double ComfortMult(IEnumerable<TycoonPlacement> layout) => 1.0 + Math.Min(COMFORT_CAP, COMFORT_PER_POINT * ComfortPoints(layout));
+        /// <summary>Furniture and designers make the team happier and the donors more generous: +0.5 % per comfort point, up to +15 %.</summary>
+        public static double ComfortMult(IEnumerable<TycoonPlacement> layout, int extra = 0) => 1.0 + Math.Min(COMFORT_CAP, COMFORT_PER_POINT * ComfortPoints(layout, extra));
 
         public static double LayoutCost(IEnumerable<TycoonPlacement> layout) => layout.Sum(p => (double)DecorationCost(p.Key));
 
@@ -267,6 +272,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public static double StaffInflowMult(TycoonState state) => 1.0 + Staff.Sum(s => s.InflowPerHead * state.StaffCount(s.Key));
 
         public static double StaffRegenMult(TycoonState state) => 1.0 + Staff.Sum(s => s.RegenPerHead * state.StaffCount(s.Key));
+
+        /// <summary>Comfort points the team brings (designers), on top of the furniture.</summary>
+        public static int StaffComfort(TycoonState state) => Staff.Sum(s => s.ComfortPerHead * state.StaffCount(s.Key));
 
         public static int StaffTotal(TycoonState state) => Staff.Sum(s => state.StaffCount(s.Key));
 
@@ -295,7 +303,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             (MarketingRate(state) + AutopostRate(state)) * InflowMult(state.Features) * StaffInflowMult(state) * LegacyMult(state.Legacy) * RufFactor(state.Ruf) * boost;
 
         public static double DonationRate(TycoonState state, double boost = 1.0) =>
-            state.Players * DONATION_PER_PLAYER * RufFactor(state.Ruf) * DonationMult(state.Features) * StaffDonationMult(state) * LegacyMult(state.Legacy) * ComfortMult(state.Layout) * boost;
+            state.Players * DONATION_PER_PLAYER * RufFactor(state.Ruf) * DonationMult(state.Features) * StaffDonationMult(state) * LegacyMult(state.Legacy) * ComfortMult(state.Layout, StaffComfort(state)) * boost;
 
         /// <summary>Advances the simulation by <paramref name="dt"/> seconds (at most one second per call); returns the donations gained.</summary>
         public static double Step(TycoonState state, double dt, double inflowBoost = 1.0, double donationBoost = 1.0)

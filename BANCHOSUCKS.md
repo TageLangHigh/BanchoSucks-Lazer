@@ -171,12 +171,17 @@ and restart the app container.
   the left, the walkway in the middle, the seven marketing buildings (the droppers) above and below
   it with their buy/upgrade pads, the server block (grows from a Pi to rows of racks, LEDs blink with
   load, red when lagging) and the collector box on the right, thirteen feature kiosks along the
-  bottom, nine decoration pads along the top (comfort +0.5 % donations per point, capped at +15 %;
-  right click sells for half). Players walk out of the droppers along the walkway into the servers;
+  bottom (sixteen features), eleven decoration pads (ten along the top, one by the gate; comfort
+  +0.5 % donations per point, capped at +15 %; right click sells for half), a boost machine left of
+  the lower droppers with three consumables bought with cash and on a four-minute cooldown (pizza:
+  donations x1.5 for 3 min, giveaway: inflow x2 for 2 min, maintenance: reputation +20; client only,
+  the cash just goes down). Players walk out of the droppers along the walkway into the servers;
   donations drop as coins into the collector box (`pending` in the save) and are collected by
   clicking it, or automatically with the auto collector feature. The team office (from the Mini PC
-  on): moderators, developers and community managers, five per role, every hire doubles the price,
-  small multipliers per head (`staff` in the save, mirrored in economy.py). Eighteen quests in a
+  on): moderators, developers, community managers and designers (comfort +2 per head), five per
+  role, every hire doubles the price, small multipliers per head (`staff` in the save, mirrored in
+  economy.py). The hint arrow only shows before the first hardware upgrade and points at the laptop
+  first. The tab is called Prestige; a season is one run. Eighteen quests in a
   fixed order guide the run (`TycoonQuests.cs`; `quest` in the save is the index of the next one and
   survives seasons), rewards are seconds of income or a boost. Supply drops land next to the walkway
   every few minutes and give a random reward when clicked within 25 seconds. Life on the plot
@@ -207,6 +212,10 @@ and restart the app container.
   by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.
   Tests: `osu.Game.Tests/NonVisual/BanchosucksTycoonRulesTest.cs` (same numbers as the plugin
   tests) and `TestSceneBanchosucksMinigames`.
+- **Background Guesser** (minigames, fifth tile, since 2026.913.15): `osu.Game/Screens/Banchosucks/Guess/BackgroundGuessScreen.cs`,
+  the second game on the shared `GuessScreen`: the set's background is shown close up and zooms out over twelve
+  seconds, four titles are offered; library mode uses `WorkingBeatmap.GetBackground()`, popular mode the official
+  `cover@2x.jpg` of the pool's sets. Same rules, points and plugin, boards `background` and `background_endless`.
 - **Song Guesser** (minigames, fourth tile, since 2026.913.15): `osu.Game/Screens/Banchosucks/Guess/`.
   Four answers each round, 15 s per round; a correct answer gives 100 points plus 10 per second left,
   streaks add up to 50. Library mode (board `song`, ten rounds) plays the preview point of one of the

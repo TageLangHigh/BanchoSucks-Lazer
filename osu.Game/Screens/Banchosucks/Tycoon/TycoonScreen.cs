@@ -256,7 +256,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             foreach (var (value, text, icon) in new[]
                      {
                          (Tab.Stats, t("Stats", "Statistik"), FontAwesome.Solid.ChartBar),
-                         (Tab.Season, t("Season", "Saison"), FontAwesome.Solid.Star),
+                         (Tab.Season, t("Prestige", "Prestige"), FontAwesome.Solid.Star),
                          (Tab.Board, t("Ranking", "Rangliste"), FontAwesome.Solid.Trophy),
                          (Tab.Audio, t("Audio", "Audio"), FontAwesome.Solid.Music),
                      })
@@ -503,7 +503,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             rufBar.Width = (float)(state.Ruf / 100);
             rufBar.Colour = state.Ruf > 60 ? colours.Green : state.Ruf > 30 ? colours.Yellow : colours.Red;
             seasonText.Text = ClickerStrings.Pick($"season {state.Prestige + 1} · {seasonTitle(state.Prestige)} · {state.Legacy} legacy (x{TycoonRules.LegacyMult(state.Legacy):0.00})", $"Saison {state.Prestige + 1} · {seasonTitle(state.Prestige)} · {state.Legacy} Legacy (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
-            postButton.Detail = ClickerStrings.Pick($"+{n(TycoonRules.ClickValue(state))} players · Space", $"+{n(TycoonRules.ClickValue(state))} Spieler · Leertaste");
+            postButton.Detail = ClickerStrings.Pick($"+{n(TycoonRules.ClickValue(state))} players · Space", $"+{n(TycoonRules.ClickValue(state))} Spieler · Leertaste")
+                                + (state.Has("autopost") ? ClickerStrings.Pick(" · the bot posts 0.5/s", " · Bot postet 0,5/s") : string.Empty);
 
             var boostParts = new List<string>();
             if (boosts.InflowRemaining > 0) boostParts.Add(ClickerStrings.Pick($"inflow x{boosts.Inflow:0.#} ({boosts.InflowRemaining:0} s)", $"Zulauf x{boosts.Inflow:0.#} ({boosts.InflowRemaining:0} s)"));
@@ -517,8 +518,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             int gain = TycoonRules.LegacyGain(state.RunTotal);
             prestigeButton.SetEnabled(gain > 0);
             prestigeText.Text = gain > 0
-                ? ClickerStrings.Pick($"New season available: +{gain} legacy (Season tab)", $"Neue Saison möglich: +{gain} Legacy (Tab Saison)")
-                : ClickerStrings.Pick($"Season {state.Prestige + 1} · legacy {state.Legacy} · {prestigeProgress(gain) * 100:0} % to the next season", $"Saison {state.Prestige + 1} · Legacy {state.Legacy} · {prestigeProgress(gain) * 100:0} % zur nächsten Saison");
+                ? ClickerStrings.Pick($"Prestige available: +{gain} legacy (Prestige tab)", $"Prestige möglich: +{gain} Legacy (Tab Prestige)")
+                : ClickerStrings.Pick($"Prestige · season {state.Prestige + 1} · legacy {state.Legacy} · {prestigeProgress(gain) * 100:0} % to the next season", $"Prestige · Saison {state.Prestige + 1} · Legacy {state.Legacy} · {prestigeProgress(gain) * 100:0} % zur nächsten Saison");
             prestigeText.Colour = gain > 0 ? colours.Purple : colours.Gray9;
             prestigeBar.Width = (float)prestigeProgress(gain);
             pulsePrestige(gain > 0);
@@ -783,7 +784,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             row(t("Lifetime donations", "Spenden insgesamt"), n(state.LifetimeTotal));
             row(t("This season", "Diese Saison"), n(state.RunTotal));
             row(t("Spent this season", "Diese Saison ausgegeben"), n(TycoonRules.Spent(state)));
-            row(t("Comfort", "Gemütlichkeit"), $"+{(TycoonRules.ComfortMult(state.Layout) - 1) * 100:0.0} %");
+            row(t("Comfort", "Gemütlichkeit"), $"+{(TycoonRules.ComfortMult(state.Layout, TycoonRules.StaffComfort(state)) - 1) * 100:0.0} %");
             row(t("Player record", "Spieler-Rekord"), n(state.MaxPlayers));
             row(t("Seasons", "Saisons"), ClickerFormat.Count(state.Prestige + 1));
             row(t("Legacy", "Legacy"), $"{state.Legacy} (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
@@ -1061,6 +1062,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 ("influencer", 5, 8, false),
             };
 
+            private static readonly (int x, int y)[] deco_slots =
+            {
+                (0, 0), (2, 0), (4, 0), (6, 0), (8, 0), (10, 0), (12, 0), (14, 0), (16, 0), (18, 0),
+                (0, 2),
+            };
+
             private readonly TycoonScreen screen;
             private readonly Container floor;
             private readonly Container structures;
@@ -1153,10 +1160,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     pads.Add(pad);
                 }
 
-                for (int i = 0; i < TycoonRules.Decorations.Length && i < 10; i++)
+                for (int i = 0; i < TycoonRules.Decorations.Length && i < deco_slots.Length; i++)
                 {
                     var deco = TycoonRules.Decorations[i];
-                    int x = i * 2, y = 0;
+                    var (x, y) = deco_slots[i];
                     var pad = new BuyPad(DecoItem.IconOf(deco.Key), colours.Yellow, () => screen.placeDecoration(x, y, deco.Key)) { Position = cell(x, y), Size = new Vector2(CELL * 2, CELL) };
                     decoPads[(x, y)] = pad;
                     pads.Add(pad);
@@ -1258,10 +1265,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 }
 
                 // decorations: pads along the top once the first upgrade is bought, items where placed
-                foreach (var ((x, y), pad) in decoPads)
+                for (int i = 0; i < deco_slots.Length && i < TycoonRules.Decorations.Length; i++)
                 {
+                    var (x, y) = deco_slots[i];
+                    var pad = decoPads[(x, y)];
                     var placed = state.Layout.FirstOrDefault(p => p.X == x && p.Y == y);
-                    var deco = TycoonRules.Decorations[x / 2];
+                    var deco = TycoonRules.Decorations[i];
                     pad.Set(decoShort(deco.Key), ClickerStrings.Pick($"{deco.NameEn}: comfort +{deco.Comfort}. {deco.DescriptionEn}", $"{deco.NameDe}: Gemütlichkeit +{deco.Comfort}. {deco.DescriptionDe}"), deco.Cost, ready && TycoonRules.CanAfford(state, deco.Cost), placed == null && state.Hardware >= 1);
 
                     bool hasItem = decoItems.ContainsKey((x, y));
@@ -1397,6 +1406,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 "backups" => FontAwesome.Solid.Database,
                 "cloudflare" => FontAwesome.Solid.ShieldAlt,
                 "lazer" => FontAwesome.Solid.Rocket,
+                "clans" => FontAwesome.Solid.Flag,
+                "replays" => FontAwesome.Solid.Film,
                 "multiplayer" => FontAwesome.Solid.Users,
                 "supporter" => FontAwesome.Solid.Heart,
                 "mirror" => FontAwesome.Solid.Download,
@@ -2039,6 +2050,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     "sofa" => FontAwesome.Solid.Couch,
                     "fridge" => FontAwesome.Solid.Snowflake,
                     "aircon" => FontAwesome.Solid.Wind,
+                    "beanbag" => FontAwesome.Solid.Chair,
+                    "aquarium" => FontAwesome.Solid.Fish,
                     _ => FontAwesome.Solid.Gamepad,
                 };
 
@@ -2052,6 +2065,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     "sofa" => Color4Extensions.FromHex("ad1457"),
                     "fridge" => Color4Extensions.FromHex("78909c"),
                     "aircon" => Color4Extensions.FromHex("0288d1"),
+                    "beanbag" => Color4Extensions.FromHex("7e57c2"),
+                    "aquarium" => Color4Extensions.FromHex("0097a7"),
                     _ => Color4Extensions.FromHex("ff7043"),
                 };
 

@@ -245,6 +245,22 @@ namespace osu.Game.Tests.NonVisual
         }
 
         [Test]
+        public void TestDesignerAndNewItems()
+        {
+            Assert.That((TycoonRules.DecorationCost("beanbag"), TycoonRules.DecorationOf("aquarium")!.Value.Comfort), Is.EqualTo((1200L, 4)));
+            Assert.That((TycoonRules.FeatureCost("clans"), TycoonRules.FeatureOf("replays")!.Value.DonationMult), Is.EqualTo((400_000L, 1.25)));
+            Assert.That(TycoonRules.InflowMult(new[] { "clans" }), Is.EqualTo(1.2).Within(1e-9));
+            Assert.That(TycoonRules.StaffCost("designer", 0), Is.EqualTo(4500));
+
+            var state = new TycoonState { Players = 100 };
+            state.Staff["designer"] = 2;
+            Assert.That(TycoonRules.StaffComfort(state), Is.EqualTo(4));
+            Assert.That(TycoonRules.ComfortMult(state.Layout, TycoonRules.StaffComfort(state)), Is.EqualTo(1.02).Within(1e-9));
+            Assert.That(TycoonRules.DonationRate(state), Is.EqualTo(100 * 0.05 * 1.5 * 1.02).Within(1e-9));
+            Assert.That(TycoonRules.StaffDonationMult(state), Is.EqualTo(1.0), "designers do not touch the plain donation multiplier");
+        }
+
+        [Test]
         public void TestSaveRoundTrip()
         {
             var state = sampleRun();
@@ -252,7 +268,7 @@ namespace osu.Game.Tests.NonVisual
             string json = JsonConvert.SerializeObject(state);
             Assert.That(json, Does.Contain("\"lifetime_total\""));
             Assert.That(json, Does.Contain("\"marketing\":{\"discord\":3"));
-            Assert.That(json, Does.Contain("\"staff\":{\"moderator\":0,\"developer\":0,\"community\":0}"));
+            Assert.That(json, Does.Contain("\"staff\":{\"moderator\":0,\"developer\":0,\"community\":0,\"designer\":0}"));
             Assert.That(json, Does.Contain("\"quest\":0"));
 
             var back = JsonConvert.DeserializeObject<TycoonState>(json)!;

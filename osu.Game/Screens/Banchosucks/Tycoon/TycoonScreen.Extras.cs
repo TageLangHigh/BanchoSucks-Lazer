@@ -209,6 +209,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             private static readonly (string a, string b)[] themes = { ("635F62", "5a5658"), ("7d7c80", "737275"), ("5a6f82", "52667a"), ("2d3a5a", "27324f") };
 
             private readonly Dictionary<string, BuyPad> staffPads = new Dictionary<string, BuyPad>();
+            private readonly Dictionary<string, BuyPad> boostPads = new Dictionary<string, BuyPad>();
             private readonly Dictionary<string, int> tooltipCounts = new Dictionary<string, int>();
             private readonly List<Lamp> lamps = new List<Lamp>();
             private Container desks = null!;
@@ -278,6 +279,32 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 // the owner's sign above the servers
                 structures.Add(ownerSign = new OwnerSign { Position = cell(16, 1), Size = new Vector2(CELL * 4, CELL) });
 
+                // the boost machine: three consumables, bought with cash, each on a cooldown
+                structures.Add(new Container
+                {
+                    Position = cell(0, 7.55f),
+                    Size = new Vector2(CELL * 2, CELL * 3.45f),
+                    Masking = true,
+                    CornerRadius = 6,
+                    Children = new Drawable[]
+                    {
+                        new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("5d1f1f") },
+                        new Box { RelativeSizeAxes = Axes.X, Height = 8, Colour = Color4Extensions.FromHex("F5CD30") },
+                        new OsuSpriteText { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Y = 8, Text = "BOOSTS", Font = OsuFont.GetFont(size: 8, weight: FontWeight.Bold), Colour = Color4.White.Opacity(0.6f) },
+                    },
+                });
+
+                int boostSlot = 0;
+
+                foreach (var item in boost_items)
+                {
+                    var captured = item.key;
+                    var pad = new BuyPad(boostIcon(item.key), colours.Yellow, () => screen.buyBoost(captured)) { Position = cell(0, 8 + boostSlot), Size = new Vector2(CELL * 2, CELL) };
+                    boostPads[item.key] = pad;
+                    pads.Add(pad);
+                    boostSlot++;
+                }
+
                 // a trophy per milestone along row 1
                 structures.Add(trophies = new TrophyShelf(milestones.Length) { Position = cell(0, 1), Size = new Vector2(CELL * 16, CELL) });
 
@@ -337,6 +364,13 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     pad.TooltipText = $"{ClickerStrings.Pick(role.NameEn, role.NameDe)}: {ClickerStrings.Pick(role.DescriptionEn, role.DescriptionDe)}";
                 }
 
+                foreach (var item in boost_items)
+                {
+                    var (cost, locked) = screen.boostOffer(item.key);
+                    boostPads[item.key].Set(ClickerStrings.Pick(item.en, item.de), ClickerStrings.Pick(item.descEn, item.descDe), cost,
+                        ready && locked == null && TycoonRules.CanAfford(state, cost), state.Hardware >= 1, locked);
+                }
+
                 int total = TycoonRules.StaffTotal(state);
 
                 if (total != lastStaffTotal)
@@ -387,10 +421,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     }
                 }
 
-                // nothing bought for a while: a bouncing arrow points at the cheapest pad the cash is good for
-                var candidate = ready && Time.Current - lastPurchase > 40_000
-                    ? allPads().Where(p => p.Affordable).OrderBy(p => p.LastCost).FirstOrDefault()
-                    : null;
+                // beginners only (before the first hardware upgrade), after a while without a purchase: the laptop first, else the cheapest pad
+                BuyPad? candidate = null;
+
+                if (ready && state.Hardware == 0 && Time.Current - lastPurchase > 40_000)
+                    candidate = hardwarePad.Affordable ? hardwarePad : allPads().Where(p => p.Affordable).OrderBy(p => p.LastCost).FirstOrDefault();
 
                 if (candidate != null)
                 {
@@ -734,6 +769,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 "sofa" => "Sofa",
                 "fridge" => ClickerStrings.Pick("Fridge", "Kühlschrank"),
                 "aircon" => ClickerStrings.Pick("Aircon", "Klima"),
+                "beanbag" => ClickerStrings.Pick("Bean bag", "Sitzsack"),
+                "aquarium" => "Aquarium",
                 _ => "Arcade",
             };
 
@@ -741,6 +778,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 "moderator" => "Moderator",
                 "developer" => ClickerStrings.Pick("Developer", "Entwickler"),
+                "designer" => "Designer",
                 _ => "Community",
             };
 
@@ -748,13 +786,24 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 "moderator" => FontAwesome.Solid.Gavel,
                 "developer" => FontAwesome.Solid.Code,
+                "designer" => FontAwesome.Solid.PaintBrush,
                 _ => FontAwesome.Solid.Comments,
             };
+
+            public static IconUsage BoostIcon(string key) => key switch
+            {
+                "pizza" => FontAwesome.Solid.PizzaSlice,
+                "giveaway" => FontAwesome.Solid.Gift,
+                _ => FontAwesome.Solid.Tools,
+            };
+
+            private static IconUsage boostIcon(string key) => BoostIcon(key);
 
             private static string staffBonus(TycoonStaff role)
             {
                 if (role.DonationPerHead > 0) return ClickerStrings.Pick($"donations +{role.DonationPerHead * 100:0} % each", $"Spenden +{role.DonationPerHead * 100:0} % je Kopf");
                 if (role.InflowPerHead > 0) return ClickerStrings.Pick($"inflow +{role.InflowPerHead * 100:0} % each", $"Zulauf +{role.InflowPerHead * 100:0} % je Kopf");
+                if (role.ComfortPerHead > 0) return ClickerStrings.Pick($"comfort +{role.ComfortPerHead} each", $"Gemütlichkeit +{role.ComfortPerHead} je Kopf");
 
                 return ClickerStrings.Pick($"reputation regen +{role.RegenPerHead * 100:0} % each", $"Ruf-Erholung +{role.RegenPerHead * 100:0} % je Kopf");
             }
@@ -781,6 +830,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     {
                         "moderator" => "66bb6a",
                         "developer" => "42a5f5",
+                        "designer" => "ffa726",
                         _ => "ec407a",
                     });
 

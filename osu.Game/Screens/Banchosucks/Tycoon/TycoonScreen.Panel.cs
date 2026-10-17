@@ -44,6 +44,69 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private string ownerName = string.Empty;
         private double vipIn = 200;
         private int vips;
+
+        /// <summary>Consumables from the boost machine: key, names, descriptions, seconds of income they cost, minimum price.</summary>
+        private static readonly (string key, string en, string de, string descEn, string descDe, double seconds, double minCost)[] boost_items =
+        {
+            ("pizza", "Pizza for the team", "Pizza fürs Team", "Donations x1.5 for 3 minutes. Costs a minute of income, 4 minutes cooldown.", "Spenden x1,5 für 3 Minuten. Kostet eine Minute Einnahmen, 4 Minuten Abklingzeit.", 60, 50),
+            ("giveaway", "Giveaway", "Giveaway", "Player inflow x2 for 2 minutes. Costs 90 seconds of income, 4 minutes cooldown.", "Zulauf x2 für 2 Minuten. Kostet 90 Sekunden Einnahmen, 4 Minuten Abklingzeit.", 90, 80),
+            ("maintenance", "Maintenance window", "Wartungsfenster", "Reputation +20 at once. Costs 30 seconds of income, 4 minutes cooldown.", "Ruf +20 sofort. Kostet 30 Sekunden Einnahmen, 4 Minuten Abklingzeit.", 30, 30),
+        };
+
+        private const double boost_cooldown = 240_000;
+        private readonly Dictionary<string, double> boostReady = new Dictionary<string, double>();
+
+        /// <summary>What the boost costs right now and, while cooling down, the lock text for the pad.</summary>
+        private (long cost, string? locked) boostOffer(string key)
+        {
+            var item = boost_items.First(b => b.key == key);
+            long cost = (long)Math.Ceiling(Math.Max(item.minCost, TycoonRules.DonationRate(state) * item.seconds));
+
+            if (boostReady.TryGetValue(key, out double readyAt) && readyAt > Time.Current)
+            {
+                int left = (int)Math.Ceiling((readyAt - Time.Current) / 1000);
+                return (cost, ClickerStrings.Pick($"ready in {left / 60}:{left % 60:00}", $"bereit in {left / 60}:{left % 60:00}"));
+            }
+
+            return (cost, null);
+        }
+
+        private void buyBoost(string key)
+        {
+            if (!ready) return;
+
+            var (cost, locked) = boostOffer(key);
+            if (locked != null || !TycoonRules.CanAfford(state, cost)) return;
+
+            state.Donations -= cost;
+            LocalisableString line;
+
+            switch (key)
+            {
+                case "pizza":
+                    boosts.SetDonation(1.5, 180);
+                    line = t("Pizza! Donations x1.5 for 3 minutes", "Pizza! Spenden x1,5 für 3 Minuten");
+                    break;
+
+                case "giveaway":
+                    boosts.SetInflow(2.0, 120);
+                    plot.Burst("discord", 6);
+                    line = t("Giveaway! Player inflow x2 for 2 minutes", "Giveaway! Zulauf x2 für 2 Minuten");
+                    break;
+
+                default:
+                    state.Ruf = Math.Min(100, state.Ruf + 20);
+                    line = t("Maintenance done: reputation +20", "Wartung erledigt: Ruf +20");
+                    break;
+            }
+
+            boostReady[key] = Time.Current + boost_cooldown;
+            dirty = true;
+            plot.NotePurchase();
+            popSample?.Play();
+            log(line, colours.Yellow);
+            plot.Announce(TycoonPlot.BoostIcon(key), line, colours.Yellow);
+        }
         private Sample? popSampleCache;
         private Sample? collectSampleCache;
 
@@ -231,7 +294,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                     bar = new Box { RelativeSizeAxes = Axes.Both, Width = 0, Colour = purple },
                                 },
                             },
-                            Button = new ClickerPillButton(ClickerStrings.Text("Start a new season", "Neue Saison starten"), purple, prestige, FontAwesome.Solid.Redo),
+                            Button = new ClickerPillButton(ClickerStrings.Text("Prestige: start a new season", "Prestige: neue Saison starten"), purple, prestige, FontAwesome.Solid.Redo),
                             explanation = new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 11))
                             {
                                 RelativeSizeAxes = Axes.X,
@@ -363,8 +426,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                  "Features machen Ereignisse harmlos oder bringen Boni. Das Team gibt kleine Boni je Kopf. Deko bringt Gemütlichkeit (bis +15 % Spenden); Rechtsklick verkauft sie."),
                              ("Quests guide the run and pay rewards. Supply drops land every few minutes: click them in time.",
                                  "Aufträge führen durch den Lauf und belohnen. Lieferungen landen alle paar Minuten: rechtzeitig anklicken."),
-                             ("From a million donations in a season you can start a new one. Legacy points give +5 % each for ever and unlock perks: quick start, discounts, regulars, night shift.",
-                                 "Ab einer Million Spenden in einer Saison kannst du eine neue starten. Legacy-Punkte bringen dauerhaft +5 % je Punkt und schalten Perks frei: Schnellstart, Rabatte, Stammspieler, Nachtschicht."),
+                             ("Prestige: from a million donations in a season you can start a new one. Legacy points give +5 % each for ever and unlock perks: quick start, discounts, regulars, night shift.",
+                                 "Prestige: Ab einer Million Spenden in einer Saison kannst du eine neue starten. Legacy-Punkte bringen dauerhaft +5 % je Punkt und schalten Perks frei: Schnellstart, Rabatte, Stammspieler, Nachtschicht."),
+                             ("The boost machine by the gate sells pizza for the team (donations x1.5), a giveaway (inflow x2) and a maintenance window (reputation +20), each with a cooldown.",
+                                 "Der Boost-Automat am Tor verkauft Pizza fürs Team (Spenden x1,5), ein Giveaway (Zulauf x2) und ein Wartungsfenster (Ruf +20), jeweils mit Abklingzeit."),
                              ("Space or the Discord booth: post, players join at once. The Audio tab sets the music and effect volume.",
                                  "Leertaste oder die Discord-Bude: posten, Spieler kommen sofort. Der Audio-Tab regelt Musik und Effekte."),
                          })
