@@ -15,8 +15,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
     {
         [JsonProperty("v")] public int Version { get; set; } = TycoonRules.STATE_VERSION;
 
-        /// <summary>Donations in hand.</summary>
+        /// <summary>Donations in hand (collected).</summary>
         [JsonProperty("donations")] public double Donations { get; set; }
+
+        /// <summary>Donations waiting in the collector box; <see cref="TycoonRules.Collect"/> moves them to <see cref="Donations"/>.</summary>
+        [JsonProperty("pending")] public double Pending { get; set; }
 
         /// <summary>Donations earned in this season.</summary>
         [JsonProperty("run_total")] public double RunTotal { get; set; }
@@ -90,16 +93,15 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public const double COST_GROWTH = 1.15;
         public const double EVENT_BOOST = 2.0;
 
-        public const int OFFICE_WIDTH = 14;
-        public const int OFFICE_HEIGHT = 9;
-        public const int OFFICE_MAX_ITEMS = OFFICE_WIDTH * OFFICE_HEIGHT;
+        public const int OFFICE_WIDTH = 20;
+        public const int OFFICE_HEIGHT = 13;
+        public const int OFFICE_MAX_ITEMS = 64;
         public const double COMFORT_PER_POINT = 0.005;
         public const double COMFORT_CAP = 0.15;
 
         /// <summary>Things to put into the office; comfort raises donations a little (see <see cref="ComfortMult"/>).</summary>
         public static readonly TycoonDecoration[] Decorations =
         {
-            new TycoonDecoration("rack", 0, 0, "Server rack", "Server-Rack", "Free; one per hardware level, two to begin with.", "Kostenlos; eins je Hardware-Stufe, zwei zu Beginn."),
             new TycoonDecoration("carpet", 100, 0, "Carpet", "Teppich", "Looks tidy. Does nothing.", "Sieht ordentlich aus. Macht nichts."),
             new TycoonDecoration("plant", 150, 1, "Plant", "Pflanze", "Someone remembers to water it.", "Irgendwer denkt ans Gießen."),
             new TycoonDecoration("desk", 250, 1, "Desk", "Schreibtisch", "A PC, a mug, a sticker collection.", "Ein PC, eine Tasse, eine Stickersammlung."),
@@ -138,6 +140,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public static readonly TycoonFeature[] Features =
         {
             new TycoonFeature("website", 500, 1.20, 1.0, 1.0, "Website", "Website", "Profiles, scores, a changelog. Donations +20 %.", "Profile, Scores, ein Changelog. Spenden +20 %."),
+            new TycoonFeature("autocollect", 1_200, 1.0, 1.0, 1.0, "Auto collector", "Auto-Kasse", "Donations go straight to your cash, no box to empty.", "Spenden landen direkt in der Kasse, keine Box mehr leeren."),
             new TycoonFeature("leaderboards", 2_000, 1.0, 1.25, 1.0, "Leaderboards", "Ranglisten", "Everyone wants to be number one. Player inflow +25 %.", "Jeder will die Nummer eins sein. Zulauf +25 %."),
             new TycoonFeature("medals", 8_000, 1.15, 1.0, 1.0, "Medals", "Medaillen", "Shiny things to collect. Donations +15 %.", "Glänzende Dinge zum Sammeln. Spenden +15 %."),
             new TycoonFeature("discord_bot", 15_000, 1.0, 1.0, 2.0, "Discord bot", "Discord-Bot", "Answers at 3 am. Reputation recovers twice as fast.", "Antwortet um drei Uhr nachts. Ruf erholt sich doppelt so schnell."),
@@ -190,9 +193,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         /// <summary>Furniture makes the team happier and the donors more generous: +0.5 % per comfort point, up to +15 %.</summary>
         public static double ComfortMult(IEnumerable<TycoonPlacement> layout) => 1.0 + Math.Min(COMFORT_CAP, COMFORT_PER_POINT * ComfortPoints(layout));
 
-        /// <summary>Racks on the plot are free but limited by the hardware: one per level, two at the start.</summary>
-        public static int RackLimit(int hardware) => hardware + 2;
-
         public static double LayoutCost(IEnumerable<TycoonPlacement> layout) => layout.Sum(p => (double)DecorationCost(p.Key));
 
         public static double MarketingRate(TycoonState state) => Marketing.Sum(m => state.MarketingCount(m.Key) * m.Rate);
@@ -237,7 +237,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             state.Players = Math.Max(0.0, players);
             state.MaxPlayers = Math.Max(state.MaxPlayers, state.Players);
-            state.Donations += gained;
+
+            if (state.Has("autocollect"))
+                state.Donations += gained;
+            else
+                state.Pending += gained;
+
             state.RunTotal += gained;
             state.LifetimeTotal += gained;
             state.PlaySeconds += dt;
@@ -258,6 +263,15 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             }
 
             return gained;
+        }
+
+        /// <summary>Empties the collector box into the cash; returns what was collected.</summary>
+        public static double Collect(TycoonState state)
+        {
+            double amount = state.Pending;
+            state.Donations += amount;
+            state.Pending = 0;
+            return amount;
         }
 
         /// <summary>A post in the Discord: players join at once.</summary>
@@ -297,12 +311,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             return true;
         }
 
-        /// <summary>Puts a decoration on a free cell, paying for it; racks are free but limited by the hardware.</summary>
+        /// <summary>Puts a decoration on a free cell, paying for it.</summary>
         public static bool Place(TycoonState state, int x, int y, string key)
         {
             if (DecorationOf(key) == null || x < 0 || x >= OFFICE_WIDTH || y < 0 || y >= OFFICE_HEIGHT) return false;
             if (state.Layout.Any(p => p.X == x && p.Y == y) || state.Layout.Count >= OFFICE_MAX_ITEMS) return false;
-            if (key == "rack" && state.Layout.Count(p => p.Key == "rack") >= RackLimit(state.Hardware)) return false;
 
             long cost = DecorationCost(key);
             if (!CanAfford(state, cost)) return false;
@@ -353,6 +366,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             };
 
             state.Donations = fresh.Donations;
+            state.Pending = fresh.Pending;
             state.RunTotal = fresh.RunTotal;
             state.LifetimeTotal = fresh.LifetimeTotal;
             state.Players = fresh.Players;

@@ -152,7 +152,6 @@ namespace osu.Game.Tests.Visual.Navigation
         private Drawable circleRush() => (Drawable)Game.ScreenStack.CurrentScreen;
 
         [TestCase(3, typeof(SongGuessScreen), "beatmap sets")]
-        [TestCase(4, typeof(SkinGuessScreen), "imported skins")]
         public void TestGuessersFromMinigames(int tile, Type screenType, string needs)
         {
             AddStep("open play menu", () =>

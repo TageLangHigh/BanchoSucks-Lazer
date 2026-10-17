@@ -144,7 +144,9 @@ and restart the app container.
   `osu.Game.Tests/NonVisual/BanchosucksCircleRushRulesTest.cs` (same numbers as the plugin tests)
   and `TestSceneBanchosucksMinigames`.
 - **Private Server Tycoon** (main menu > Play > minigames, third tile, since 2026.913.15):
-  `osu.Game/Screens/Banchosucks/Tycoon/`, an idle game. The player runs an osu! private server:
+  `osu.Game/Screens/Banchosucks/Tycoon/`, an idle game built like a tycoon game: the plot is the game.
+  Buy pads on the floor show the next building and its price and turn green when affordable; buying
+  turns the pad into the building and unlocks the next pad. The player runs an osu! private server:
   marketing (Discord, Reddit, YouTube, streamers, tournaments, campaigns, influencers; cost x1.15
   per piece) brings players, players donate (0.05 per player and second times a reputation factor
   0.5 to 1.5), donations buy hardware (nine tiers from Raspberry Pi with 10 players to cloud with
@@ -159,27 +161,28 @@ and restart the app container.
   else starts over. `TycoonRules.cs` holds the economy, mirrored by the plugin
   `banchosucks_tycoon/economy.py`; the save (JSON, see `TycoonState`) goes to the plugin every 30 s
   and on leaving, plus a local file `banchosucks-tycoon.json` in the osu! storage for offline play;
-  on load up to eight hours of offline progress are simulated. The office (button next to the
-  Discord post) is a 14x9 grid the player furnishes: racks (free, one per hardware level plus two),
-  carpet, plant, desk, poster, coffee machine, sofa, fridge, air conditioning, arcade cabinet;
-  comfort points give +0.5 % donations each, capped at +15 %; left click places, right click removes
-  for half the price; the layout is part of the save and of the server's spending check. The server
-  bounds what a save may have earned since the last one and refuses saves that spent more than they
-  earned. A stats tab lists play time, posts, events, seasons and thirteen milestones. Leaderboards
+  on load up to eight hours of offline progress are simulated. The plot (20x13 cells): the gate on
+  the left, the walkway in the middle, the seven marketing buildings (the droppers) above and below
+  it with their buy/upgrade pads, the server block (grows from a Pi to rows of racks, LEDs blink with
+  load, red when lagging) and the collector box on the right, thirteen feature kiosks along the
+  bottom, nine decoration pads along the top (comfort +0.5 % donations per point, capped at +15 %;
+  right click sells for half). Players walk out of the droppers along the walkway into the servers;
+  donations drop as coins into the collector box (`pending` in the save) and are collected by
+  clicking it, or automatically with the auto collector feature. The layout is part of the save and
+  of the server's spending check. The server bounds what a save may have earned since the last one
+  and refuses saves that spent more than they earned. A stats tab lists play time, posts, events,
+  seasons and fourteen milestones. Leaderboards
   by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.
   Tests: `osu.Game.Tests/NonVisual/BanchosucksTycoonRulesTest.cs` (same numbers as the plugin
   tests) and `TestSceneBanchosucksMinigames`.
-- **Song Guesser and Skin Guesser** (minigames, fourth and fifth tile, since 2026.913.15):
-  `osu.Game/Screens/Banchosucks/Guess/`. Ten rounds, four answers each, 15 s per round; a correct
-  answer gives 100 points plus 10 per second left, streaks add up to 50 (max 3000). The song guesser
-  plays the preview snippet of one of the player's own beatmap sets (the global music pauses, the
-  cover and title appear once answered); the skin guesser shows cursor, hit circle and judgements
-  of one of the installed skins. Both need at least four items with different names. Popular mode
-  (boards `song_endless`, `skin_endless`) asks about the server's pools until the first mistake: the
-  most played sets on banchosucks (the client streams the official preview by set id through
-  `PreviewTrackManager` and shows the cover from assets.ppy.sh once answered) and the skins of the
-  plugin's `skins/manifest.json` (element images by url). Overlays are closed during a round so the
-  toolbar cannot spoil the answer. `GuessRules.cs` is mirrored by the plugin
+- **Song Guesser** (minigames, fourth tile, since 2026.913.15): `osu.Game/Screens/Banchosucks/Guess/`.
+  Four answers each round, 15 s per round; a correct answer gives 100 points plus 10 per second left,
+  streaks add up to 50. Library mode (board `song`, ten rounds) plays the preview point of one of the
+  player's own beatmap sets (the global music pauses, the cover and title appear once answered) and
+  needs at least four sets with different songs. Popular mode (board `song_endless`) asks about the
+  server's pool of the most played sets on banchosucks until the first mistake: the client streams the
+  official preview by set id through `PreviewTrackManager` and shows the cover from assets.ppy.sh once
+  answered. Overlays are closed during a round so the toolbar cannot spoil the answer. `GuessRules.cs` is mirrored by the plugin
   `banchosucks_guess/rules.py`, which only bounds results: best run per player and board,
   leaderboards in the screen and on banchosucks.cc/lazer/guess. Tests:
   `osu.Game.Tests/NonVisual/BanchosucksGuessRulesTest.cs` and `TestSceneBanchosucksMinigames`.

@@ -33,19 +33,22 @@ using osuTK.Input;
 namespace osu.Game.Screens.Banchosucks.Tycoon
 {
     /// <summary>
-    /// Banchosucks: the Private Server Tycoon, an idle game. Run your own osu! server: marketing brings players, players
-    /// donate, donations buy hardware, features and more marketing. Too many players for the hardware means lag, a
-    /// falling reputation and players leaving. Events (cheater waves, DDoS, broken deploys, a streamer) shake things up;
-    /// features make the bad ones harmless. A season restart trades the run for legacy points. The save lives on the lazer
-    /// server (plugin <c>banchosucks_tycoon</c>, which checks it for plausibility) and as a local file for offline play.
+    /// Banchosucks: the Private Server Tycoon, built like a tycoon game. The plot is the game: buy pads on the floor
+    /// show what the next building costs and turn green when the cash is there; marketing buildings are the droppers,
+    /// players walk out of them along the walkway into the server block, the server block grows with every hardware
+    /// upgrade, donations pile up in the collector box until the player clicks it (or buys the auto collector). Too many
+    /// players for the hardware means lag: reputation falls and players leave. Events (cheater waves, DDoS, broken
+    /// deploys, a streamer) shake things up; features make the bad ones harmless. A season restart trades the run for
+    /// legacy points. The save lives on the lazer server (plugin <c>banchosucks_tycoon</c>, which checks it for
+    /// plausibility) and as a local file for offline play.
     /// </summary>
     public partial class TycoonScreen : OsuScreen
     {
         private const double autosave_interval = 30_000;
         private const double local_save_interval = 10_000;
         private const string local_file = "banchosucks-tycoon.json";
-        private const float side_width = 470;
-        private const int log_lines = 7;
+        private const float side_width = 440;
+        private const int log_lines = 6;
 
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
@@ -70,54 +73,41 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private double lastLocalSave;
         private bool dirty;
         private int logCounter;
-        private double joinAccumulator;
         private double statsRefresh;
         private bool firstMilestonePass = true;
         private readonly HashSet<string> reachedMilestones = new HashSet<string>();
         private GetTycoonSaveRequest? loadRequest;
         private SubmitTycoonSaveRequest? saveRequest;
 
-        private ServerRack rack = null!;
+        private Container plotHost = null!;
+        private TycoonPlot plot = null!;
+        private Container effectLayer = null!;
         private OsuSpriteText serverNameText = null!;
         private OsuSpriteText seasonText = null!;
+        private OsuSpriteText cashText = null!;
+        private OsuSpriteText rateText = null!;
+        private OsuSpriteText boxText = null!;
         private OsuSpriteText playersText = null!;
         private OsuSpriteText capacityText = null!;
-        private OsuSpriteText inflowText = null!;
-        private OsuSpriteText donationsText = null!;
-        private OsuSpriteText rateText = null!;
+        private Box loadBar = null!;
         private OsuSpriteText rufText = null!;
         private Box rufBar = null!;
         private OsuSpriteText boostText = null!;
+        private OsuSpriteText nextEventText = null!;
         private PostButton postButton = null!;
         private EventCard eventCard = null!;
         private FillFlowContainer logFlow = null!;
         private OsuSpriteText statusText = null!;
         private OsuSpriteText prestigeText = null!;
         private ClickerPillButton prestigeButton = null!;
-        private Container effectLayer = null!;
-        private OsuSpriteText nextEventText = null!;
         private FillFlowContainer statsFlow = null!;
-        private Drawable dashboard = null!;
-        private Container office = null!;
-        private OfficeView officeView = null!;
-        private OsuSpriteText officeInfoText = null!;
-        private readonly Dictionary<string, PaletteButton> paletteButtons = new Dictionary<string, PaletteButton>();
-        private string? selectedDecoration;
-        private double officeRefresh;
-
+        private TycoonLeaderboardPanel board = null!;
         private readonly Dictionary<Tab, ClickerTabButton> tabButtons = new Dictionary<Tab, ClickerTabButton>();
         private readonly Dictionary<Tab, Drawable> tabContents = new Dictionary<Tab, Drawable>();
-        private FillFlowContainer hardwareRows = null!;
-        private FillFlowContainer marketingRows = null!;
-        private FillFlowContainer featureRows = null!;
-        private TycoonLeaderboardPanel board = null!;
-        private Tab tab = Tab.Hardware;
+        private Tab tab = Tab.Stats;
 
         private enum Tab
         {
-            Hardware,
-            Marketing,
-            Features,
             Stats,
             Board,
         }
@@ -148,11 +138,45 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 new Container
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Padding = new MarginPadding { Top = 56, Bottom = 24, Left = 30, Right = side_width + 50 },
+                    Padding = new MarginPadding { Top = 50, Bottom = 20, Left = 24, Right = side_width + 40 },
                     Children = new Drawable[]
                     {
-                        dashboard = createLeftColumn(),
-                        office = createOffice(),
+                        new FillFlowContainer
+                        {
+                            AutoSizeAxes = Axes.Both,
+                            Direction = FillDirection.Horizontal,
+                            Spacing = new Vector2(12, 0),
+                            Children = new Drawable[]
+                            {
+                                new OsuSpriteText
+                                {
+                                    Text = t("Private Server Tycoon", "Privatserver-Tycoon"),
+                                    Font = OsuFont.GetFont(size: 30, weight: FontWeight.Bold),
+                                    Anchor = Anchor.CentreLeft,
+                                    Origin = Anchor.CentreLeft,
+                                },
+                                serverNameText = new OsuSpriteText
+                                {
+                                    Font = OsuFont.GetFont(size: 17, weight: FontWeight.SemiBold),
+                                    Colour = colours.Pink,
+                                    Anchor = Anchor.CentreLeft,
+                                    Origin = Anchor.CentreLeft,
+                                },
+                                seasonText = new OsuSpriteText
+                                {
+                                    Font = OsuFont.GetFont(size: 15),
+                                    Colour = colours.Gray9,
+                                    Anchor = Anchor.CentreLeft,
+                                    Origin = Anchor.CentreLeft,
+                                },
+                            },
+                        },
+                        plotHost = new Container
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Padding = new MarginPadding { Top = 44 },
+                            Child = plot = new TycoonPlot(this, colours),
+                        },
                     },
                 },
                 new Container
@@ -161,14 +185,13 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     Origin = Anchor.TopRight,
                     Width = side_width,
                     RelativeSizeAxes = Axes.Y,
-                    Padding = new MarginPadding { Top = 56, Bottom = 24, Right = 30 },
-                    Child = createRightColumn(),
+                    Padding = new MarginPadding { Top = 50, Bottom = 20, Right = 24 },
+                    Child = createSidePanel(),
                 },
                 effectLayer = new Container { RelativeSizeAxes = Axes.Both },
             };
 
-            rebuildShop();
-            selectTab(Tab.Hardware);
+            selectTab(Tab.Stats);
         }
 
         protected override void LoadComplete()
@@ -178,257 +201,58 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             beginLoading();
         }
 
-        // ---------------------------------------------------------------- layout
+        // ---------------------------------------------------------------- side panel
 
-        private Drawable createLeftColumn()
+        private Drawable createSidePanel()
         {
-            return new FillFlowContainer
-            {
-                RelativeSizeAxes = Axes.Both,
-                Direction = FillDirection.Vertical,
-                Spacing = new Vector2(0, 14),
-                Children = new Drawable[]
-                {
-                    new FillFlowContainer
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        AutoSizeAxes = Axes.Y,
-                        Direction = FillDirection.Vertical,
-                        Children = new Drawable[]
-                        {
-                            new OsuSpriteText
-                            {
-                                Text = t("Private Server Tycoon", "Privatserver-Tycoon"),
-                                Font = OsuFont.GetFont(size: 40, weight: FontWeight.Bold),
-                            },
-                            new FillFlowContainer
-                            {
-                                AutoSizeAxes = Axes.Both,
-                                Direction = FillDirection.Horizontal,
-                                Spacing = new Vector2(12, 0),
-                                Children = new Drawable[]
-                                {
-                                    serverNameText = new OsuSpriteText
-                                    {
-                                        Font = OsuFont.GetFont(size: 18, weight: FontWeight.SemiBold),
-                                        Colour = colours.Pink,
-                                    },
-                                    seasonText = new OsuSpriteText
-                                    {
-                                        Font = OsuFont.GetFont(size: 16),
-                                        Colour = colours.Gray9,
-                                    },
-                                },
-                            },
-                        },
-                    },
-                    new GridContainer
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        Height = 220,
-                        ColumnDimensions = new[] { new Dimension(GridSizeMode.Relative, 0.52f), new Dimension(GridSizeMode.Absolute, 14), new Dimension() },
-                        Content = new[]
-                        {
-                            new Drawable[]
-                            {
-                                rack = new ServerRack(),
-                                Empty(),
-                                createStatsPanel(),
-                            },
-                        },
-                    },
-                    new FillFlowContainer
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        AutoSizeAxes = Axes.Y,
-                        Direction = FillDirection.Horizontal,
-                        Spacing = new Vector2(14, 0),
-                        Children = new Drawable[]
-                        {
-                            postButton = new PostButton(post),
-                            new ClickerPillButton(t("Office", "Büro"), colours.Purple, () => showOffice(true), FontAwesome.Solid.Couch)
-                            {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                            },
-                            boostText = new OsuSpriteText
-                            {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                Font = OsuFont.GetFont(size: 14, weight: FontWeight.SemiBold),
-                                Colour = colours.Yellow,
-                            },
-                        },
-                    },
-                    eventCard = new EventCard(),
-                    nextEventText = new OsuSpriteText
-                    {
-                        Font = OsuFont.GetFont(size: 13),
-                        Colour = colours.Gray9,
-                    },
-                    new Container
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        AutoSizeAxes = Axes.Y,
-                        Masking = true,
-                        CornerRadius = 12,
-                        Children = new Drawable[]
-                        {
-                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.04f) },
-                            new FillFlowContainer
-                            {
-                                RelativeSizeAxes = Axes.X,
-                                AutoSizeAxes = Axes.Y,
-                                Direction = FillDirection.Vertical,
-                                Padding = new MarginPadding(12),
-                                Spacing = new Vector2(0, 3),
-                                Children = new Drawable[]
-                                {
-                                    new OsuSpriteText
-                                    {
-                                        Text = t("Server log", "Server-Log"),
-                                        Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
-                                        Colour = colours.Gray9,
-                                    },
-                                    logFlow = new FillFlowContainer
-                                    {
-                                        RelativeSizeAxes = Axes.X,
-                                        AutoSizeAxes = Axes.Y,
-                                        Direction = FillDirection.Vertical,
-                                        Spacing = new Vector2(0, 2),
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            };
-        }
+            OsuSpriteText label(LocalisableString text) => new OsuSpriteText { Text = text, Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold), Colour = colours.Gray9 };
+            OsuSpriteText small() => new OsuSpriteText { Font = OsuFont.GetFont(size: 12), Colour = colours.Gray9 };
 
-        private Drawable createStatsPanel()
-        {
-            OsuSpriteText label(LocalisableString text) => new OsuSpriteText { Text = text, Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold), Colour = colours.Gray9 };
-            OsuSpriteText big(Color4 colour) => new OsuSpriteText { Font = OsuFont.GetFont(size: 30, weight: FontWeight.Bold), Colour = colour };
-            OsuSpriteText small() => new OsuSpriteText { Font = OsuFont.GetFont(size: 13), Colour = colours.Gray9 };
-
-            return new Container
-            {
-                RelativeSizeAxes = Axes.Both,
-                Masking = true,
-                CornerRadius = 12,
-                Children = new Drawable[]
-                {
-                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.05f) },
-                    new GridContainer
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Padding = new MarginPadding(14),
-                        RowDimensions = new[] { new Dimension(), new Dimension(), new Dimension(GridSizeMode.AutoSize) },
-                        Content = new[]
-                        {
-                            new Drawable[]
-                            {
-                                new FillFlowContainer
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Direction = FillDirection.Vertical,
-                                    Children = new Drawable[]
-                                    {
-                                        label(t("Players online", "Spieler online")),
-                                        playersText = big(colours.Blue),
-                                        capacityText = small(),
-                                        inflowText = small(),
-                                    },
-                                },
-                            },
-                            new Drawable[]
-                            {
-                                new FillFlowContainer
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Direction = FillDirection.Vertical,
-                                    Children = new Drawable[]
-                                    {
-                                        label(t("Donations", "Spenden")),
-                                        donationsText = big(colours.Yellow),
-                                        rateText = small(),
-                                    },
-                                },
-                            },
-                            new Drawable[]
-                            {
-                                new FillFlowContainer
-                                {
-                                    RelativeSizeAxes = Axes.X,
-                                    AutoSizeAxes = Axes.Y,
-                                    Direction = FillDirection.Vertical,
-                                    Spacing = new Vector2(0, 4),
-                                    Children = new Drawable[]
-                                    {
-                                        rufText = new OsuSpriteText { Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold), Colour = colours.Gray9 },
-                                        new CircularContainer
-                                        {
-                                            RelativeSizeAxes = Axes.X,
-                                            Height = 8,
-                                            Masking = true,
-                                            Children = new Drawable[]
-                                            {
-                                                new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.1f) },
-                                                rufBar = new Box { RelativeSizeAxes = Axes.Both, Width = 1, Colour = colours.Green },
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            };
-        }
-
-        private Drawable createRightColumn()
-        {
-            var tabRow = new FillFlowContainer
+            Drawable bar(out Box fill, Color4 colour) => new CircularContainer
             {
                 RelativeSizeAxes = Axes.X,
-                AutoSizeAxes = Axes.Y,
+                Height = 7,
+                Masking = true,
+                Children = new Drawable[]
+                {
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.1f) },
+                    fill = new Box { RelativeSizeAxes = Axes.Both, Width = 0, Colour = colour },
+                },
+            };
+
+            var loadBarDrawable = bar(out loadBar, colours.Blue);
+            var rufBarDrawable = bar(out rufBar, colours.Green);
+
+            var tabRow = new FillFlowContainer
+            {
+                AutoSizeAxes = Axes.Both,
                 Direction = FillDirection.Horizontal,
                 Spacing = new Vector2(4, 0),
             };
 
             foreach (var (value, text, icon) in new[]
                      {
-                         (Tab.Hardware, t("Hardware", "Hardware"), FontAwesome.Solid.Server),
-                         (Tab.Marketing, t("Marketing", "Marketing"), FontAwesome.Solid.Bullhorn),
-                         (Tab.Features, t("Features", "Features"), FontAwesome.Solid.Cogs),
                          (Tab.Stats, t("Stats", "Statistik"), FontAwesome.Solid.ChartBar),
                          (Tab.Board, t("Ranking", "Rangliste"), FontAwesome.Solid.Trophy),
                      })
             {
                 var captured = value;
-                tabRow.Add(tabButtons[value] = new ClickerTabButton(text, icon, colours.Pink, () => selectTab(captured), 15, 13));
+                tabRow.Add(tabButtons[value] = new ClickerTabButton(text, icon, colours.Pink, () => selectTab(captured), 14, 12));
             }
 
-            FillFlowContainer rows() => new FillFlowContainer
-            {
-                RelativeSizeAxes = Axes.X,
-                AutoSizeAxes = Axes.Y,
-                Direction = FillDirection.Vertical,
-                Spacing = new Vector2(0, 6),
-                Padding = new MarginPadding { Right = 6 },
-            };
-
-            Drawable scroll(FillFlowContainer flow) => new OsuScrollContainer
+            tabContents[Tab.Stats] = new OsuScrollContainer
             {
                 RelativeSizeAxes = Axes.Both,
                 ScrollbarVisible = true,
-                Child = flow,
+                Child = statsFlow = new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, 4),
+                    Padding = new MarginPadding { Right = 6 },
+                },
             };
-
-            tabContents[Tab.Hardware] = scroll(hardwareRows = rows());
-            tabContents[Tab.Marketing] = scroll(marketingRows = rows());
-            tabContents[Tab.Features] = scroll(featureRows = rows());
-            tabContents[Tab.Stats] = scroll(statsFlow = rows());
             tabContents[Tab.Board] = board = new TycoonLeaderboardPanel();
 
             return new Container
@@ -438,22 +262,55 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 CornerRadius = 16,
                 Children = new Drawable[]
                 {
-                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("0d0e12").Opacity(0.75f) },
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("0d0e12").Opacity(0.78f) },
                     new GridContainer
                     {
                         RelativeSizeAxes = Axes.Both,
                         Padding = new MarginPadding(14),
-                        RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize), new Dimension(GridSizeMode.Absolute, 10), new Dimension(), new Dimension(GridSizeMode.Absolute, 10), new Dimension(GridSizeMode.AutoSize) },
+                        RowDimensions = new[]
+                        {
+                            new Dimension(GridSizeMode.AutoSize),
+                            new Dimension(GridSizeMode.Absolute, 10),
+                            new Dimension(GridSizeMode.AutoSize),
+                            new Dimension(GridSizeMode.Absolute, 10),
+                            new Dimension(),
+                            new Dimension(GridSizeMode.Absolute, 10),
+                            new Dimension(GridSizeMode.AutoSize),
+                        },
                         Content = new[]
                         {
-                            new Drawable[] { tabRow },
-                            new Drawable[] { Empty() },
                             new Drawable[]
                             {
-                                new Container
+                                new FillFlowContainer
                                 {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Children = tabContents.Values.ToArray(),
+                                    RelativeSizeAxes = Axes.X,
+                                    AutoSizeAxes = Axes.Y,
+                                    Direction = FillDirection.Vertical,
+                                    Spacing = new Vector2(0, 3),
+                                    Children = new Drawable[]
+                                    {
+                                        label(t("Cash", "Kasse")),
+                                        cashText = new OsuSpriteText { Font = OsuFont.GetFont(size: 34, weight: FontWeight.Bold), Colour = colours.Yellow },
+                                        rateText = small(),
+                                        boxText = new OsuSpriteText { Font = OsuFont.GetFont(size: 13, weight: FontWeight.SemiBold), Colour = Color4Extensions.FromHex("ffd54f") },
+                                        label(t("Players online", "Spieler online")).With(l => l.Margin = new MarginPadding { Top = 8 }),
+                                        new FillFlowContainer
+                                        {
+                                            AutoSizeAxes = Axes.Both,
+                                            Direction = FillDirection.Horizontal,
+                                            Spacing = new Vector2(8, 0),
+                                            Children = new Drawable[]
+                                            {
+                                                playersText = new OsuSpriteText { Font = OsuFont.GetFont(size: 24, weight: FontWeight.Bold), Colour = colours.Blue, Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft },
+                                                capacityText = new OsuSpriteText { Font = OsuFont.GetFont(size: 12), Colour = colours.Gray9, Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft },
+                                            },
+                                        },
+                                        loadBarDrawable,
+                                        rufText = label(string.Empty).With(l => l.Margin = new MarginPadding { Top = 6 }),
+                                        rufBarDrawable,
+                                        boostText = new OsuSpriteText { Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold), Colour = colours.Yellow },
+                                        nextEventText = small(),
+                                    },
                                 },
                             },
                             new Drawable[] { Empty() },
@@ -464,20 +321,62 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                     RelativeSizeAxes = Axes.X,
                                     AutoSizeAxes = Axes.Y,
                                     Direction = FillDirection.Vertical,
-                                    Spacing = new Vector2(0, 6),
+                                    Spacing = new Vector2(0, 8),
                                     Children = new Drawable[]
                                     {
-                                        prestigeText = new OsuSpriteText
+                                        postButton = new PostButton(post),
+                                        eventCard = new EventCard(),
+                                        new Container
                                         {
-                                            Font = OsuFont.GetFont(size: 13),
-                                            Colour = colours.Gray9,
+                                            RelativeSizeAxes = Axes.X,
+                                            AutoSizeAxes = Axes.Y,
+                                            Masking = true,
+                                            CornerRadius = 10,
+                                            Children = new Drawable[]
+                                            {
+                                                new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.04f) },
+                                                logFlow = new FillFlowContainer
+                                                {
+                                                    RelativeSizeAxes = Axes.X,
+                                                    AutoSizeAxes = Axes.Y,
+                                                    Direction = FillDirection.Vertical,
+                                                    Padding = new MarginPadding(8),
+                                                    Spacing = new Vector2(0, 2),
+                                                },
+                                            },
                                         },
+                                    },
+                                },
+                            },
+                            new Drawable[] { Empty() },
+                            new Drawable[]
+                            {
+                                new GridContainer
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize), new Dimension(GridSizeMode.Absolute, 6), new Dimension() },
+                                    Content = new[]
+                                    {
+                                        new Drawable[] { tabRow },
+                                        new Drawable[] { Empty() },
+                                        new Drawable[] { new Container { RelativeSizeAxes = Axes.Both, Children = tabContents.Values.ToArray() } },
+                                    },
+                                },
+                            },
+                            new Drawable[] { Empty() },
+                            new Drawable[]
+                            {
+                                new FillFlowContainer
+                                {
+                                    RelativeSizeAxes = Axes.X,
+                                    AutoSizeAxes = Axes.Y,
+                                    Direction = FillDirection.Vertical,
+                                    Spacing = new Vector2(0, 5),
+                                    Children = new Drawable[]
+                                    {
+                                        prestigeText = small(),
                                         prestigeButton = new ClickerPillButton(t("Start a new season", "Neue Saison starten"), colours.Purple, askPrestige, FontAwesome.Solid.Redo),
-                                        statusText = new OsuSpriteText
-                                        {
-                                            Font = OsuFont.GetFont(size: 12),
-                                            Colour = colours.Gray9,
-                                        },
+                                        statusText = small(),
                                     },
                                 },
                             },
@@ -490,106 +389,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private void selectTab(Tab value)
         {
             tab = value;
-
             foreach (var (key, button) in tabButtons) button.Active = key == value;
             foreach (var (key, content) in tabContents) content.Alpha = key == value ? 1 : 0;
 
-            if (value == Tab.Board && IsLoaded)
-                board.Refresh();
-
-            if (value == Tab.Stats && IsLoaded)
-                refreshStats();
+            if (IsLoaded && value == Tab.Board) board.Refresh();
+            if (IsLoaded && value == Tab.Stats) refreshStats();
         }
-
-        private void rebuildShop()
-        {
-            hardwareRows.Clear();
-            marketingRows.Clear();
-            featureRows.Clear();
-
-            for (int i = 0; i < TycoonRules.Hardware.Length; i++)
-            {
-                int level = i;
-                var tier = TycoonRules.Hardware[i];
-                hardwareRows.Add(new ClickerShopRow(
-                    ClickerShopRow.CreateIcon(hardwareIcon(level), colours.Blue), colours.Blue,
-                    t(tier.NameEn, tier.NameDe),
-                    t(tier.DescriptionEn, tier.DescriptionDe),
-                    () => ClickerStrings.Pick($"{ClickerFormat.Count(tier.Capacity)} players", $"{ClickerFormat.Count(tier.Capacity)} Spieler"),
-                    () => level <= state.Hardware ? "✓" : level == state.Hardware + 1 ? n(tier.Cost) : ClickerStrings.Pick("later", "später"),
-                    () => ready && level == state.Hardware + 1 && TycoonRules.CanAfford(state, tier.Cost),
-                    () => buy(() => TycoonRules.BuyHardware(state), t("Upgraded to {0}: room for {1} players", "Aufgerüstet auf {0}: Platz für {1} Spieler", ClickerStrings.Pick(tier.NameEn, tier.NameDe), ClickerFormat.Count(tier.Capacity)))));
-            }
-
-            foreach (var kind in TycoonRules.Marketing)
-            {
-                var captured = kind;
-                marketingRows.Add(new ClickerShopRow(
-                    ClickerShopRow.CreateIcon(marketingIcon(kind.Key), colours.Green), colours.Green,
-                    t(kind.NameEn, kind.NameDe),
-                    t(kind.DescriptionEn, kind.DescriptionDe),
-                    () => ClickerStrings.Pick(
-                        $"+{n(captured.Rate)} players/s each · now +{n(captured.Rate * state.MarketingCount(captured.Key))}/s",
-                        $"+{n(captured.Rate)} Spieler/s je Stück · jetzt +{n(captured.Rate * state.MarketingCount(captured.Key))}/s"),
-                    () => n(TycoonRules.MarketingCost(captured.Key, state.MarketingCount(captured.Key))),
-                    () => ready && TycoonRules.CanAfford(state, TycoonRules.MarketingCost(captured.Key, state.MarketingCount(captured.Key))),
-                    () => buy(() => TycoonRules.BuyMarketing(state, captured.Key), null),
-                    () => ClickerFormat.Count(state.MarketingCount(captured.Key))));
-            }
-
-            foreach (var feature in TycoonRules.Features)
-            {
-                var captured = feature;
-                featureRows.Add(new ClickerShopRow(
-                    ClickerShopRow.CreateIcon(featureIcon(feature.Key), colours.Purple), colours.Purple,
-                    t(feature.NameEn, feature.NameDe),
-                    t(feature.DescriptionEn, feature.DescriptionDe),
-                    () => state.Has(captured.Key) ? ClickerStrings.Pick("active", "aktiv") : ClickerStrings.Pick("one-time purchase", "einmaliger Kauf"),
-                    () => state.Has(captured.Key) ? "✓" : n(captured.Cost),
-                    () => ready && !state.Has(captured.Key) && TycoonRules.CanAfford(state, captured.Cost),
-                    () => buy(() => TycoonRules.BuyFeature(state, captured.Key), t("{0} is live", "{0} ist live", ClickerStrings.Pick(captured.NameEn, captured.NameDe)))));
-            }
-        }
-
-        private static IconUsage hardwareIcon(int level) => level switch
-        {
-            0 => FontAwesome.Solid.Microchip,
-            1 => FontAwesome.Solid.Laptop,
-            2 => FontAwesome.Solid.Hdd,
-            3 => FontAwesome.Solid.Server,
-            4 => FontAwesome.Solid.Server,
-            5 => FontAwesome.Solid.NetworkWired,
-            6 => FontAwesome.Solid.Sitemap,
-            7 => FontAwesome.Solid.Building,
-            _ => FontAwesome.Solid.Cloud,
-        };
-
-        private static IconUsage marketingIcon(string key) => key switch
-        {
-            "discord" => FontAwesome.Brands.Discord,
-            "reddit" => FontAwesome.Brands.Reddit,
-            "youtube" => FontAwesome.Brands.Youtube,
-            "streamer" => FontAwesome.Brands.Twitch,
-            "tournament" => FontAwesome.Solid.Trophy,
-            "campaign" => FontAwesome.Solid.Bullhorn,
-            _ => FontAwesome.Solid.Star,
-        };
-
-        private static IconUsage featureIcon(string key) => key switch
-        {
-            "website" => FontAwesome.Solid.Globe,
-            "leaderboards" => FontAwesome.Solid.ListOl,
-            "medals" => FontAwesome.Solid.Medal,
-            "discord_bot" => FontAwesome.Solid.Robot,
-            "anticheat" => FontAwesome.Solid.UserShield,
-            "backups" => FontAwesome.Solid.Database,
-            "cloudflare" => FontAwesome.Solid.ShieldAlt,
-            "lazer" => FontAwesome.Solid.Rocket,
-            "multiplayer" => FontAwesome.Solid.Users,
-            "supporter" => FontAwesome.Solid.Heart,
-            "mirror" => FontAwesome.Solid.Download,
-            _ => FontAwesome.Solid.Vial,
-        };
 
         // ---------------------------------------------------------------- game loop
 
@@ -597,15 +402,21 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         {
             base.Update();
 
+            // the plot keeps its 20:13 shape and fills whatever the window leaves
+            float scale = Math.Min(plotHost.ChildSize.X / TycoonPlot.WIDTH, plotHost.ChildSize.Y / TycoonPlot.HEIGHT);
+            if (scale > 0) plot.Scale = new Vector2(scale);
+
             if (!ready) return;
 
             double dt = Math.Min(0.25, Clock.ElapsedFrameTime / 1000.0);
             if (dt <= 0) return;
 
             boosts.Tick(dt);
+            double before = state.Pending + state.Donations;
             TycoonRules.Step(state, dt, boosts.Inflow, boosts.Donation);
+            plot.Earned(state.Pending + state.Donations - before);
+            plot.Flow(TycoonRules.Inflow(state, boosts.Inflow), dt);
             dirty = true;
-            spawnJoins(dt);
 
             if (pending == null)
             {
@@ -629,26 +440,34 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         {
             int cap = TycoonRules.Capacity(state.Hardware);
             double load = state.Players / cap;
+            bool lagging = load > TycoonRules.OVERLOAD_TOLERANCE;
+            var tier = TycoonRules.HardwareAt(state.Hardware);
 
-            playersText.Text = n(state.Players);
-            playersText.Colour = load > TycoonRules.OVERLOAD_TOLERANCE ? colours.Red : colours.Blue;
-            capacityText.Text = ClickerStrings.Pick($"capacity {ClickerFormat.Count(cap)} · {ClickerStrings.Pick(TycoonRules.HardwareAt(state.Hardware).NameEn, TycoonRules.HardwareAt(state.Hardware).NameDe)}",
-                $"Kapazität {ClickerFormat.Count(cap)} · {ClickerStrings.Pick(TycoonRules.HardwareAt(state.Hardware).NameEn, TycoonRules.HardwareAt(state.Hardware).NameDe)}");
-            inflowText.Text = ClickerStrings.Pick($"+{n(TycoonRules.Inflow(state, boosts.Inflow))}/s joining · {n(state.Players * TycoonRules.CHURN)}/s leaving",
-                $"+{n(TycoonRules.Inflow(state, boosts.Inflow))}/s Zulauf · {n(state.Players * TycoonRules.CHURN)}/s gehen");
-            donationsText.Text = n(state.Donations);
+            cashText.Text = n(state.Donations);
             rateText.Text = ClickerStrings.Pick($"+{n(TycoonRules.DonationRate(state, boosts.Donation))}/s · {n(state.RunTotal)} this season", $"+{n(TycoonRules.DonationRate(state, boosts.Donation))}/s · {n(state.RunTotal)} diese Saison");
-            rufText.Text = ClickerStrings.Pick($"Reputation {state.Ruf:0}/100{(load > TycoonRules.OVERLOAD_TOLERANCE ? " · the server lags!" : string.Empty)}",
-                $"Ruf {state.Ruf:0}/100{(load > TycoonRules.OVERLOAD_TOLERANCE ? " · der Server laggt!" : string.Empty)}");
+            boxText.Text = state.Has("autocollect")
+                ? t("Auto collector: donations go straight to the cash", "Auto-Kasse: Spenden landen direkt in der Kasse")
+                : ClickerStrings.Pick($"{n(state.Pending)} waiting in the collector box, click it", $"{n(state.Pending)} warten in der Spendenbox, klick sie an");
+            playersText.Text = n(state.Players);
+            playersText.Colour = lagging ? colours.Red : colours.Blue;
+            capacityText.Text = ClickerStrings.Pick($"of {ClickerFormat.Count(cap)} · {ClickerStrings.Pick(tier.NameEn, tier.NameDe)} · +{n(TycoonRules.Inflow(state, boosts.Inflow))}/s",
+                $"von {ClickerFormat.Count(cap)} · {ClickerStrings.Pick(tier.NameEn, tier.NameDe)} · +{n(TycoonRules.Inflow(state, boosts.Inflow))}/s");
+            loadBar.Width = (float)Math.Clamp(load, 0, 1);
+            loadBar.Colour = lagging ? colours.Red : load > 0.8 ? colours.Yellow : colours.Blue;
+            rufText.Text = ClickerStrings.Pick($"REPUTATION {state.Ruf:0}/100{(lagging ? " · THE SERVER LAGS" : string.Empty)}", $"RUF {state.Ruf:0}/100{(lagging ? " · DER SERVER LAGGT" : string.Empty)}");
             rufBar.Width = (float)(state.Ruf / 100);
             rufBar.Colour = state.Ruf > 60 ? colours.Green : state.Ruf > 30 ? colours.Yellow : colours.Red;
             seasonText.Text = ClickerStrings.Pick($"season {state.Prestige + 1} · {state.Legacy} legacy (x{TycoonRules.LegacyMult(state.Legacy):0.00})", $"Saison {state.Prestige + 1} · {state.Legacy} Legacy (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
-            postButton.Detail = ClickerStrings.Pick($"+{n(TycoonRules.ClickValue(state))} players", $"+{n(TycoonRules.ClickValue(state))} Spieler");
+            postButton.Detail = ClickerStrings.Pick($"+{n(TycoonRules.ClickValue(state))} players · Space", $"+{n(TycoonRules.ClickValue(state))} Spieler · Leertaste");
 
             var boostParts = new List<string>();
             if (boosts.InflowRemaining > 0) boostParts.Add(ClickerStrings.Pick($"inflow x{boosts.Inflow:0.#} ({boosts.InflowRemaining:0} s)", $"Zulauf x{boosts.Inflow:0.#} ({boosts.InflowRemaining:0} s)"));
             if (boosts.DonationRemaining > 0) boostParts.Add(ClickerStrings.Pick($"donations x{boosts.Donation:0.#} ({boosts.DonationRemaining:0} s)", $"Spenden x{boosts.Donation:0.#} ({boosts.DonationRemaining:0} s)"));
             boostText.Text = string.Join(" · ", boostParts);
+
+            nextEventText.Text = pending == null
+                ? t("Next event in {0} s", "Nächstes Ereignis in {0} s", Math.Max(0, (int)Math.Ceiling(nextEventIn)))
+                : t("An event waits for your decision.", "Ein Ereignis wartet auf deine Entscheidung.");
 
             int gain = TycoonRules.LegacyGain(state.RunTotal);
             prestigeButton.SetEnabled(gain > 0);
@@ -656,33 +475,80 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 ? ClickerStrings.Pick($"A new season gives +{gain} legacy (everything else starts over).", $"Eine neue Saison bringt +{gain} Legacy (alles andere beginnt von vorn).")
                 : ClickerStrings.Pick($"New season from {n(TycoonRules.PRESTIGE_MIN_TOTAL)} donations in a season ({n(state.RunTotal)} so far).", $"Neue Saison ab {n(TycoonRules.PRESTIGE_MIN_TOTAL)} Spenden in einer Saison (bisher {n(state.RunTotal)}).");
 
-            rack.SetLoad(state.Hardware, load);
-
-            nextEventText.Text = pending == null
-                ? t("Next event in {0} s", "Nächstes Ereignis in {0} s", Math.Max(0, (int)Math.Ceiling(nextEventIn)))
-                : t("An event waits for your decision.", "Ein Ereignis wartet auf deine Entscheidung.");
-
+            plot.Refresh(state, load, ready);
             checkMilestones();
-
-            if (office.Alpha > 0 && Time.Current - officeRefresh > 500)
-                refreshOffice();
         }
 
+        /// <summary>A post in the Discord: players join at once (button, Space or the Discord booth on the plot).</summary>
         private void post()
         {
             if (!ready) return;
 
             double added = TycoonRules.Click(state);
             postButton.Pulse(ClickerStrings.Pick($"+{n(added)}", $"+{n(added)}"));
-            spawnDot();
+            plot.Burst("discord", Math.Min(5, (int)Math.Ceiling(added)));
         }
 
-        private void buy(Func<bool> purchase, LocalisableString? logLine)
+        private void collect()
         {
-            if (!ready || !purchase()) return;
+            if (!ready || state.Pending < 0.5) return;
 
-            if (logLine != null) log(logLine.Value, colours.Green);
+            double amount = TycoonRules.Collect(state);
             dirty = true;
+            flyCoins(plot.CollectorScreenPosition, cashText.ScreenSpaceDrawQuad.Centre, Math.Clamp((int)Math.Log10(amount + 1) * 2 + 3, 3, 12));
+            cashText.ScaleTo(1.12f, 60).Then().ScaleTo(1, 250, Easing.OutQuint);
+            log(t("Collected {0} donations", "{0} Spenden eingesammelt", n(amount)), colours.Yellow);
+        }
+
+        private bool buy(Func<bool> purchase, LocalisableString? logLine)
+        {
+            if (!ready || !purchase()) return false;
+
+            dirty = true;
+            if (logLine != null) log(logLine.Value, colours.Green);
+            refreshTexts();
+            return true;
+        }
+
+        private void buyHardware()
+        {
+            int next = state.Hardware + 1;
+            if (next >= TycoonRules.Hardware.Length) return;
+
+            var tier = TycoonRules.Hardware[next];
+            buy(() => TycoonRules.BuyHardware(state), t("Upgraded to {0}: room for {1} players", "Aufgerüstet auf {0}: Platz für {1} Spieler", ClickerStrings.Pick(tier.NameEn, tier.NameDe), ClickerFormat.Count(tier.Capacity)));
+        }
+
+        private void buyMarketing(string key)
+        {
+            var kind = TycoonRules.MarketingOf(key);
+            int before = state.MarketingCount(key);
+            if (buy(() => TycoonRules.BuyMarketing(state, key), before == 0 ? t("{0} built", "{0} gebaut", ClickerStrings.Pick(kind.NameEn, kind.NameDe)) : (LocalisableString?)null))
+                plot.Burst(key, 2);
+        }
+
+        private void buyFeature(string key)
+        {
+            var feature = TycoonRules.FeatureOf(key);
+            if (feature == null) return;
+
+            buy(() => TycoonRules.BuyFeature(state, key), t("{0} is live", "{0} ist live", ClickerStrings.Pick(feature.Value.NameEn, feature.Value.NameDe)));
+        }
+
+        private void placeDecoration(int x, int y, string key)
+        {
+            buy(() => TycoonRules.Place(state, x, y, key), null);
+        }
+
+        private void removeDecoration(int x, int y)
+        {
+            if (!ready) return;
+
+            if (TycoonRules.Remove(state, x, y))
+            {
+                dirty = true;
+                refreshTexts();
+            }
         }
 
         private void fireEvent()
@@ -716,13 +582,35 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             logFlow.Insert(++logCounter, new TruncatingSpriteText
             {
                 Text = line,
-                Font = OsuFont.GetFont(size: 13),
+                Font = OsuFont.GetFont(size: 12),
                 Colour = colour,
                 RelativeSizeAxes = Axes.X,
             });
 
             while (logFlow.Children.Count > log_lines)
                 logFlow.Remove(logFlow.Children.First(), true);
+        }
+
+        private void flyCoins(Vector2 fromScreen, Vector2 toScreen, int count)
+        {
+            if (!effectLayer.IsLoaded) return;
+
+            var from = effectLayer.ToLocalSpace(fromScreen);
+            var to = effectLayer.ToLocalSpace(toScreen);
+
+            for (int i = 0; i < count; i++)
+            {
+                var coin = new SpriteIcon
+                {
+                    Origin = Anchor.Centre,
+                    Position = from + new Vector2((float)(rng.NextDouble() - 0.5) * 30, (float)(rng.NextDouble() - 0.5) * 30),
+                    Size = new Vector2(16),
+                    Icon = FontAwesome.Solid.Coins,
+                    Colour = colours.Yellow,
+                };
+                effectLayer.Add(coin);
+                coin.Delay(i * 40).MoveTo(to, 550, Easing.InQuad).FadeOut(550, Easing.In).Expire();
+            }
         }
 
         private void askPrestige()
@@ -738,7 +626,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 boosts.Clear();
                 pending = null;
                 eventCard.Dismiss();
-                refreshOffice();
+                plot.Reset();
                 log(t("Season {0} started with {1} legacy", "Saison {0} gestartet mit {1} Legacy", state.Prestige + 1, state.Legacy), colours.Purple);
                 dirty = true;
                 saveCloud(true);
@@ -748,456 +636,15 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 dialogOverlay.Push(new ClickerConfirmDialog(
                     t("Start a new season?", "Neue Saison starten?"),
-                    t("Hardware, marketing, features and donations start over. You keep +{0} legacy: +{1} % on donations and players for ever.",
-                        "Hardware, Marketing, Features und Spenden beginnen von vorn. Du behältst +{0} Legacy: dauerhaft +{1} % auf Spenden und Zulauf.", gain, gain * 5),
+                    t("Hardware, marketing, features, the plot and the cash start over. You keep +{0} legacy: +{1} % on donations and players for ever.",
+                        "Hardware, Marketing, Features, der Bauplatz und die Kasse beginnen von vorn. Du behältst +{0} Legacy: dauerhaft +{1} % auf Spenden und Zulauf.", gain, gain * 5),
                     t("Start the season", "Saison starten"), FontAwesome.Solid.Redo, doPrestige));
             }
             else
                 doPrestige();
         }
 
-        // ---------------------------------------------------------------- the office
-
-        private Container createOffice()
-        {
-            officeView = new OfficeView
-            {
-                Anchor = Anchor.TopCentre,
-                Origin = Anchor.TopCentre,
-                CellLeft = officeLeft,
-                CellRight = officeRight,
-            };
-
-            var palette = new FillFlowContainer
-            {
-                RelativeSizeAxes = Axes.X,
-                AutoSizeAxes = Axes.Y,
-                Direction = FillDirection.Full,
-                Spacing = new Vector2(6),
-            };
-
-            foreach (var deco in TycoonRules.Decorations)
-            {
-                var captured = deco;
-                palette.Add(paletteButtons[deco.Key] = new PaletteButton(deco, () => selectDecoration(captured.Key)));
-            }
-
-            return new Container
-            {
-                RelativeSizeAxes = Axes.Both,
-                Alpha = 0,
-                Child = new FillFlowContainer
-                {
-                    RelativeSizeAxes = Axes.X,
-                    AutoSizeAxes = Axes.Y,
-                    Direction = FillDirection.Vertical,
-                    Spacing = new Vector2(0, 10),
-                    Children = new Drawable[]
-                    {
-                        new Container
-                        {
-                            RelativeSizeAxes = Axes.X,
-                            AutoSizeAxes = Axes.Y,
-                            Children = new Drawable[]
-                            {
-                                new FillFlowContainer
-                                {
-                                    AutoSizeAxes = Axes.Both,
-                                    Direction = FillDirection.Vertical,
-                                    Children = new Drawable[]
-                                    {
-                                        new OsuSpriteText { Text = t("The office", "Das Büro"), Font = OsuFont.GetFont(size: 32, weight: FontWeight.Bold) },
-                                        officeInfoText = new OsuSpriteText { Font = OsuFont.GetFont(size: 14), Colour = colours.Gray9 },
-                                    },
-                                },
-                                new ClickerPillButton(t("Back to the dashboard", "Zurück zur Übersicht"), colours.Blue, () => showOffice(false), FontAwesome.Solid.ArrowLeft)
-                                {
-                                    Anchor = Anchor.CentreRight,
-                                    Origin = Anchor.CentreRight,
-                                },
-                            },
-                        },
-                        new Container
-                        {
-                            RelativeSizeAxes = Axes.X,
-                            Height = OfficeView.HEIGHT,
-                            Child = officeView,
-                        },
-                        palette,
-                        new OsuTextFlowContainer(st => st.Font = OsuFont.GetFont(size: 13))
-                        {
-                            RelativeSizeAxes = Axes.X,
-                            AutoSizeAxes = Axes.Y,
-                            Colour = colours.Gray9,
-                            Text = t("Pick something below, then left-click a free cell to place it. Right-click removes an item and returns half its price. Furniture adds comfort: donations +0.5 % per point, up to +15 %. Racks are free, one per hardware level.",
-                                "Wähl unten etwas aus und platziere es per Linksklick auf einem freien Feld. Rechtsklick entfernt einen Gegenstand und gibt den halben Preis zurück. Einrichtung bringt Gemütlichkeit: Spenden +0,5 % je Punkt, bis zu +15 %. Racks sind kostenlos, eins je Hardware-Stufe."),
-                        },
-                    },
-                },
-            };
-        }
-
-        private void showOffice(bool show)
-        {
-            office.FadeTo(show ? 1 : 0, 200);
-            dashboard.FadeTo(show ? 0 : 1, 200);
-            if (show) refreshOffice();
-        }
-
-        private void selectDecoration(string key)
-        {
-            selectedDecoration = selectedDecoration == key ? null : key;
-            foreach (var (k, button) in paletteButtons) button.Active = k == selectedDecoration;
-            officeView.SetGhost(selectedDecoration);
-        }
-
-        private void refreshOffice()
-        {
-            officeRefresh = Time.Current;
-            if (!officeView.IsLoaded) return;
-
-            officeView.SetLayout(state.Layout);
-            int racks = state.Layout.Count(p => p.Key == "rack");
-            officeInfoText.Text = ClickerStrings.Pick(
-                $"Comfort +{(TycoonRules.ComfortMult(state.Layout) - 1) * 100:0.0} % on donations · {state.Layout.Count} items · racks {racks}/{TycoonRules.RackLimit(state.Hardware)}",
-                $"Gemütlichkeit +{(TycoonRules.ComfortMult(state.Layout) - 1) * 100:0.0} % auf Spenden · {state.Layout.Count} Gegenstände · Racks {racks}/{TycoonRules.RackLimit(state.Hardware)}");
-
-            foreach (var (key, button) in paletteButtons)
-            {
-                bool allowed = key == "rack" ? racks < TycoonRules.RackLimit(state.Hardware) : TycoonRules.CanAfford(state, TycoonRules.DecorationCost(key));
-                button.SetAvailable(ready && allowed && state.Layout.Count < TycoonRules.OFFICE_MAX_ITEMS);
-            }
-        }
-
-        private void officeLeft(int x, int y)
-        {
-            if (!ready || selectedDecoration == null) return;
-
-            if (TycoonRules.Place(state, x, y, selectedDecoration))
-            {
-                dirty = true;
-                refreshOffice();
-            }
-            else
-                officeView.Shake();
-        }
-
-        private void officeRight(int x, int y)
-        {
-            if (!ready) return;
-
-            if (TycoonRules.Remove(state, x, y))
-            {
-                dirty = true;
-                refreshOffice();
-            }
-        }
-
-        /// <summary>The office floor: a grid of cells with the placed items and a ghost of the selected one under the cursor.</summary>
-        private partial class OfficeView : CompositeDrawable
-        {
-            public const float CELL = 44;
-            public const float WIDTH = CELL * TycoonRules.OFFICE_WIDTH;
-            public const float HEIGHT = CELL * TycoonRules.OFFICE_HEIGHT;
-
-            public Action<int, int>? CellLeft;
-            public Action<int, int>? CellRight;
-
-            private readonly Container items;
-            private readonly Container ghost;
-            private readonly Box hover;
-
-            public OfficeView()
-            {
-                Size = new Vector2(WIDTH, HEIGHT);
-                Masking = true;
-                CornerRadius = 12;
-
-                var floor = new Container { RelativeSizeAxes = Axes.Both };
-
-                for (int y = 0; y < TycoonRules.OFFICE_HEIGHT; y++)
-                {
-                    for (int x = 0; x < TycoonRules.OFFICE_WIDTH; x++)
-                    {
-                        floor.Add(new Box
-                        {
-                            Position = new Vector2(x * CELL, y * CELL),
-                            Size = new Vector2(CELL),
-                            Colour = (x + y) % 2 == 0 ? Color4Extensions.FromHex("23283a") : Color4Extensions.FromHex("1f2334"),
-                        });
-                    }
-                }
-
-                InternalChildren = new Drawable[]
-                {
-                    floor,
-                    hover = new Box { Size = new Vector2(CELL), Colour = Color4.White.Opacity(0.08f), Alpha = 0 },
-                    items = new Container { RelativeSizeAxes = Axes.Both },
-                    ghost = new Container { Size = new Vector2(CELL), Alpha = 0 },
-                };
-            }
-
-            public void SetLayout(IEnumerable<TycoonPlacement> layout)
-            {
-                items.Clear();
-
-                foreach (var placement in layout)
-                    items.Add(new OfficeItem(placement.Key) { Position = new Vector2(placement.X * CELL, placement.Y * CELL) });
-            }
-
-            public void SetGhost(string? key)
-            {
-                ghost.Clear();
-                if (key != null) ghost.Add(new OfficeItem(key) { Alpha = 0.55f });
-            }
-
-            public void Shake() => this.MoveToX(-4, 40).Then().MoveToX(4, 80).Then().MoveToX(0, 40);
-
-            private (int x, int y)? cellAt(Vector2 screenSpace)
-            {
-                var local = ToLocalSpace(screenSpace);
-                int x = (int)Math.Floor(local.X / CELL), y = (int)Math.Floor(local.Y / CELL);
-                if (x < 0 || y < 0 || x >= TycoonRules.OFFICE_WIDTH || y >= TycoonRules.OFFICE_HEIGHT) return null;
-
-                return (x, y);
-            }
-
-            protected override bool OnMouseMove(MouseMoveEvent e)
-            {
-                var cell = cellAt(e.ScreenSpaceMousePosition);
-
-                if (cell == null)
-                {
-                    hover.Alpha = 0;
-                    ghost.Alpha = 0;
-                    return false;
-                }
-
-                var position = new Vector2(cell.Value.x * CELL, cell.Value.y * CELL);
-                hover.Position = position;
-                hover.Alpha = 1;
-                ghost.Position = position;
-                ghost.Alpha = ghost.Children.Count > 0 ? 1 : 0;
-                return false;
-            }
-
-            protected override void OnHoverLost(HoverLostEvent e)
-            {
-                hover.Alpha = 0;
-                ghost.Alpha = 0;
-                base.OnHoverLost(e);
-            }
-
-            protected override bool OnMouseDown(MouseDownEvent e)
-            {
-                var cell = cellAt(e.ScreenSpaceMouseDownPosition);
-                if (cell == null) return false;
-
-                if (e.Button == MouseButton.Left) CellLeft?.Invoke(cell.Value.x, cell.Value.y);
-                else if (e.Button == MouseButton.Right) CellRight?.Invoke(cell.Value.x, cell.Value.y);
-                else return false;
-
-                return true;
-            }
-        }
-
-        /// <summary>One piece of furniture: a coloured tile with an icon; racks blink.</summary>
-        private partial class OfficeItem : CompositeDrawable
-        {
-            private readonly List<Box> leds = new List<Box>();
-
-            public static Color4 ColourOf(string key) => key switch
-            {
-                "rack" => Color4Extensions.FromHex("2a2f42"),
-                "carpet" => Color4Extensions.FromHex("4a3b5c"),
-                "plant" => Color4Extensions.FromHex("2e7d32"),
-                "desk" => Color4Extensions.FromHex("8d6e63"),
-                "poster" => Color4Extensions.FromHex("5e35b1"),
-                "coffee" => Color4Extensions.FromHex("6d4c41"),
-                "sofa" => Color4Extensions.FromHex("ad1457"),
-                "fridge" => Color4Extensions.FromHex("78909c"),
-                "aircon" => Color4Extensions.FromHex("0288d1"),
-                _ => Color4Extensions.FromHex("ff7043"),
-            };
-
-            public static IconUsage IconOf(string key) => key switch
-            {
-                "rack" => FontAwesome.Solid.Server,
-                "carpet" => FontAwesome.Solid.Th,
-                "plant" => FontAwesome.Solid.Seedling,
-                "desk" => FontAwesome.Solid.Desktop,
-                "poster" => FontAwesome.Solid.Image,
-                "coffee" => FontAwesome.Solid.Coffee,
-                "sofa" => FontAwesome.Solid.Couch,
-                "fridge" => FontAwesome.Solid.Snowflake,
-                "aircon" => FontAwesome.Solid.Wind,
-                _ => FontAwesome.Solid.Gamepad,
-            };
-
-            public OfficeItem(string key)
-            {
-                Size = new Vector2(OfficeView.CELL);
-                Padding = new MarginPadding(3);
-
-                var tile = new Container
-                {
-                    RelativeSizeAxes = Axes.Both,
-                    Masking = true,
-                    CornerRadius = 7,
-                    EdgeEffect = new EdgeEffectParameters
-                    {
-                        Type = EdgeEffectType.Shadow,
-                        Colour = Color4.Black.Opacity(0.35f),
-                        Radius = 4,
-                        Offset = new Vector2(0, 2),
-                    },
-                    Children = new Drawable[]
-                    {
-                        new Box { RelativeSizeAxes = Axes.Both, Colour = ColourOf(key) },
-                        new Box { RelativeSizeAxes = Axes.Both, Height = 0.35f, Colour = Color4.White.Opacity(0.08f) },
-                        new SpriteIcon
-                        {
-                            Anchor = Anchor.Centre,
-                            Origin = Anchor.Centre,
-                            Size = new Vector2(key == "carpet" ? 26 : 20),
-                            Icon = IconOf(key),
-                            Colour = Color4.White.Opacity(key == "carpet" ? 0.25f : 0.95f),
-                        },
-                    },
-                };
-
-                if (key == "rack")
-                {
-                    for (int i = 0; i < 3; i++)
-                    {
-                        var led = new Box
-                        {
-                            Anchor = Anchor.BottomLeft,
-                            Origin = Anchor.BottomLeft,
-                            Size = new Vector2(4),
-                            Position = new Vector2(5 + i * 7, -5),
-                            Colour = Color4Extensions.FromHex("5fe07a"),
-                        };
-                        leds.Add(led);
-                        tile.Add(led);
-                    }
-                }
-
-                InternalChild = tile;
-            }
-
-            protected override void Update()
-            {
-                base.Update();
-
-                for (int i = 0; i < leds.Count; i++)
-                    leds[i].Alpha = Math.Sin(Time.Current / 1000 * (2 + i * 0.7) + i) > 0 ? 1 : 0.25f;
-            }
-        }
-
-        /// <summary>A palette entry: the item's tile, its name and price.</summary>
-        private partial class PaletteButton : OsuClickableContainer
-        {
-            private readonly Box background;
-            private readonly TycoonDecoration decoration;
-
-            public bool Active
-            {
-                set => BorderThickness = value ? 2 : 0;
-            }
-
-            public PaletteButton(TycoonDecoration decoration, Action action)
-            {
-                this.decoration = decoration;
-                Action = action;
-                Size = new Vector2(118, 50);
-                Masking = true;
-                CornerRadius = 10;
-                BorderColour = Color4.White;
-
-                Children = new Drawable[]
-                {
-                    background = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.08f) },
-                    new OfficeItem(decoration.Key) { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 3, Scale = new Vector2(0.9f) },
-                    new FillFlowContainer
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        X = 48,
-                        AutoSizeAxes = Axes.Both,
-                        Direction = FillDirection.Vertical,
-                        Children = new Drawable[]
-                        {
-                            new TruncatingSpriteText { Text = ClickerStrings.Text(decoration.NameEn, decoration.NameDe), Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold), MaxWidth = 66 },
-                            new OsuSpriteText
-                            {
-                                Text = decoration.Cost == 0 ? ClickerStrings.Text("free", "gratis") : ClickerFormat.Number(decoration.Cost),
-                                Font = OsuFont.GetFont(size: 11),
-                                Colour = Color4.White.Opacity(0.75f),
-                            },
-                        },
-                    },
-                };
-
-                TooltipText = ClickerStrings.Text(decoration.DescriptionEn, decoration.DescriptionDe);
-            }
-
-            public void SetAvailable(bool available)
-            {
-                Enabled.Value = available;
-                this.FadeTo(available ? 1 : 0.45f, 150);
-            }
-
-            protected override bool OnHover(HoverEvent e)
-            {
-                if (Enabled.Value) background.FadeColour(Color4.White.Opacity(0.16f), 100);
-                return base.OnHover(e);
-            }
-
-            protected override void OnHoverLost(HoverLostEvent e)
-            {
-                background.FadeColour(Color4.White.Opacity(0.08f), 100);
-                base.OnHoverLost(e);
-            }
-        }
-
-        // ---------------------------------------------------------------- flair and statistics
-
-        /// <summary>Players joining fly from the Discord button into the rack: one dot per player, at most about six a second.</summary>
-        private void spawnJoins(double dt)
-        {
-            double rate = TycoonRules.Inflow(state, boosts.Inflow);
-            if (rate <= 0) return;
-
-            double perDot = Math.Max(1, rate / 6);
-            joinAccumulator += rate * dt;
-
-            while (joinAccumulator >= perDot)
-            {
-                joinAccumulator -= perDot;
-                spawnDot();
-            }
-        }
-
-        private void spawnDot()
-        {
-            if (!effectLayer.IsLoaded || !postButton.IsLoaded || !rack.IsLoaded) return;
-
-            var from = effectLayer.ToLocalSpace(postButton.ScreenSpaceDrawQuad.Centre) + new Vector2((float)(rng.NextDouble() - 0.5) * 60, (float)(rng.NextDouble() - 0.5) * 20);
-            var to = effectLayer.ToLocalSpace(rack.ScreenSpaceDrawQuad.Centre) + new Vector2((float)(rng.NextDouble() - 0.5) * 90, (float)(rng.NextDouble() - 0.5) * 70);
-
-            var dot = new Circle
-            {
-                Origin = Anchor.Centre,
-                Position = from,
-                Size = new Vector2(8),
-                Colour = colours.Blue,
-                Alpha = 0.9f,
-            };
-
-            effectLayer.Add(dot);
-            dot.MoveTo(to, 650, Easing.InQuad).ScaleTo(0.4f, 650).FadeOut(650, Easing.In).Expire();
-        }
+        // ---------------------------------------------------------------- statistics and milestones
 
         private static readonly (string key, string en, string de, Func<TycoonState, bool> reached)[] milestones =
         {
@@ -1206,9 +653,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             ("thousand", "1,000 players at once", "1.000 Spieler gleichzeitig", s => s.MaxPlayers >= 1000),
             ("ten_thousand", "10,000 players at once", "10.000 Spieler gleichzeitig", s => s.MaxPlayers >= 10_000),
             ("vps", "Rented a real server", "Einen richtigen Server gemietet", s => s.Hardware >= 3),
-            ("datacenter", "Own rack in a data centre", "Eigenes Rack im Rechenzentrum", s => s.Hardware >= 7),
+            ("datacenter", "Own rack row in a data centre", "Eigene Rack-Reihe im Rechenzentrum", s => s.Hardware >= 7),
             ("features", "Six features live", "Sechs Features live", s => s.Features.Count >= 6),
             ("all_features", "Every feature live", "Alle Features live", s => s.Features.Count >= TycoonRules.Features.Length),
+            ("furnished", "Five things on the plot", "Fünf Dinge auf dem Platz", s => s.Layout.Count >= 5),
             ("events", "Survived 25 events", "25 Ereignisse überstanden", s => s.Events >= 25),
             ("million", "A million donations", "Eine Million Spenden", s => s.LifetimeTotal >= 1_000_000),
             ("billion", "A billion donations", "Eine Milliarde Spenden", s => s.LifetimeTotal >= 1_000_000_000),
@@ -1223,9 +671,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 if (reachedMilestones.Contains(key) || !reached(state)) continue;
 
                 reachedMilestones.Add(key);
-
-                if (!firstMilestonePass)
-                    log(t("Milestone: {0}", "Meilenstein: {0}", ClickerStrings.Pick(en, de)), colours.Yellow);
+                if (!firstMilestonePass) log(t("Milestone: {0}", "Meilenstein: {0}", ClickerStrings.Pick(en, de)), colours.Yellow);
             }
 
             firstMilestonePass = false;
@@ -1241,7 +687,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             row(t("Lifetime donations", "Spenden insgesamt"), n(state.LifetimeTotal));
             row(t("This season", "Diese Saison"), n(state.RunTotal));
             row(t("Spent this season", "Diese Saison ausgegeben"), n(TycoonRules.Spent(state)));
-            row(t("Comfort", "Gemütlichkeit"), $"+{(TycoonRules.ComfortMult(state.Layout) - 1) * 100:0.0} % · {ClickerFormat.Count(state.Layout.Count)} {ClickerStrings.Pick("items", "Gegenstände")}");
+            row(t("Comfort", "Gemütlichkeit"), $"+{(TycoonRules.ComfortMult(state.Layout) - 1) * 100:0.0} %");
             row(t("Player record", "Spieler-Rekord"), n(state.MaxPlayers));
             row(t("Seasons", "Saisons"), ClickerFormat.Count(state.Prestige + 1));
             row(t("Legacy", "Legacy"), $"{state.Legacy} (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
@@ -1252,76 +698,13 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             statsFlow.Add(new OsuSpriteText
             {
                 Text = t("Milestones", "Meilensteine"),
-                Font = OsuFont.GetFont(size: 15, weight: FontWeight.Bold),
+                Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
                 Colour = colours.Yellow,
-                Margin = new MarginPadding { Top = 10 },
+                Margin = new MarginPadding { Top = 8 },
             });
 
             foreach (var (_, en, de, reached) in milestones)
                 statsFlow.Add(new MilestoneRow(t(en, de), reached(state), colours));
-        }
-
-        private partial class StatRow : CompositeDrawable
-        {
-            public StatRow(LocalisableString label, string value)
-            {
-                RelativeSizeAxes = Axes.X;
-                Height = 30;
-                Masking = true;
-                CornerRadius = 8;
-
-                InternalChildren = new Drawable[]
-                {
-                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.05f) },
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        X = 12,
-                        Text = label,
-                        Font = OsuFont.GetFont(size: 14),
-                    },
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.CentreRight,
-                        Origin = Anchor.CentreRight,
-                        X = -12,
-                        Text = value,
-                        Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
-                    },
-                };
-            }
-        }
-
-        private partial class MilestoneRow : CompositeDrawable
-        {
-            public MilestoneRow(LocalisableString label, bool reached, OsuColour colours)
-            {
-                RelativeSizeAxes = Axes.X;
-                Height = 26;
-                Alpha = reached ? 1 : 0.55f;
-
-                InternalChildren = new Drawable[]
-                {
-                    new SpriteIcon
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        X = 6,
-                        Size = new Vector2(14),
-                        Icon = reached ? FontAwesome.Solid.CheckCircle : FontAwesome.Regular.Circle,
-                        Colour = reached ? colours.Green : colours.Gray9,
-                    },
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        X = 28,
-                        Text = label,
-                        Font = OsuFont.GetFont(size: 13, weight: reached ? FontWeight.SemiBold : FontWeight.Regular),
-                    },
-                };
-            }
         }
 
         // ---------------------------------------------------------------- saving and loading
@@ -1392,7 +775,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 if (IsDisposed || request != loadRequest) return;
 
-
                 // the save that got further wins; a local one that is ahead goes straight to the cloud
                 bool useLocal = local?.State != null && (response.Save == null || local.State.LifetimeTotal > response.Save.LifetimeTotal);
                 begin(useLocal ? local!.State : response.Save, useLocal ? local!.SavedAt : response.UpdatedAt);
@@ -1417,11 +799,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             state = loaded ?? new TycoonState();
             state.Marketing ??= TycoonRules.Marketing.ToDictionary(m => m.Key, _ => 0);
             state.Features ??= new List<string>();
+            state.Layout ??= new List<TycoonPlacement>();
 
             if (loaded == null)
             {
-                log(t("Welcome. A Raspberry Pi, no players, big plans. Post in the Discord and buy a server before it lags.",
-                    "Willkommen. Ein Raspberry Pi, keine Spieler, große Pläne. Poste im Discord und kauf einen Server, bevor es laggt."), colours.Pink);
+                log(t("Welcome. A Raspberry Pi, no players, big plans. Buy the Discord pad, click the booth to post, empty the collector box.",
+                    "Willkommen. Ein Raspberry Pi, keine Spieler, große Pläne. Kauf das Discord-Pad, klick die Bude zum Posten, leer die Spendenbox."), colours.Pink);
             }
             else if (savedAt != null)
             {
@@ -1433,19 +816,21 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     log(t("While you were away ({0}): +{1} donations, {2} players online now",
                         "Während du weg warst ({0}): +{1} Spenden, jetzt {2} Spieler online", ClickerFormat.Duration(away), n(gained), n(state.Players)), colours.Yellow);
                     eventCard.Show(new TycoonEvent("welcome", t("Welcome back", "Willkommen zurück"),
-                        t("{0} away: your server took {1} donations, {2} players are online.", "{0} weg: Dein Server hat {1} Spenden eingenommen, {2} Spieler sind online.",
-                            ClickerFormat.Duration(away), n(gained), n(state.Players)), FontAwesome.Solid.Clock, colours.Yellow), null);
+                        state.Has("autocollect")
+                            ? t("{0} away: your server took {1} donations, {2} players are online.", "{0} weg: Dein Server hat {1} Spenden eingenommen, {2} Spieler sind online.", ClickerFormat.Duration(away), n(gained), n(state.Players))
+                            : t("{0} away: {1} donations wait in the collector box, {2} players are online.", "{0} weg: {1} Spenden warten in der Spendenbox, {2} Spieler sind online.", ClickerFormat.Duration(away), n(state.Pending), n(state.Players)),
+                        FontAwesome.Solid.Clock, colours.Yellow), null);
                 }
             }
 
             ready = true;
             dirty = true;
-            refreshOffice();
             firstMilestonePass = true;
             reachedMilestones.Clear();
             lastCloudSave = Time.Current;
             lastLocalSave = Time.Current;
             nextEventIn = rng.Next(40, 90);
+            plot.Reset();
             refreshTexts();
         }
 
@@ -1506,6 +891,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 return true;
             }
 
+            if (!e.Repeat && (e.Key == Key.C || e.Key == Key.Enter))
+            {
+                collect();
+                return true;
+            }
+
             return base.OnKeyDown(e);
         }
 
@@ -1539,180 +930,954 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             return base.OnExiting(e);
         }
 
+        // ================================================================ the plot
+
         /// <summary>
-        /// The server as a rack: one unit per hardware level, LEDs that blink faster the busier it gets and turn red under load.
+        /// The tycoon plot: 20 x 13 cells. The gate on the left, the walkway in the middle, the droppers (marketing
+        /// buildings) above and below it, the server block and the collector on the right, feature kiosks along the
+        /// bottom, decoration pads along the top. Pads appear in order as the player progresses.
         /// </summary>
-        private partial class ServerRack : CompositeDrawable
+        private partial class TycoonPlot : CompositeDrawable
         {
-            private readonly FillFlowContainer units;
-            private readonly Box loadBar;
-            private readonly OsuSpriteText loadText;
-            private readonly OsuSpriteText nameText;
-            private readonly SpriteIcon fan;
-            private readonly List<Box> leds = new List<Box>();
-            private int level = -1;
-            private int fanBucket = -1;
-            private double load;
+            public const float CELL = 40;
+            public const float WIDTH = CELL * TycoonRules.OFFICE_WIDTH;
+            public const float HEIGHT = CELL * TycoonRules.OFFICE_HEIGHT;
 
-            [Resolved]
-            private OsuColour colours { get; set; } = null!;
+            private const float walk_y = 6.5f;
+            private const float walk_end_x = 15.6f;
 
-            public ServerRack()
+            private static readonly (string key, int x, int y, bool above)[] dropper_slots =
             {
-                RelativeSizeAxes = Axes.Both;
+                ("discord", 2, 3, true),
+                ("reddit", 5, 3, true),
+                ("youtube", 8, 3, true),
+                ("streamer", 11, 3, true),
+                ("tournament", 14, 3, true),
+                ("campaign", 2, 8, false),
+                ("influencer", 5, 8, false),
+            };
+
+            private readonly TycoonScreen screen;
+            private readonly Container floor;
+            private readonly Container structures;
+            private readonly Container figures;
+            private readonly Container coins;
+            private readonly Container pads;
+            private readonly Collector collector;
+            private readonly Dictionary<string, Dropper> droppers = new Dictionary<string, Dropper>();
+            private readonly Dictionary<string, BuyPad> marketingPads = new Dictionary<string, BuyPad>();
+            private readonly Dictionary<string, BuyPad> featurePads = new Dictionary<string, BuyPad>();
+            private readonly Dictionary<string, FeatureKiosk> kiosks = new Dictionary<string, FeatureKiosk>();
+            private readonly Dictionary<(int x, int y), BuyPad> decoPads = new Dictionary<(int, int), BuyPad>();
+            private readonly Dictionary<(int x, int y), DecoItem> decoItems = new Dictionary<(int, int), DecoItem>();
+            private readonly BuyPad hardwarePad;
+            private readonly ServerBlock servers;
+            private readonly Random rng = new Random();
+            private double figureAccumulator;
+            private double coinAccumulator;
+            private int lastHardware = -1;
+            private int lastFeatureCount = -1;
+            private readonly Dictionary<string, int> lastMarketing = new Dictionary<string, int>();
+
+            private readonly OsuColour colours;
+
+            public Vector2 CollectorScreenPosition => collector.ScreenSpaceDrawQuad.Centre;
+
+            // colours come in through the constructor: the pads are built here, before dependencies are injected
+            public TycoonPlot(TycoonScreen screen, OsuColour colours)
+            {
+                this.screen = screen;
+                this.colours = colours;
+                Size = new Vector2(WIDTH, HEIGHT);
+                Anchor = Anchor.TopCentre;
+                Origin = Anchor.TopCentre;
                 Masking = true;
-                CornerRadius = 12;
+                CornerRadius = 14;
 
                 InternalChildren = new Drawable[]
                 {
-                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("1a1d2a") },
-                    new Container
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("1b2030") },
+                    floor = new Container { RelativeSizeAxes = Axes.Both },
+                    new Walkway { Position = cell(2, 6), Size = new Vector2(CELL * 14, CELL) },
+                    new Gate { Position = cell(0, 5), Size = new Vector2(CELL * 2, CELL * 3) },
+                    structures = new Container { RelativeSizeAxes = Axes.Both },
+                    pads = new Container { RelativeSizeAxes = Axes.Both },
+                    figures = new Container { RelativeSizeAxes = Axes.Both },
+                    coins = new Container { RelativeSizeAxes = Axes.Both },
+                };
+
+                for (int y = 0; y < TycoonRules.OFFICE_HEIGHT; y++)
+                {
+                    for (int x = 0; x < TycoonRules.OFFICE_WIDTH; x++)
+                    {
+                        floor.Add(new Box
+                        {
+                            Position = cell(x, y),
+                            Size = new Vector2(CELL),
+                            Colour = (x + y) % 2 == 0 ? Color4Extensions.FromHex("222838") : Color4Extensions.FromHex("1e2434"),
+                        });
+                    }
+                }
+
+                structures.Add(servers = new ServerBlock { Position = cell(16, 2), Size = new Vector2(CELL * 4, CELL * 7) });
+                structures.Add(collector = new Collector(() => screen.collect()) { Position = cell(16, 10), Size = new Vector2(CELL * 4, CELL * 2) });
+                pads.Add(hardwarePad = new BuyPad(FontAwesome.Solid.Server, colours.Blue, () => screen.buyHardware()) { Position = cell(16, 9), Size = new Vector2(CELL * 4, CELL) });
+
+                foreach (var (key, x, y, above) in dropper_slots)
+                {
+                    var captured = key;
+                    var dropper = new Dropper(key, () => { if (captured == "discord") screen.post(); }) { Position = cell(x, y), Size = new Vector2(CELL * 2, CELL * 2) };
+                    droppers[key] = dropper;
+                    structures.Add(dropper);
+                    var pad = new BuyPad(marketingIcon(key), colours.Green, () => screen.buyMarketing(captured)) { Position = cell(x, above ? y - 1 : y + 2), Size = new Vector2(CELL * 2, CELL) };
+                    marketingPads[key] = pad;
+                    pads.Add(pad);
+                }
+
+                for (int i = 0; i < TycoonRules.Features.Length; i++)
+                {
+                    var feature = TycoonRules.Features[i];
+                    int x = (i % 8) * 2, y = 11 + i / 8;
+                    var kiosk = new FeatureKiosk(feature.Key) { Position = cell(x, y), Size = new Vector2(CELL * 2, CELL), Alpha = 0 };
+                    kiosks[feature.Key] = kiosk;
+                    structures.Add(kiosk);
+                    var captured = feature.Key;
+                    var pad = new BuyPad(featureIcon(feature.Key), colours.Purple, () => screen.buyFeature(captured)) { Position = cell(x, y), Size = new Vector2(CELL * 2, CELL) };
+                    featurePads[feature.Key] = pad;
+                    pads.Add(pad);
+                }
+
+                for (int i = 0; i < TycoonRules.Decorations.Length && i < 10; i++)
+                {
+                    var deco = TycoonRules.Decorations[i];
+                    int x = i * 2, y = 0;
+                    var pad = new BuyPad(DecoItem.IconOf(deco.Key), colours.Yellow, () => screen.placeDecoration(x, y, deco.Key)) { Position = cell(x, y), Size = new Vector2(CELL * 2, CELL) };
+                    decoPads[(x, y)] = pad;
+                    pads.Add(pad);
+                }
+            }
+
+            private static Vector2 cell(float x, float y) => new Vector2(x * CELL, y * CELL);
+
+            /// <summary>Forgets figures and coins and redraws every building from the state on the next refresh (a new season, a loaded save).</summary>
+            public void Reset()
+            {
+                figures.Clear();
+                coins.Clear();
+                lastHardware = -1;
+                lastFeatureCount = -1;
+                lastMarketing.Clear();
+            }
+
+            /// <summary>Brings pads, buildings and the collector in line with the state.</summary>
+            public void Refresh(TycoonState state, double load, bool ready)
+            {
+                // hardware
+                int next = state.Hardware + 1;
+
+                if (next < TycoonRules.Hardware.Length)
+                {
+                    var tier = TycoonRules.Hardware[next];
+                    hardwarePad.Set(ClickerStrings.Pick(tier.NameEn, tier.NameDe), ClickerStrings.Pick($"{ClickerFormat.Count(tier.Capacity)} players", $"{ClickerFormat.Count(tier.Capacity)} Spieler"), tier.Cost, ready && TycoonRules.CanAfford(state, tier.Cost), true);
+                }
+                else
+                    hardwarePad.Set(string.Empty, string.Empty, 0, false, false);
+
+                if (state.Hardware != lastHardware)
+                {
+                    lastHardware = state.Hardware;
+                    servers.SetTier(state.Hardware);
+                }
+
+                servers.SetLoad(load);
+
+                // droppers and their pads: the next kind appears once the previous one stands
+                for (int i = 0; i < dropper_slots.Length; i++)
+                {
+                    string key = dropper_slots[i].key;
+                    var kind = TycoonRules.MarketingOf(key);
+                    int count = state.MarketingCount(key);
+                    bool unlocked = i == 0 || state.MarketingCount(dropper_slots[i - 1].key) > 0;
+                    long cost = TycoonRules.MarketingCost(key, count);
+
+                    marketingPads[key].Set(
+                        count == 0 ? ClickerStrings.Pick(kind.NameEn, kind.NameDe) : ClickerStrings.Pick($"{kind.NameEn} Lv {count + 1}", $"{kind.NameDe} Lv {count + 1}"),
+                        ClickerStrings.Pick($"+{ClickerFormat.Number(kind.Rate)} players/s", $"+{ClickerFormat.Number(kind.Rate)} Spieler/s"),
+                        cost, ready && TycoonRules.CanAfford(state, cost), unlocked && count < TycoonRules.MAX_COUNT);
+
+                    if (!lastMarketing.TryGetValue(key, out int shown) || shown != count)
+                    {
+                        lastMarketing[key] = count;
+                        droppers[key].SetLevel(count);
+                    }
+                }
+
+                // features: kiosks in order
+                if (state.Features.Count != lastFeatureCount)
+                {
+                    lastFeatureCount = state.Features.Count;
+
+                    foreach (var feature in TycoonRules.Features)
+                        kiosks[feature.Key].FadeTo(state.Has(feature.Key) ? 1 : 0, 300);
+                }
+
+                for (int i = 0; i < TycoonRules.Features.Length; i++)
+                {
+                    var feature = TycoonRules.Features[i];
+                    bool owned = state.Has(feature.Key);
+                    bool unlocked = !owned && (i == 0 || state.Has(TycoonRules.Features[i - 1].Key));
+                    featurePads[feature.Key].Set(ClickerStrings.Pick(feature.NameEn, feature.NameDe), ClickerStrings.Pick(feature.DescriptionEn, feature.DescriptionDe), feature.Cost, ready && TycoonRules.CanAfford(state, feature.Cost), unlocked);
+                }
+
+                // decorations: pads along the top once the first upgrade is bought, items where placed
+                foreach (var ((x, y), pad) in decoPads)
+                {
+                    var placed = state.Layout.FirstOrDefault(p => p.X == x && p.Y == y);
+                    var deco = TycoonRules.Decorations[x / 2];
+                    pad.Set(ClickerStrings.Pick(deco.NameEn, deco.NameDe), ClickerStrings.Pick($"comfort +{deco.Comfort}", $"Gemütlichkeit +{deco.Comfort}"), deco.Cost, ready && TycoonRules.CanAfford(state, deco.Cost), placed == null && state.Hardware >= 1);
+
+                    bool hasItem = decoItems.ContainsKey((x, y));
+
+                    if (placed != null && !hasItem)
+                    {
+                        var item = new DecoItem(placed.Key, () => screen.removeDecoration(x, y)) { Position = cell(x, y), Size = new Vector2(CELL * 2, CELL) };
+                        decoItems[(x, y)] = item;
+                        structures.Add(item);
+                        item.ScaleTo(0.6f).ScaleTo(1, 300, Easing.OutBack);
+                    }
+                    else if (placed == null && hasItem)
+                    {
+                        decoItems[(x, y)].Expire();
+                        decoItems.Remove((x, y));
+                    }
+                }
+
+                collector.SetAmount(state.Pending, state.Has("autocollect"));
+            }
+
+            /// <summary>Players joining: figures leave the droppers and walk to the servers, about one per player, at most eight a second.</summary>
+            public void Flow(double inflow, double dt)
+            {
+                if (inflow <= 0) return;
+
+                double perFigure = Math.Max(1, inflow / 8);
+                figureAccumulator += inflow * dt;
+
+                while (figureAccumulator >= perFigure)
+                {
+                    figureAccumulator -= perFigure;
+                    spawnFigure(pickDropper());
+                }
+            }
+
+            /// <summary>Donations came in: every so often a coin drops from the servers into the collector.</summary>
+            public void Earned(double amount)
+            {
+                coinAccumulator += amount;
+                double perCoin = Math.Max(1, amount * 40); // roughly one coin per 1.5 seconds at any income
+
+                if (coinAccumulator >= perCoin && coins.Children.Count < 12)
+                {
+                    coinAccumulator = 0;
+                    var coin = new SpriteIcon
+                    {
+                        Origin = Anchor.Centre,
+                        Position = cell(18, 5.5f) + new Vector2((float)(rng.NextDouble() - 0.5) * 60, 0),
+                        Size = new Vector2(14),
+                        Icon = FontAwesome.Solid.Coins,
+                        Colour = colours.Yellow,
+                    };
+                    coins.Add(coin);
+                    coin.MoveTo(cell(18, 11), 700, Easing.InQuad).FadeOut(700, Easing.In).Expire();
+                    collector.Pulse();
+                }
+            }
+
+            /// <summary>A handful of figures at once, from one dropper (a post, a purchase).</summary>
+            public void Burst(string dropperKey, int count)
+            {
+                for (int i = 0; i < count; i++)
+                    Scheduler.AddDelayed(() => spawnFigure(dropperKey), i * 90);
+            }
+
+            private string pickDropper()
+            {
+                double total = 0;
+                var weights = new List<(string key, double w)>();
+
+                foreach (var (key, _, _, _) in dropper_slots)
+                {
+                    double w = droppers[key].Level * TycoonRules.MarketingOf(key).Rate;
+                    if (w <= 0) continue;
+
+                    weights.Add((key, w));
+                    total += w;
+                }
+
+                if (weights.Count == 0) return "discord";
+
+                double roll = rng.NextDouble() * total;
+
+                foreach (var (key, w) in weights)
+                {
+                    if (roll < w) return key;
+
+                    roll -= w;
+                }
+
+                return weights[^1].key;
+            }
+
+            private void spawnFigure(string dropperKey)
+            {
+                if (figures.Children.Count > 60) return;
+
+                var slot = dropper_slots.First(s => s.key == dropperKey);
+                var start = cell(slot.x + 1, slot.above ? slot.y + 2 : slot.y) + new Vector2((float)(rng.NextDouble() - 0.5) * 30, 0);
+                var figure = new Figure(rng) { Position = start };
+                figures.Add(figure);
+
+                var onWalkway = new Vector2(start.X, walk_y * CELL + (float)(rng.NextDouble() - 0.5) * 16);
+                double walk = Math.Max(300, (walk_end_x * CELL - start.X) * 9);
+                figure.MoveTo(onWalkway, 350, Easing.OutQuad)
+                      .Then().MoveToX(walk_end_x * CELL, walk)
+                      .Then().MoveTo(cell(17.5f, 6.5f), 500, Easing.InQuad).FadeOut(500).Expire();
+            }
+
+            private static IconUsage marketingIcon(string key) => key switch
+            {
+                "discord" => FontAwesome.Brands.Discord,
+                "reddit" => FontAwesome.Brands.Reddit,
+                "youtube" => FontAwesome.Brands.Youtube,
+                "streamer" => FontAwesome.Brands.Twitch,
+                "tournament" => FontAwesome.Solid.Trophy,
+                "campaign" => FontAwesome.Solid.Bullhorn,
+                _ => FontAwesome.Solid.Star,
+            };
+
+            private static IconUsage featureIcon(string key) => key switch
+            {
+                "website" => FontAwesome.Solid.Globe,
+                "autocollect" => FontAwesome.Solid.Magnet,
+                "leaderboards" => FontAwesome.Solid.ListOl,
+                "medals" => FontAwesome.Solid.Medal,
+                "discord_bot" => FontAwesome.Solid.Robot,
+                "anticheat" => FontAwesome.Solid.UserShield,
+                "backups" => FontAwesome.Solid.Database,
+                "cloudflare" => FontAwesome.Solid.ShieldAlt,
+                "lazer" => FontAwesome.Solid.Rocket,
+                "multiplayer" => FontAwesome.Solid.Users,
+                "supporter" => FontAwesome.Solid.Heart,
+                "mirror" => FontAwesome.Solid.Download,
+                _ => FontAwesome.Solid.Vial,
+            };
+
+            /// <summary>A pad on the floor: name, one line, price; green when affordable, grey when not, gone when locked.</summary>
+            private partial class BuyPad : OsuClickableContainer
+            {
+                private readonly Box background;
+                private readonly Box glow;
+                private readonly SpriteIcon icon;
+                private readonly TruncatingSpriteText nameText;
+                private readonly TruncatingSpriteText detailText;
+                private readonly OsuSpriteText priceText;
+                private readonly Color4 accent;
+                private bool affordable;
+                private bool shown = true;
+
+                public BuyPad(IconUsage iconUsage, Color4 accent, Action action)
+                {
+                    this.accent = accent;
+                    Action = action;
+                    Padding = new MarginPadding(3);
+
+                    Child = new Container
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Padding = new MarginPadding(14),
+                        Masking = true,
+                        CornerRadius = 8,
+                        BorderThickness = 2,
+                        BorderColour = Color4.White.Opacity(0.25f),
                         Children = new Drawable[]
                         {
-                            nameText = new OsuSpriteText
+                            background = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.08f) },
+                            glow = new Box { RelativeSizeAxes = Axes.Both, Colour = accent.Opacity(0.35f), Alpha = 0 },
+                            icon = new SpriteIcon
                             {
-                                Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
-                                Colour = Color4.White.Opacity(0.85f),
-                            },
-                            units = new FillFlowContainer
-                            {
-                                RelativeSizeAxes = Axes.X,
-                                AutoSizeAxes = Axes.Y,
-                                Direction = FillDirection.Vertical,
-                                Spacing = new Vector2(0, 5),
-                                Margin = new MarginPadding { Top = 24 },
-                            },
-                            fan = new SpriteIcon
-                            {
-                                Anchor = Anchor.BottomRight,
-                                Origin = Anchor.BottomRight,
-                                Y = -16,
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                X = 7,
                                 Size = new Vector2(16),
-                                Icon = FontAwesome.Solid.Cog,
-                                Colour = Color4.White.Opacity(0.6f),
+                                Icon = iconUsage,
                             },
                             new FillFlowContainer
                             {
-                                Anchor = Anchor.BottomLeft,
-                                Origin = Anchor.BottomLeft,
-                                RelativeSizeAxes = Axes.X,
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                X = 28,
                                 AutoSizeAxes = Axes.Y,
+                                RelativeSizeAxes = Axes.X,
+                                Padding = new MarginPadding { Right = 60 },
                                 Direction = FillDirection.Vertical,
-                                Spacing = new Vector2(0, 4),
                                 Children = new Drawable[]
                                 {
-                                    loadText = new OsuSpriteText { Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold), Colour = Color4.White.Opacity(0.7f) },
-                                    new CircularContainer
-                                    {
-                                        RelativeSizeAxes = Axes.X,
-                                        Height = 8,
-                                        Masking = true,
-                                        Children = new Drawable[]
-                                        {
-                                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.1f) },
-                                            loadBar = new Box { RelativeSizeAxes = Axes.Both, Width = 0 },
-                                        },
-                                    },
+                                    nameText = new TruncatingSpriteText { Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold), RelativeSizeAxes = Axes.X },
+                                    detailText = new TruncatingSpriteText { Font = OsuFont.GetFont(size: 9), Colour = Color4.White.Opacity(0.7f), RelativeSizeAxes = Axes.X },
+                                },
+                            },
+                            priceText = new OsuSpriteText
+                            {
+                                Anchor = Anchor.CentreRight,
+                                Origin = Anchor.CentreRight,
+                                X = -7,
+                                Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
+                            },
+                        },
+                    };
+                }
+
+                public void Set(string name, string detail, long cost, bool canAfford, bool visible)
+                {
+                    if (visible != shown)
+                    {
+                        shown = visible;
+                        this.FadeTo(visible ? 1 : 0, 250);
+                        if (visible) this.ScaleTo(0.9f).ScaleTo(1, 300, Easing.OutBack);
+                    }
+
+                    nameText.Text = name;
+                    detailText.Text = detail;
+                    priceText.Text = cost == 0 ? ClickerStrings.Pick("free", "gratis") : ClickerFormat.Number(cost);
+                    Enabled.Value = visible && canAfford;
+
+                    if (canAfford != affordable)
+                    {
+                        affordable = canAfford;
+                        glow.FadeTo(canAfford ? 1 : 0, 200);
+                        priceText.FadeColour(canAfford ? Color4.White : Color4.White.Opacity(0.5f), 200);
+                        icon.FadeColour(canAfford ? accent : Color4.White.Opacity(0.5f), 200);
+                    }
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+
+                    if (affordable)
+                        glow.Alpha = 0.7f + 0.3f * (float)Math.Sin(Time.Current / 350);
+                }
+
+                protected override bool OnHover(HoverEvent e)
+                {
+                    if (Enabled.Value) background.FadeColour(Color4.White.Opacity(0.2f), 100);
+                    return base.OnHover(e);
+                }
+
+                protected override void OnHoverLost(HoverLostEvent e)
+                {
+                    background.FadeColour(Color4.White.Opacity(0.08f), 100);
+                    base.OnHoverLost(e);
+                }
+            }
+
+            /// <summary>Where the players come from: a sign with a globe.</summary>
+            private partial class Gate : CompositeDrawable
+            {
+                public Gate()
+                {
+                    InternalChild = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Padding = new MarginPadding(4),
+                        Masking = true,
+                        CornerRadius = 10,
+                        Children = new Drawable[]
+                        {
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("2b3350") },
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Y = -10,
+                                Size = new Vector2(30),
+                                Icon = FontAwesome.Solid.Globe,
+                                Colour = Color4Extensions.FromHex("7fb2ff"),
+                            },
+                            new OsuSpriteText
+                            {
+                                Anchor = Anchor.BottomCentre,
+                                Origin = Anchor.BottomCentre,
+                                Y = -8,
+                                Text = "INTERNET",
+                                Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
+                                Colour = Color4.White.Opacity(0.7f),
+                            },
+                        },
+                    };
+                }
+            }
+
+            /// <summary>The conveyor the players walk on: a dark strip with chevrons moving right.</summary>
+            private partial class Walkway : CompositeDrawable
+            {
+                private readonly Container chevrons;
+
+                public Walkway()
+                {
+                    InternalChildren = new Drawable[]
+                    {
+                        new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("2a2f3f") },
+                        new Box { RelativeSizeAxes = Axes.X, Height = 2, Colour = Color4.White.Opacity(0.12f) },
+                        new Box { RelativeSizeAxes = Axes.X, Height = 2, Anchor = Anchor.BottomLeft, Origin = Anchor.BottomLeft, Colour = Color4.White.Opacity(0.12f) },
+                        chevrons = new Container { RelativeSizeAxes = Axes.Both, Masking = true },
+                    };
+
+                    for (int i = 0; i < 16; i++)
+                    {
+                        chevrons.Add(new SpriteIcon
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.Centre,
+                            X = i * 40,
+                            Size = new Vector2(12),
+                            Icon = FontAwesome.Solid.ChevronRight,
+                            Colour = Color4.White.Opacity(0.18f),
+                        });
+                    }
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    float offset = (float)(Time.Current / 25 % 40);
+
+                    for (int i = 0; i < chevrons.Children.Count; i++)
+                        chevrons.Children[i].X = (i * 40 + offset) % (chevrons.Children.Count * 40) - 20;
+                }
+            }
+
+            /// <summary>A marketing building: a box with roof stripe, icon and level; it grows a little with every level and emits players.</summary>
+            private partial class Dropper : OsuClickableContainer
+            {
+                public int Level { get; private set; }
+
+                private readonly Container building;
+                private readonly OsuSpriteText levelText;
+                private readonly Box light;
+
+                public Dropper(string key, Action click)
+                {
+                    Action = () => { if (Level > 0) click(); }; // the booth only works once it stands
+                    Padding = new MarginPadding(3);
+
+                    Color4 colour = key switch
+                    {
+                        "discord" => Color4Extensions.FromHex("5865F2"),
+                        "reddit" => Color4Extensions.FromHex("ff4500"),
+                        "youtube" => Color4Extensions.FromHex("d32f2f"),
+                        "streamer" => Color4Extensions.FromHex("9146ff"),
+                        "tournament" => Color4Extensions.FromHex("c9a227"),
+                        "campaign" => Color4Extensions.FromHex("00897b"),
+                        _ => Color4Extensions.FromHex("ec407a"),
+                    };
+
+                    Child = building = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Masking = true,
+                        CornerRadius = 9,
+                        Alpha = 0,
+                        EdgeEffect = new EdgeEffectParameters { Type = EdgeEffectType.Shadow, Colour = Color4.Black.Opacity(0.4f), Radius = 6, Offset = new Vector2(0, 3) },
+                        Children = new Drawable[]
+                        {
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = colour.Darken(0.3f) },
+                            new Box { RelativeSizeAxes = Axes.X, Height = 12, Colour = colour },
+                            light = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.12f), Alpha = 0 },
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Y = 2,
+                                Size = new Vector2(26),
+                                Icon = marketingIcon(key),
+                                Colour = Color4.White,
+                            },
+                            levelText = new OsuSpriteText
+                            {
+                                Anchor = Anchor.BottomRight,
+                                Origin = Anchor.BottomRight,
+                                Position = new Vector2(-5, -3),
+                                Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
+                                Colour = Color4.White.Opacity(0.85f),
+                            },
+                        },
+                    };
+                }
+
+                public void SetLevel(int level)
+                {
+                    bool appeared = Level == 0 && level > 0;
+                    Level = level;
+                    levelText.Text = level > 0 ? $"Lv {level}" : string.Empty;
+                    building.FadeTo(level > 0 ? 1 : 0, 300);
+
+                    if (appeared)
+                        building.ScaleTo(0.5f).ScaleTo(1, 400, Easing.OutBack);
+                    else
+                        building.ScaleTo(level > 0 ? 1 + Math.Min(level, 25) * 0.006f : 0.6f, 350, Easing.OutBack);
+
+                    if (level > 0) light.FadeTo(0.5f, 60).Then().FadeTo(0, 400);
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    if (Level > 0 && !light.Transforms.Any())
+                        light.Alpha = 0.05f + 0.05f * (float)Math.Sin(Time.Current / 600);
+                }
+            }
+
+            /// <summary>The server block: from a Pi on a desk to rows of racks; LEDs blink faster with load, red when lagging.</summary>
+            private partial class ServerBlock : CompositeDrawable
+            {
+                private readonly Container racks;
+                private readonly OsuSpriteText nameText;
+                private readonly Box glow;
+                private readonly List<Box> leds = new List<Box>();
+                private double load;
+
+                [Resolved]
+                private OsuColour colours { get; set; } = null!;
+
+                public ServerBlock()
+                {
+                    Padding = new MarginPadding(4);
+
+                    InternalChild = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Masking = true,
+                        CornerRadius = 10,
+                        EdgeEffect = new EdgeEffectParameters { Type = EdgeEffectType.Shadow, Colour = Color4.Black.Opacity(0.4f), Radius = 6, Offset = new Vector2(0, 3) },
+                        Children = new Drawable[]
+                        {
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("151926") },
+                            glow = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("ff4040").Opacity(0.2f), Alpha = 0 },
+                            racks = new Container { RelativeSizeAxes = Axes.Both, Padding = new MarginPadding { Top = 22, Bottom = 8, Horizontal = 8 } },
+                            nameText = new OsuSpriteText
+                            {
+                                Anchor = Anchor.TopCentre,
+                                Origin = Anchor.TopCentre,
+                                Y = 5,
+                                Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold),
+                                Colour = Color4.White.Opacity(0.85f),
+                            },
+                        },
+                    };
+                }
+
+                public void SetTier(int tier)
+                {
+                    racks.Clear();
+                    leds.Clear();
+                    var hardware = TycoonRules.HardwareAt(tier);
+                    nameText.Text = ClickerStrings.Pick(hardware.NameEn, hardware.NameDe);
+
+                    // how many rack units stand in the room, and how they are arranged
+                    int units = tier switch { 0 => 1, 1 => 1, 2 => 1, 3 => 2, 4 => 3, 5 => 4, 6 => 6, 7 => 8, _ => 8 };
+                    int columns = units <= 1 ? 1 : units <= 4 ? 2 : units <= 6 ? 3 : 4;
+                    int rows = (int)Math.Ceiling(units / (double)columns);
+                    float unitW = (CELL * 4 - 24 - (columns - 1) * 6) / columns;
+                    float unitH = Math.Min(70, (CELL * 7 - 38 - (rows - 1) * 6) / rows);
+
+                    for (int i = 0; i < units; i++)
+                    {
+                        int c = i % columns, r = i / columns;
+                        var unit = new Container
+                        {
+                            Position = new Vector2(c * (unitW + 6), r * (unitH + 6)),
+                            Size = new Vector2(unitW, unitH),
+                            Masking = true,
+                            CornerRadius = 4,
+                            Children = new Drawable[]
+                            {
+                                new Box { RelativeSizeAxes = Axes.Both, Colour = tier <= 2 ? Color4Extensions.FromHex("3b4256") : Color4Extensions.FromHex("2a2f42") },
+                            },
+                        };
+
+                        if (tier == 0)
+                            unit.Add(new SpriteIcon { Anchor = Anchor.Centre, Origin = Anchor.Centre, Size = new Vector2(22), Icon = FontAwesome.Solid.Microchip, Colour = Color4Extensions.FromHex("7fd47f") });
+                        else if (tier == 1)
+                            unit.Add(new SpriteIcon { Anchor = Anchor.Centre, Origin = Anchor.Centre, Size = new Vector2(24), Icon = FontAwesome.Solid.Laptop, Colour = Color4.White.Opacity(0.9f) });
+                        else if (tier == 2)
+                            unit.Add(new SpriteIcon { Anchor = Anchor.Centre, Origin = Anchor.Centre, Size = new Vector2(24), Icon = FontAwesome.Solid.Hdd, Colour = Color4.White.Opacity(0.9f) });
+                        else
+                        {
+                            // a rack: horizontal slots with an LED each
+                            int slots = Math.Max(2, (int)(unitH / 12));
+
+                            for (int s = 0; s < slots; s++)
+                            {
+                                unit.Add(new Container
+                                {
+                                    RelativeSizeAxes = Axes.X,
+                                    Height = 8,
+                                    Y = 3 + s * 12,
+                                    Padding = new MarginPadding { Horizontal = 3 },
+                                    Child = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("1a1e2b") },
+                                });
+                                var led = new Box { Size = new Vector2(4), Position = new Vector2(unitW - 9, 5 + s * 12), Colour = colours.Green };
+                                leds.Add(led);
+                                unit.Add(led);
+                            }
+
+                            if (tier >= 8)
+                                unit.Add(new SpriteIcon { Anchor = Anchor.Centre, Origin = Anchor.Centre, Size = new Vector2(18), Icon = FontAwesome.Solid.Cloud, Colour = Color4.White.Opacity(0.35f) });
+                        }
+
+                        racks.Add(unit);
+                        unit.ScaleTo(0.7f).ScaleTo(1, 300 + i * 40, Easing.OutBack);
+                    }
+                }
+
+                public void SetLoad(double value)
+                {
+                    load = value;
+                    glow.FadeTo(value > TycoonRules.OVERLOAD_TOLERANCE ? 1 : 0, 300);
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    double speed = 1.5 + Math.Min(3, load) * 2.5;
+                    var colour = load > TycoonRules.OVERLOAD_TOLERANCE ? colours.Red : load > 0.8 ? colours.Yellow : colours.Green;
+
+                    for (int i = 0; i < leds.Count; i++)
+                    {
+                        leds[i].Alpha = Math.Sin(Time.Current / 1000 * speed * (1 + i % 5 * 0.31) + i * 1.3) > 0 ? 1 : 0.25f;
+                        leds[i].Colour = colour;
+                    }
+                }
+            }
+
+            /// <summary>The collector box: donations pile up here until the player clicks it.</summary>
+            private partial class Collector : OsuClickableContainer
+            {
+                private readonly OsuSpriteText amountText;
+                private readonly OsuSpriteText hintText;
+                private readonly Box glow;
+                private readonly SpriteIcon icon;
+                private bool auto;
+
+                public Collector(Action collect)
+                {
+                    Action = collect;
+                    Padding = new MarginPadding(3);
+
+                    Child = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Masking = true,
+                        CornerRadius = 9,
+                        BorderThickness = 2,
+                        BorderColour = Color4Extensions.FromHex("ffd54f").Opacity(0.6f),
+                        EdgeEffect = new EdgeEffectParameters { Type = EdgeEffectType.Shadow, Colour = Color4.Black.Opacity(0.4f), Radius = 6, Offset = new Vector2(0, 3) },
+                        Children = new Drawable[]
+                        {
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("4a3b12") },
+                            glow = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("ffd54f").Opacity(0.25f), Alpha = 0 },
+                            icon = new SpriteIcon
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                X = 12,
+                                Size = new Vector2(28),
+                                Icon = FontAwesome.Solid.PiggyBank,
+                                Colour = Color4Extensions.FromHex("ffd54f"),
+                            },
+                            new FillFlowContainer
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                X = 50,
+                                AutoSizeAxes = Axes.Both,
+                                Direction = FillDirection.Vertical,
+                                Children = new Drawable[]
+                                {
+                                    amountText = new OsuSpriteText { Font = OsuFont.GetFont(size: 18, weight: FontWeight.Bold), Colour = Color4Extensions.FromHex("ffd54f") },
+                                    hintText = new OsuSpriteText { Font = OsuFont.GetFont(size: 9), Colour = Color4.White.Opacity(0.75f) },
                                 },
                             },
                         },
-                    },
-                };
-            }
-
-            public void SetLoad(int hardwareLevel, double newLoad)
-            {
-                load = newLoad;
-
-                if (hardwareLevel != level)
-                {
-                    level = hardwareLevel;
-                    rebuild();
+                    };
                 }
 
-                loadBar.Width = (float)Math.Clamp(load, 0, 1);
-                loadBar.Colour = load > TycoonRules.OVERLOAD_TOLERANCE ? colours.Red : load > 0.8 ? colours.Yellow : colours.Green;
-                loadText.Text = ClickerStrings.Pick($"load {load * 100:0} %", $"Auslastung {load * 100:0} %");
-
-                var tier = TycoonRules.HardwareAt(level);
-                bool lagging = load > TycoonRules.OVERLOAD_TOLERANCE;
-                nameText.Text = $"{ClickerStrings.Pick(tier.NameEn, tier.NameDe)} · {(lagging ? "LAG" : "ONLINE")}";
-                nameText.Colour = lagging ? colours.Red : Color4.White.Opacity(0.85f);
-
-                // the fan spins faster the busier the server is
-                int bucket = load > TycoonRules.OVERLOAD_TOLERANCE ? 2 : load > 0.8 ? 1 : 0;
-
-                if (bucket != fanBucket)
+                public void SetAmount(double pending, bool autoCollect)
                 {
-                    fanBucket = bucket;
-                    fan.ClearTransforms();
-                    fan.Spin(bucket == 2 ? 450 : bucket == 1 ? 1200 : 3200, RotationDirection.Clockwise);
-                    fan.FadeColour(bucket == 2 ? colours.Red : Color4.White.Opacity(0.6f), 300);
+                    auto = autoCollect;
+                    amountText.Text = autoCollect ? "AUTO" : ClickerFormat.Number(pending);
+                    hintText.Text = autoCollect ? ClickerStrings.Text("Collector box, automatic", "Spendenbox, automatisch") : ClickerStrings.Text("Collector box, click to collect", "Spendenbox, klicken zum Einsammeln");
+                    Enabled.Value = !autoCollect && pending >= 0.5;
+                }
+
+                public void Pulse()
+                {
+                    icon.ScaleTo(1.15f, 80).Then().ScaleTo(1, 250, Easing.OutQuint);
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    glow.Alpha = !auto && Enabled.Value ? 0.6f + 0.4f * (float)Math.Sin(Time.Current / 400) : 0;
                 }
             }
 
-            private void rebuild()
+            /// <summary>A feature, once bought: a small kiosk with its icon along the bottom.</summary>
+            private partial class FeatureKiosk : CompositeDrawable
             {
-                units.Clear();
-                leds.Clear();
-
-                int count = Math.Min(6, level + 1);
-
-                for (int i = 0; i < count; i++)
+                public FeatureKiosk(string key)
                 {
-                    var row = new Container
+                    Padding = new MarginPadding(3);
+                    var feature = TycoonRules.FeatureOf(key);
+
+                    InternalChild = new Container
                     {
-                        RelativeSizeAxes = Axes.X,
-                        Height = 18,
+                        RelativeSizeAxes = Axes.Both,
                         Masking = true,
-                        CornerRadius = 3,
+                        CornerRadius = 8,
+                        EdgeEffect = new EdgeEffectParameters { Type = EdgeEffectType.Shadow, Colour = Color4.Black.Opacity(0.35f), Radius = 4, Offset = new Vector2(0, 2) },
                         Children = new Drawable[]
                         {
-                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("2a2f42") },
-                            new Box { RelativeSizeAxes = Axes.Y, Width = 4, Colour = Color4.White.Opacity(0.08f), X = 6 },
-                            new Box { RelativeSizeAxes = Axes.Y, Width = 4, Colour = Color4.White.Opacity(0.08f), X = 14 },
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("3d2a6b") },
+                            new Box { RelativeSizeAxes = Axes.X, Height = 6, Colour = Color4Extensions.FromHex("9c7cf5") },
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                X = 8,
+                                Y = 2,
+                                Size = new Vector2(14),
+                                Icon = featureIcon(key),
+                                Colour = Color4.White,
+                            },
+                            new TruncatingSpriteText
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                X = 28,
+                                Y = 2,
+                                Text = feature == null ? key : ClickerStrings.Text(feature.Value.NameEn, feature.Value.NameDe),
+                                Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
+                                MaxWidth = 48,
+                            },
                         },
                     };
-
-                    for (int j = 0; j < 4; j++)
-                    {
-                        var led = new Box
-                        {
-                            Anchor = Anchor.CentreRight,
-                            Origin = Anchor.CentreRight,
-                            Size = new Vector2(6),
-                            X = -8 - j * 10,
-                            Colour = colours.Green,
-                        };
-                        leds.Add(led);
-                        row.Add(led);
-                    }
-
-                    units.Add(row);
                 }
             }
 
-            protected override void Update()
+            /// <summary>A decoration on its pad; right-click sells it for half.</summary>
+            private partial class DecoItem : CompositeDrawable
             {
-                base.Update();
+                private readonly Action remove;
 
-                // LEDs blink faster with load; above capacity they go red
-                double speed = 1.5 + Math.Min(3, load) * 2.5;
-                Color4 colour = load > TycoonRules.OVERLOAD_TOLERANCE ? colours.Red : load > 0.8 ? colours.Yellow : colours.Green;
-
-                for (int i = 0; i < leds.Count; i++)
+                public static IconUsage IconOf(string key) => key switch
                 {
-                    double phase = Math.Sin(Time.Current / 1000 * speed * (1 + i % 4 * 0.37) + i * 1.7);
-                    leds[i].Alpha = phase > 0 ? 1 : 0.25f;
-                    leds[i].Colour = colour;
+                    "carpet" => FontAwesome.Solid.Th,
+                    "plant" => FontAwesome.Solid.Seedling,
+                    "desk" => FontAwesome.Solid.Desktop,
+                    "poster" => FontAwesome.Solid.Image,
+                    "coffee" => FontAwesome.Solid.Coffee,
+                    "sofa" => FontAwesome.Solid.Couch,
+                    "fridge" => FontAwesome.Solid.Snowflake,
+                    "aircon" => FontAwesome.Solid.Wind,
+                    _ => FontAwesome.Solid.Gamepad,
+                };
+
+                public static Color4 ColourOf(string key) => key switch
+                {
+                    "carpet" => Color4Extensions.FromHex("4a3b5c"),
+                    "plant" => Color4Extensions.FromHex("2e7d32"),
+                    "desk" => Color4Extensions.FromHex("8d6e63"),
+                    "poster" => Color4Extensions.FromHex("5e35b1"),
+                    "coffee" => Color4Extensions.FromHex("6d4c41"),
+                    "sofa" => Color4Extensions.FromHex("ad1457"),
+                    "fridge" => Color4Extensions.FromHex("78909c"),
+                    "aircon" => Color4Extensions.FromHex("0288d1"),
+                    _ => Color4Extensions.FromHex("ff7043"),
+                };
+
+                public DecoItem(string key, Action remove)
+                {
+                    this.remove = remove;
+                    Padding = new MarginPadding(3);
+                    var deco = TycoonRules.DecorationOf(key);
+
+                    InternalChild = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Masking = true,
+                        CornerRadius = 8,
+                        EdgeEffect = new EdgeEffectParameters { Type = EdgeEffectType.Shadow, Colour = Color4.Black.Opacity(0.35f), Radius = 4, Offset = new Vector2(0, 2) },
+                        Children = new Drawable[]
+                        {
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = ColourOf(key) },
+                            new Box { RelativeSizeAxes = Axes.Both, Height = 0.35f, Colour = Color4.White.Opacity(0.08f) },
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                X = 8,
+                                Size = new Vector2(16),
+                                Icon = IconOf(key),
+                                Colour = Color4.White.Opacity(key == "carpet" ? 0.35f : 0.95f),
+                            },
+                            new TruncatingSpriteText
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                X = 30,
+                                Text = deco == null ? key : ClickerStrings.Text(deco.Value.NameEn, deco.Value.NameDe),
+                                Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
+                                MaxWidth = 44,
+                            },
+                        },
+                    };
+                }
+
+                protected override bool OnMouseDown(MouseDownEvent e)
+                {
+                    if (e.Button != MouseButton.Right) return false;
+
+                    remove();
+                    return true;
+                }
+            }
+
+            /// <summary>A player: a small round figure in a pastel colour with a darker head band.</summary>
+            private partial class Figure : CompositeDrawable
+            {
+                private static readonly string[] palette = { "ff8a80", "ffd180", "ffff8d", "ccff90", "a7ffeb", "80d8ff", "8c9eff", "ea80fc" };
+
+                public Figure(Random rng)
+                {
+                    Origin = Anchor.Centre;
+                    Size = new Vector2(12);
+                    var colour = Color4Extensions.FromHex(palette[rng.Next(palette.Length)]);
+
+                    InternalChildren = new Drawable[]
+                    {
+                        new Circle { RelativeSizeAxes = Axes.Both, Colour = colour },
+                        new Circle { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Y = 2, Size = new Vector2(6, 3), Colour = colour.Darken(0.6f) },
+                    };
                 }
             }
         }
 
-        /// <summary>The one active thing to do: post in the Discord, players join.</summary>
+        // ================================================================ side panel pieces
+
+        /// <summary>The one HUD button: post in the Discord, players join.</summary>
         private partial class PostButton : OsuClickableContainer
         {
             private readonly Box background;
@@ -1730,9 +1895,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             public PostButton(Action action)
             {
                 Action = action;
-                Size = new Vector2(260, 64);
+                RelativeSizeAxes = Axes.X;
+                Height = 52;
                 Masking = true;
-                CornerRadius = 14;
+                CornerRadius = 12;
 
                 Children = new Drawable[]
                 {
@@ -1741,15 +1907,15 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
-                        X = 18,
-                        Size = new Vector2(26),
+                        X = 16,
+                        Size = new Vector2(22),
                         Icon = FontAwesome.Brands.Discord,
                     },
                     new FillFlowContainer
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
-                        X = 58,
+                        X = 50,
                         AutoSizeAxes = Axes.Both,
                         Direction = FillDirection.Vertical,
                         Children = new Drawable[]
@@ -1757,11 +1923,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             new OsuSpriteText
                             {
                                 Text = ClickerStrings.Text("Post in the Discord", "Im Discord posten"),
-                                Font = OsuFont.GetFont(size: 18, weight: FontWeight.Bold),
+                                Font = OsuFont.GetFont(size: 16, weight: FontWeight.Bold),
                             },
                             detailText = new OsuSpriteText
                             {
-                                Font = OsuFont.GetFont(size: 13),
+                                Font = OsuFont.GetFont(size: 12),
                                 Colour = Color4.White.Opacity(0.8f),
                             },
                         },
@@ -1773,21 +1939,20 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             public void Pulse(string text)
             {
                 background.FlashColour(Color4.White, 200);
-                this.ScaleTo(0.96f, 40).Then().ScaleTo(1, 180, Easing.OutQuint);
+                this.ScaleTo(0.97f, 40).Then().ScaleTo(1, 180, Easing.OutQuint);
 
                 var popup = new OsuSpriteText
                 {
-                    Anchor = Anchor.TopRight,
-                    Origin = Anchor.TopRight,
+                    Anchor = Anchor.CentreRight,
+                    Origin = Anchor.CentreRight,
                     X = -14,
-                    Y = 10,
                     Text = text,
-                    Font = OsuFont.GetFont(size: 18, weight: FontWeight.Bold),
+                    Font = OsuFont.GetFont(size: 16, weight: FontWeight.Bold),
                     Colour = colours.Yellow,
                     Shadow = true,
                 };
                 popups.Add(popup);
-                popup.MoveToOffset(new Vector2(0, -30), 600, Easing.OutQuint).FadeOut(600, Easing.In).Expire();
+                popup.MoveToOffset(new Vector2(0, -24), 600, Easing.OutQuint).FadeOut(600, Easing.In).Expire();
             }
 
             protected override bool OnHover(HoverEvent e)
@@ -1817,34 +1982,34 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 RelativeSizeAxes = Axes.X;
                 AutoSizeAxes = Axes.Y;
                 Masking = true;
-                CornerRadius = 12;
+                CornerRadius = 10;
                 Alpha = 0;
 
                 InternalChildren = new Drawable[]
                 {
                     new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.06f) },
-                    accent = new Box { RelativeSizeAxes = Axes.Y, Width = 5 },
+                    accent = new Box { RelativeSizeAxes = Axes.Y, Width = 4 },
                     new FillFlowContainer
                     {
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
                         Direction = FillDirection.Vertical,
-                        Padding = new MarginPadding { Left = 18, Right = 14, Vertical = 12 },
-                        Spacing = new Vector2(0, 6),
+                        Padding = new MarginPadding { Left = 14, Right = 10, Vertical = 10 },
+                        Spacing = new Vector2(0, 5),
                         Children = new Drawable[]
                         {
                             new FillFlowContainer
                             {
                                 AutoSizeAxes = Axes.Both,
                                 Direction = FillDirection.Horizontal,
-                                Spacing = new Vector2(10, 0),
+                                Spacing = new Vector2(8, 0),
                                 Children = new Drawable[]
                                 {
-                                    icon = new SpriteIcon { Size = new Vector2(20), Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft },
-                                    title = new OsuSpriteText { Font = OsuFont.GetFont(size: 18, weight: FontWeight.Bold), Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft },
+                                    icon = new SpriteIcon { Size = new Vector2(16), Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft },
+                                    title = new OsuSpriteText { Font = OsuFont.GetFont(size: 15, weight: FontWeight.Bold), Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft },
                                 },
                             },
-                            text = new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 14))
+                            text = new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 12))
                             {
                                 RelativeSizeAxes = Axes.X,
                                 AutoSizeAxes = Axes.Y,
@@ -1853,7 +2018,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             {
                                 AutoSizeAxes = Axes.Both,
                                 Direction = FillDirection.Horizontal,
-                                Spacing = new Vector2(8, 0),
+                                Spacing = new Vector2(6, 0),
                             },
                         },
                     },
@@ -1881,7 +2046,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 ClearTransforms();
                 this.FadeIn(200);
 
-                // events without a decision linger for a while and then make way for the log
                 if (onChoice == null)
                     this.Delay(9000).FadeOut(600);
             }
@@ -1890,6 +2054,55 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 ClearTransforms();
                 this.FadeOut(300);
+            }
+        }
+
+        private partial class StatRow : CompositeDrawable
+        {
+            public StatRow(LocalisableString label, string value)
+            {
+                RelativeSizeAxes = Axes.X;
+                Height = 26;
+                Masking = true;
+                CornerRadius = 6;
+
+                InternalChildren = new Drawable[]
+                {
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.05f) },
+                    new OsuSpriteText { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 10, Text = label, Font = OsuFont.GetFont(size: 12) },
+                    new OsuSpriteText { Anchor = Anchor.CentreRight, Origin = Anchor.CentreRight, X = -10, Text = value, Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold) },
+                };
+            }
+        }
+
+        private partial class MilestoneRow : CompositeDrawable
+        {
+            public MilestoneRow(LocalisableString label, bool reached, OsuColour colours)
+            {
+                RelativeSizeAxes = Axes.X;
+                Height = 22;
+                Alpha = reached ? 1 : 0.55f;
+
+                InternalChildren = new Drawable[]
+                {
+                    new SpriteIcon
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 6,
+                        Size = new Vector2(12),
+                        Icon = reached ? FontAwesome.Solid.CheckCircle : FontAwesome.Regular.Circle,
+                        Colour = reached ? colours.Green : colours.Gray9,
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 26,
+                        Text = label,
+                        Font = OsuFont.GetFont(size: 12, weight: reached ? FontWeight.SemiBold : FontWeight.Regular),
+                    },
+                };
             }
         }
     }
