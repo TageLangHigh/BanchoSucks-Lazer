@@ -26,6 +26,7 @@ using osu.Game.Overlays;
 using osu.Game.Overlays.Dialog;
 using osu.Game.Screens.Banchosucks;
 using osu.Game.Screens.Banchosucks.CircleRush;
+using osu.Game.Screens.Banchosucks.Tycoon;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osu.Game.Screens.Menu;
 using osuTK.Input;
@@ -148,6 +149,37 @@ namespace osu.Game.Tests.Visual.Navigation
         }
 
         private Drawable circleRush() => (Drawable)Game.ScreenStack.CurrentScreen;
+
+        [Test]
+        public void TestTycoonFromMinigames()
+        {
+            AddStep("open play menu", () =>
+            {
+                InputManager.Key(Key.P);
+                InputManager.Key(Key.P);
+            });
+            AddStep("press G", () => InputManager.Key(Key.G));
+            AddUntilStep("minigames open", () => Game.ScreenStack.CurrentScreen is MinigamesScreen screen && screen.IsLoaded && screen.Alpha == 1);
+
+            AddStep("click tycoon tile", () =>
+            {
+                InputManager.MoveMouseTo(((Drawable)Game.ScreenStack.CurrentScreen).ChildrenOfType<OsuClickableContainer>().ElementAt(2));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("tycoon open", () => Game.ScreenStack.CurrentScreen is TycoonScreen screen && screen.IsLoaded);
+            AddUntilStep("hardware shop shown", () => hasText("Raspberry Pi"));
+            AddUntilStep("game running", () => hasTextContaining("players") || hasTextContaining("Spieler"));
+
+            AddStep("post in the discord", () =>
+            {
+                InputManager.MoveMouseTo(((Drawable)Game.ScreenStack.CurrentScreen).ChildrenOfType<OsuClickableContainer>().First(b => b.GetType().Name == "PostButton"));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("a player joined", () => ((Drawable)Game.ScreenStack.CurrentScreen).ChildrenOfType<OsuSpriteText>().Any(t => t.Text.ToString() == "1" || t.Text.ToString().StartsWith("1.", StringComparison.Ordinal) || t.Text.ToString().StartsWith("1,", StringComparison.Ordinal)));
+
+            AddStep("escape the screen", () => InputManager.Key(Key.Escape));
+            AddUntilStep("back on minigames", () => Game.ScreenStack.CurrentScreen is MinigamesScreen);
+        }
 
         private void clickOption(string text)
         {

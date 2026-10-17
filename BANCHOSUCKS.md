@@ -143,3 +143,24 @@ and restart the app container.
   per player, shown in the screen and on banchosucks.cc/lazer/circle-rush. Tests:
   `osu.Game.Tests/NonVisual/BanchosucksCircleRushRulesTest.cs` (same numbers as the plugin tests)
   and `TestSceneBanchosucksMinigames`.
+- **Private Server Tycoon** (main menu > Play > minigames, third tile, since 2026.913.15):
+  `osu.Game/Screens/Banchosucks/Tycoon/`, an idle game. The player runs an osu! private server:
+  marketing (Discord, Reddit, YouTube, streamers, tournaments, campaigns, influencers; cost x1.15
+  per piece) brings players, players donate (0.05 per player and second times a reputation factor
+  0.5 to 1.5), donations buy hardware (nine tiers from Raspberry Pi with 10 players to cloud with
+  200,000; above capacity players leave at 5 %/s of the excess and the reputation drops), twelve
+  one-time features (donation and inflow multipliers, Discord bot for faster reputation recovery,
+  anticheat/backups/Cloudflare/tests that turn the bad events harmless). A post in the Discord
+  (button or Space) adds players by hand. Events every 75 to 150 s: cheater wave (ban or ignore
+  without anticheat), DDoS, database crash (rebuild from logs or shut down without backups),
+  streamer and weekend boosts, broken deploy ("Illegal mix of collations"), a medal crashing score
+  submission, a generous donor, a lazer release. Season restart from one million donations in a
+  season: legacy = floor(sqrt(run total / 1e6)), +5 % on donations and inflow per point, everything
+  else starts over. `TycoonRules.cs` holds the economy, mirrored by the plugin
+  `banchosucks_tycoon/economy.py`; the save (JSON, see `TycoonState`) goes to the plugin every 30 s
+  and on leaving, plus a local file `banchosucks-tycoon.json` in the osu! storage for offline play;
+  on load up to eight hours of offline progress are simulated. The server bounds what a save may
+  have earned since the last one and refuses saves that spent more than they earned. Leaderboards
+  by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.
+  Tests: `osu.Game.Tests/NonVisual/BanchosucksTycoonRulesTest.cs` (same numbers as the plugin
+  tests) and `TestSceneBanchosucksMinigames`.
