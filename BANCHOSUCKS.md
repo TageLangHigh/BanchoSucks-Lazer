@@ -9,10 +9,15 @@ Lazer web interface: https://lazer.banchosucks.cc
 API: https://lazer-api.banchosucks.cc
 
 Install with BanchoSucksLazer-win-Setup.exe (installs to %LocalAppData%\BanchoSucksLazer and
-adds a start menu entry). From then on the game updates itself like osu!stable: it checks our
-GitHub releases on start and every 30 minutes, downloads the update in the background and
-shows a notification; clicking it restarts into the new version. Game data and settings are
-not touched by updates. Accounts are created on
+adds a start menu entry). From then on the game updates itself like osu!stable: on every start
+it asks our GitHub releases (mirror as fallback) and installs a newer version right away, with
+a popup and progress bar in the loader, then restarts into it (`osu.Game/Screens/Loader.cs`,
+`osu.Game/Updater/StartupUpdate.cs`, `osu.Desktop/Updater/VelopackUpdateManager.cs`). During a
+session it checks every 30 minutes, downloads in the background and shows a notification whose
+click restarts into the new version. Game data and settings are not touched by updates.
+Releases 2026.913.0 to .14 never checked at all (`OsuGameDesktop.CreateUpdateManager` returned
+the no-op base class, found 2026-10-17); they have to be reinstalled once with the setup.
+Accounts are created on
 https://banchosucks.cc/register and work on both the stable and the lazer server
 (the in-game register button opens that page). No server URL needs to be entered.
 Keep the Custom API Server URL setting empty to use the built-in endpoints.

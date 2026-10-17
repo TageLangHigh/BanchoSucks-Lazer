@@ -38,6 +38,12 @@ namespace osu.Desktop
 
         public bool EnableWebSocketServer { get; init; }
 
+        /// <summary>
+        /// Banchosucks: set when the game was started with arguments (file import, tournament client, scheme link). Those
+        /// starts skip the update step before the intro, like <c>Program</c> skips the Velopack hooks for them.
+        /// </summary>
+        public bool StartedWithArguments { get; init; }
+
         public OsuGameDesktop(string[]? args = null)
             : base(args)
         {
@@ -120,7 +126,9 @@ namespace osu.Desktop
             if (IsPackageManaged)
                 return new NoActionUpdateManager();
 
-            return new UpdateManager();
+            // Banchosucks: the Velopack manager. The fork shipped the no-op base class here, so from 2026.913.0 to .14 no client
+            // ever looked for an update (found 2026-10-17). Deployed builds also install a newer version before the intro.
+            return new VelopackUpdateManager(startupUpdate: IsDeployedBuild && !StartedWithArguments);
         }
 
         public override bool RestartAppWhenExited()

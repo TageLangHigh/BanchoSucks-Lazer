@@ -3,16 +3,20 @@
 
 #nullable disable
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shaders;
+using osu.Framework.Logging;
 using osu.Game.Screens.Menu;
 using osu.Framework.Screens;
 using osu.Framework.Threading;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Screens.Banchosucks;
+using osu.Game.Updater;
 
 namespace osu.Game.Screens
 {
@@ -29,6 +33,23 @@ namespace osu.Game.Screens
         private LoadingSpinner spinner;
         private ScheduledDelegate spinnerShow;
 
+        [Resolved(canBeNull: true)]
+        private UpdateManager updateManager { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private OsuGameBase game { get; set; }
+
+        private StartupUpdate startupUpdate;
+        private StartupUpdatePopup updatePopup;
+        private double startupUpdateDeadline;
+        private bool restartRequested;
+
+        /// <summary>
+        /// Banchosucks: how long the loader waits for the startup update check at most. The check gives up on its own earlier;
+        /// this only guards against a hanging updater, and shaders and the intro screen usually take longer than the check anyway.
+        /// </summary>
+        protected virtual double StartupUpdateCheckTimeout => 15000;
+
         protected virtual OsuScreen CreateLoadableScreen() => new Disclaimer(new IntroSimple(() => new MainMenu()));
 
         protected virtual ShaderPrecompiler CreateShaderPrecompiler() => new ShaderPrecompiler();
@@ -36,6 +57,11 @@ namespace osu.Game.Screens
         public override void OnEntering(ScreenTransitionEvent e)
         {
             base.OnEntering(e);
+
+            // Banchosucks: the update manager began asking our releases when the game was constructed. The intro waits until
+            // that answer is in, and a newer version is downloaded and installed right here instead of starting the old one.
+            startupUpdate = updateManager?.StartupUpdate;
+            startupUpdateDeadline = Clock.CurrentTime + StartupUpdateCheckTimeout;
 
             LoadComponentAsync(precompiler = CreateShaderPrecompiler(), AddInternal);
 
@@ -49,7 +75,10 @@ namespace osu.Game.Screens
             }, _ =>
             {
                 AddInternal(spinner);
-                spinnerShow = Scheduler.AddDelayed(spinner.Show, 200);
+
+                // the update popup has its own progress, no spinner next to it
+                if (updatePopup == null)
+                    spinnerShow = Scheduler.AddDelayed(spinner.Show, 200);
             });
 
             checkIfLoaded();
@@ -57,7 +86,7 @@ namespace osu.Game.Screens
 
         private void checkIfLoaded()
         {
-            if (loadableScreen?.LoadState != LoadState.Ready || !precompiler.FinishedCompiling)
+            if (loadableScreen?.LoadState != LoadState.Ready || !precompiler.FinishedCompiling || !startupUpdateDone())
             {
                 Schedule(checkIfLoaded);
                 return;
@@ -72,6 +101,77 @@ namespace osu.Game.Screens
             }
             else
                 this.Push(loadableScreen);
+        }
+
+        /// <summary>
+        /// Banchosucks: whether the game may go on to the intro. False while the update check is pending (bounded by
+        /// <see cref="StartupUpdateCheckTimeout"/>) and for good once a newer version is being installed: the game exits
+        /// into the updater then and comes back as the new version.
+        /// </summary>
+        private bool startupUpdateDone()
+        {
+            if (startupUpdate == null)
+                return true;
+
+            switch (startupUpdate.State)
+            {
+                case StartupUpdate.Phase.Finished:
+                    Logger.Log($"Loader: startup update step finished ({startupUpdate.Outcome})");
+                    startupUpdate = null;
+                    return true;
+
+                case StartupUpdate.Phase.Checking:
+                    if (Clock.CurrentTime < startupUpdateDeadline)
+                        return false;
+
+                    Logger.Log("Loader: startup update check took too long, starting the game without it");
+                    startupUpdate = null;
+                    return true;
+
+                case StartupUpdate.Phase.Downloading:
+                    showUpdatePopup();
+                    updatePopup.Progress = startupUpdate.Progress;
+                    return false;
+
+                case StartupUpdate.Phase.ReadyToRestart:
+                    showUpdatePopup();
+
+                    if (!restartRequested)
+                    {
+                        restartRequested = true;
+                        updatePopup.ShowRestarting();
+                        // a moment for the full bar to be seen, then hand over to the updater
+                        Scheduler.AddDelayed(() => ExitToApplyUpdate(startupUpdate.ApplyOnExit), 600);
+                    }
+
+                    return false;
+
+                default:
+                    return true;
+            }
+        }
+
+        private void showUpdatePopup()
+        {
+            if (updatePopup != null)
+                return;
+
+            spinnerShow?.Cancel();
+            spinner?.Hide();
+            AddInternal(updatePopup = new StartupUpdatePopup(startupUpdate.Version));
+        }
+
+        /// <summary>
+        /// Banchosucks: leaves the game so the Velopack updater can apply the downloaded version and start the game again.
+        /// Exiting from the loader is never blocked (<see cref="OsuGame.OnExiting"/>). Tests override this.
+        /// </summary>
+        protected virtual void ExitToApplyUpdate(Action applyOnExit)
+        {
+            if (game == null)
+                return;
+
+            game.RestartOnExitAction = applyOnExit;
+            game.Exit();
         }
 
         /// <summary>

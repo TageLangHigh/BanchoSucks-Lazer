@@ -82,7 +82,11 @@ Für den Client heißt das zusätzlich:
 
 Ein Release wird nur aus einem gepushten Commit gebaut, damit zu jeder Datei der passende Quelltext
 gehört. Der Client aktualisiert sich selbst über Velopack aus unseren GitHub-Releases
-(`osu.Desktop/Updater/VelopackUpdateManager.cs`, packId `BanchoSucksLazer`, Kanal `win`); deshalb
+(`osu.Desktop/Updater/VelopackUpdateManager.cs`, packId `BanchoSucksLazer`, Kanal `win`): beim Start
+prüft er vor dem Intro und installiert eine neuere Version sofort (Popup mit Ladebalken im `Loader`,
+`osu.Game/Updater/StartupUpdate.cs`), danach alle 30 Minuten im Hintergrund.
+`OsuGameDesktop.CreateUpdateManager` muss den `VelopackUpdateManager` liefern, nie die Basisklasse
+(die prüft nichts; so war es bis 2026.913.14, darum kam nie ein Update an). Deshalb
 müssen die Velopack-Dateien (Setup.exe, *.nupkg, releases.win.json, Portable.zip) am Release hängen,
 eine nackte Zip reicht nicht mehr. Reihenfolge:
 
