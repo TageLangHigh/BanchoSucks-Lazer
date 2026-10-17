@@ -47,38 +47,45 @@ namespace osu.Game.Screens.Banchosucks.Guess
     }
 
     /// <summary>
-    /// Banchosucks: the frame of the guessing games. Ten rounds, four answers each, fifteen seconds per round; faster
-    /// correct answers and streaks score more. What is guessed (<see cref="LoadItems"/>) and how it is presented
-    /// (<see cref="CreatePrompt"/>) comes from the subclass. Overlays are closed during a round so nothing spoils the answer.
+    /// Banchosucks: the frame of the guessing games. Four answers each round, fifteen seconds per round; faster correct
+    /// answers and streaks score more. Library mode asks ten rounds about the player's own content
+    /// (<see cref="LoadItems"/>), popular mode asks about the server's pool until the first mistake. What is presented
+    /// (<see cref="CreatePrompt"/>, <see cref="CreatePopularPrompt"/>) comes from the subclass. Overlays are closed during
+    /// a round so nothing spoils the answer.
     /// </summary>
     public abstract partial class GuessScreen : OsuScreen
     {
-        protected abstract string Kind { get; }
+        /// <summary>"song" or "skin".</summary>
+        protected abstract string GameKey { get; }
+
         protected abstract LocalisableString GameTitle { get; }
         protected abstract LocalisableString GameDescription { get; }
         protected abstract LocalisableString TooFewItemsText { get; }
+        protected abstract LocalisableString PopularDescription { get; }
         protected abstract IconUsage GameIcon { get; }
         protected abstract Color4 Accent { get; }
 
-        /// <summary>Everything that can be asked, at least four with different labels, else the game cannot start.</summary>
+        /// <summary>Everything the library mode can ask, at least four with different labels, else the game cannot start.</summary>
         protected abstract List<GuessItem> LoadItems();
 
-        /// <summary>What the player sees (and hears) while guessing <paramref name="item"/>; it starts in its own LoadComplete.</summary>
+        /// <summary>What the player sees (and hears) while guessing a library item; loaded asynchronously, it starts in its own LoadComplete.</summary>
         protected abstract GuessPrompt CreatePrompt(GuessItem item);
 
-        /// <summary>Called when a run starts, before the first prompt.</summary>
-        protected virtual void OnRunStarted()
+        /// <summary>The same for an entry of the server's pool.</summary>
+        protected abstract GuessPrompt CreatePopularPrompt(GuessPoolItem item);
+
+        protected virtual void OnRunStarted(GuessMode mode)
         {
         }
 
-        /// <summary>Called when the run is over or abandoned.</summary>
-        protected virtual void OnRunEnded()
+        protected virtual void OnRunEnded(GuessMode mode)
         {
         }
 
         private enum State
         {
             Menu,
+            Loading,
             Round,
             Reveal,
             Results,
@@ -97,21 +104,27 @@ namespace osu.Game.Screens.Banchosucks.Guess
         protected OsuColour Colours { get; private set; } = null!;
 
         private State state = State.Menu;
+        private GuessMode mode = GuessMode.Library;
         private readonly Random rng = new Random();
         private List<GuessItem> items = new List<GuessItem>();
         private readonly List<GuessItem> remaining = new List<GuessItem>();
         private GuessRun run = new GuessRun();
         private GuessItem? current;
+        private int roundId;
         private double roundStart;
         private GuessPrompt? prompt;
         private int? previousBest;
         private GetGuessBestRequest? bestRequest;
+        private GetGuessPoolRequest? poolRequest;
         private SubmitGuessRequest? submitRequest;
+        private readonly Dictionary<string, int> bests = new Dictionary<string, int>();
+        private List<GuessPoolItem>? pool;
 
         private Container menu = null!;
         private Container boardHost = null!;
         private Container playArea = null!;
         private Container promptHost = null!;
+        private LoadingSpinner promptLoading = null!;
         private Container resultsPanel = null!;
         private OsuSpriteText roundText = null!;
         private OsuSpriteText scoreText = null!;
@@ -119,12 +132,15 @@ namespace osu.Game.Screens.Banchosucks.Guess
         private OsuSpriteText bestText = null!;
         private OsuSpriteText feedbackText = null!;
         private Box timerBar = null!;
-        private GridContainer choiceGrid = null!;
         private readonly List<ChoiceButton> choiceButtons = new List<ChoiceButton>();
+        private ModeButton libraryButton = null!;
+        private ModeButton popularButton = null!;
         private OsuSpriteText resultTitle = null!;
         private FillFlowContainer resultLines = null!;
         private OsuSpriteText resultSubmit = null!;
         private GuessLeaderboardPanel board = null!;
+
+        private string kind => GuessRules.KindFor(GameKey, mode);
 
         [BackgroundDependencyLoader]
         private void load()
@@ -158,7 +174,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
                     Width = board_width,
                     RelativeSizeAxes = Axes.Y,
                     Padding = new MarginPadding { Vertical = 60, Right = 30 },
-                    Child = board = new GuessLeaderboardPanel(Kind, Accent),
+                    Child = board = new GuessLeaderboardPanel(kind, Accent),
                 },
                 playArea = new Container
                 {
@@ -186,7 +202,18 @@ namespace osu.Game.Screens.Banchosucks.Guess
                                 },
                                 Content = new[]
                                 {
-                                    new Drawable[] { promptHost = new Container { RelativeSizeAxes = Axes.Both } },
+                                    new Drawable[]
+                                    {
+                                        new Container
+                                        {
+                                            RelativeSizeAxes = Axes.Both,
+                                            Children = new Drawable[]
+                                            {
+                                                promptHost = new Container { RelativeSizeAxes = Axes.Both },
+                                                promptLoading = new LoadingSpinner { Anchor = Anchor.Centre, Origin = Anchor.Centre },
+                                            },
+                                        },
+                                    },
                                     new Drawable[] { Empty() },
                                     new Drawable[]
                                     {
@@ -202,7 +229,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
                                         },
                                     },
                                     new Drawable[] { Empty() },
-                                    new Drawable[] { choiceGrid = createChoices() },
+                                    new Drawable[] { createChoices() },
                                     new Drawable[]
                                     {
                                         feedbackText = new OsuSpriteText
@@ -224,8 +251,8 @@ namespace osu.Game.Screens.Banchosucks.Guess
         protected override void LoadComplete()
         {
             base.LoadComplete();
-            updateBestText();
-            loadBest();
+            selectMode(GuessMode.Library);
+            loadBests();
         }
 
         // ---------------------------------------------------------------- layout
@@ -234,7 +261,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
         {
             Anchor = Anchor.Centre,
             Origin = Anchor.Centre,
-            Width = 560,
+            Width = 580,
             AutoSizeAxes = Axes.Y,
             Direction = FillDirection.Vertical,
             Spacing = new Vector2(0, 12),
@@ -251,21 +278,43 @@ namespace osu.Game.Screens.Banchosucks.Guess
                         new OsuSpriteText { Text = GameTitle, Font = OsuFont.GetFont(size: 48, weight: FontWeight.Bold), Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft },
                     },
                 },
-                new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 18))
+                new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 17))
                 {
                     RelativeSizeAxes = Axes.X,
                     AutoSizeAxes = Axes.Y,
                     Colour = Colours.Gray9,
                     Text = GameDescription,
                 },
-                new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 14))
+                new OsuSpriteText
+                {
+                    Text = ClickerStrings.Text("Mode", "Modus"),
+                    Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
+                    Colour = Colours.Gray9,
+                    Margin = new MarginPadding { Top = 6 },
+                },
+                new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(10, 0),
+                    Children = new Drawable[]
+                    {
+                        libraryButton = new ModeButton(ClickerStrings.Text("My library", "Meine Bibliothek"),
+                            ClickerStrings.Text("{0} rounds about your own files", "{0} Runden über deine eigenen Dateien", GuessRules.ROUNDS),
+                            FontAwesome.Solid.Folder, Accent, () => selectMode(GuessMode.Library)),
+                        popularButton = new ModeButton(ClickerStrings.Text("Popular, endless", "Beliebt, endlos"),
+                            PopularDescription, FontAwesome.Solid.Fire, Accent, () => selectMode(GuessMode.Popular)),
+                    },
+                },
+                new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 13))
                 {
                     RelativeSizeAxes = Axes.X,
                     AutoSizeAxes = Axes.Y,
                     Colour = Colours.Gray9,
-                    Text = ClickerStrings.Text("{0} rounds, four answers each, {1} seconds per round. A correct answer gives 100 points plus 10 per second left, streaks add up to 50. Keys 1 to 4 answer too.",
-                        "{0} Runden, je vier Antworten, {1} Sekunden pro Runde. Eine richtige Antwort gibt 100 Punkte plus 10 je übriger Sekunde, Serien bringen bis zu 50 dazu. Die Tasten 1 bis 4 antworten auch.",
-                        GuessRules.ROUNDS, GuessRules.ROUND_MS / 1000),
+                    Text = ClickerStrings.Text("Four answers, {0} seconds per round. A correct answer gives 100 points plus 10 per second left, streaks add up to 50. In endless mode the first mistake ends the run. Keys 1 to 4 answer too.",
+                        "Vier Antworten, {0} Sekunden pro Runde. Eine richtige Antwort gibt 100 Punkte plus 10 je übriger Sekunde, Serien bringen bis zu 50 dazu. Im Endlos-Modus beendet der erste Fehler den Lauf. Die Tasten 1 bis 4 antworten auch.",
+                        GuessRules.ROUND_MS / 1000),
                 },
                 bestText = new OsuSpriteText
                 {
@@ -376,33 +425,91 @@ namespace osu.Game.Screens.Banchosucks.Guess
 
         // ---------------------------------------------------------------- flow
 
+        private void selectMode(GuessMode value)
+        {
+            mode = value;
+            libraryButton.Active = value == GuessMode.Library;
+            popularButton.Active = value == GuessMode.Popular;
+            board.SetKind(kind);
+            updateBestText();
+        }
+
         private void startRun()
         {
-            if (state == State.Round || state == State.Reveal) return;
+            if (state is State.Round or State.Reveal or State.Loading) return;
 
-            try
+            if (mode == GuessMode.Library)
             {
-                items = LoadItems().GroupBy(i => i.Label).Select(g => g.First()).ToList();
-            }
-            catch (Exception e)
-            {
-                Logger.Log($"{Kind} guesser could not load its items: {e.Message}", LoggingTarget.Runtime, LogLevel.Important);
-                items = new List<GuessItem>();
-            }
+                try
+                {
+                    items = LoadItems().GroupBy(i => i.Label).Select(g => g.First()).ToList();
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"{GameKey} guesser could not load its items: {e.Message}", LoggingTarget.Runtime, LogLevel.Important);
+                    items = new List<GuessItem>();
+                }
 
-            if (items.Count < 4)
-            {
-                bestText.Text = TooFewItemsText;
-                bestText.FlashColour(Colours.Red, 600);
+                if (items.Count < 4)
+                {
+                    bestText.Text = TooFewItemsText;
+                    bestText.FlashColour(Colours.Red, 600);
+                    return;
+                }
+
+                beginRun();
                 return;
             }
 
-            run = new GuessRun();
+            // popular mode: the pool comes from the server, once per visit
+            if (pool != null && pool.Count >= 4)
+            {
+                items = pool.Select(p => new GuessItem(p.Id.ToString(), p.Name, p)).GroupBy(i => i.Label).Select(g => g.First()).ToList();
+                beginRun();
+                return;
+            }
+
+            state = State.Loading;
+            bestText.Text = ClickerStrings.Text("Fetching the popular pool …", "Beliebter Pool wird geholt …");
+            poolRequest?.Cancel();
+            var request = poolRequest = new GetGuessPoolRequest(GameKey);
+
+            request.Success += response =>
+            {
+                if (IsDisposed || request != poolRequest) return;
+
+                state = State.Menu;
+                pool = response.Items;
+
+                if (pool.Count < 4)
+                {
+                    bestText.Text = ClickerStrings.Text("The server has no popular pool yet (fewer than four entries).", "Der Server hat noch keinen beliebten Pool (weniger als vier Einträge).");
+                    bestText.FlashColour(Colours.Red, 600);
+                    return;
+                }
+
+                startRun();
+            };
+            request.Failure += e =>
+            {
+                if (IsDisposed || request != poolRequest) return;
+
+                state = State.Menu;
+                Logger.Log($"{GameKey} guesser could not fetch the pool: {e.Message}", LoggingTarget.Network);
+                bestText.Text = ClickerStrings.Text("The server could not be reached.", "Der Server war nicht erreichbar.");
+                bestText.FlashColour(Colours.Red, 600);
+            };
+            api.Queue(request);
+        }
+
+        private void beginRun()
+        {
+            run = new GuessRun(mode == GuessMode.Popular);
             remaining.Clear();
             remaining.AddRange(items);
-            previousBest = bestScore;
+            previousBest = bests.TryGetValue(kind, out int best) ? best : null;
             OverlayActivationMode.Value = OverlayActivation.Disabled;
-            OnRunStarted();
+            OnRunStarted(mode);
 
             menu.FadeOut(200);
             boardHost.FadeOut(200);
@@ -430,21 +537,38 @@ namespace osu.Game.Screens.Banchosucks.Guess
 
             feedbackText.Text = string.Empty;
             promptHost.Clear();
+            prompt = null;
+            promptLoading.Show();
+
+            int thisRound = ++roundId;
+            state = State.Loading;
+            roundStart = Time.Current;
+            updateHud();
+
+            GuessPrompt created;
 
             try
             {
-                promptHost.Add(prompt = CreatePrompt(current));
+                created = current.Payload is GuessPoolItem poolItem ? CreatePopularPrompt(poolItem) : CreatePrompt(current);
             }
             catch (Exception e)
             {
-                Logger.Log($"{Kind} guesser could not present {current.Label}: {e.Message}", LoggingTarget.Runtime, LogLevel.Important);
-                promptHost.Add(prompt = new GuessPrompt.Broken());
+                Logger.Log($"{GameKey} guesser could not present {current.Label}: {e.Message}", LoggingTarget.Runtime, LogLevel.Important);
+                created = new GuessPrompt.Broken();
             }
 
-            prompt.FadeInFromZero(250).ScaleTo(0.97f).ScaleTo(1, 350, Easing.OutQuint);
-            state = State.Round;
-            roundStart = Time.Current;
-            updateHud();
+            // the prompt may read files or fetch things, so it loads off the update thread; the clock starts when it is there
+            LoadComponentAsync(created, loaded =>
+            {
+                if (IsDisposed || thisRound != roundId || state != State.Loading) return;
+
+                promptLoading.Hide();
+                promptHost.Add(prompt = loaded);
+                loaded.FadeInFromZero(250).ScaleTo(0.97f).ScaleTo(1, 350, Easing.OutQuint);
+                state = State.Round;
+                roundStart = Time.Current;
+                updateHud();
+            });
         }
 
         private void answer(int index)
@@ -491,26 +615,31 @@ namespace osu.Game.Screens.Banchosucks.Guess
             {
                 if (state == State.Reveal)
                     nextRound();
-            }, reveal_ms);
+            }, run.Ended ? reveal_ms + 600 : reveal_ms);
         }
 
         private void finishRun()
         {
             state = State.Results;
             promptHost.Clear();
+            promptLoading.Hide();
             prompt = null;
-            OnRunEnded();
+            roundId++;
+            OnRunEnded(mode);
             showResults();
             submit();
         }
 
         private void showMenu()
         {
-            if (state == State.Round || state == State.Reveal)
+            if (state is State.Round or State.Reveal or State.Loading)
             {
                 promptHost.Clear();
+                promptLoading.Hide();
                 prompt = null;
-                OnRunEnded();
+                roundId++;
+                poolRequest?.Cancel();
+                OnRunEnded(mode);
             }
 
             state = State.Menu;
@@ -522,7 +651,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
             menu.FadeIn(200);
             boardHost.FadeIn(200);
             board.Refresh();
-            loadBest();
+            loadBests();
         }
 
         protected override void Update()
@@ -538,31 +667,47 @@ namespace osu.Game.Screens.Banchosucks.Guess
                 if (elapsed >= GuessRules.ROUND_MS)
                     timeout();
             }
+            else if (state == State.Loading)
+                timerBar.Width = 1;
         }
 
         private void updateHud()
         {
-            roundText.Text = ClickerStrings.Pick($"Round {Math.Min(GuessRules.ROUNDS, run.Rounds + (state == State.Round ? 1 : 0))}/{GuessRules.ROUNDS}", $"Runde {Math.Min(GuessRules.ROUNDS, run.Rounds + (state == State.Round ? 1 : 0))}/{GuessRules.ROUNDS}");
+            int shown = Math.Min(run.Endless ? GuessRules.ENDLESS_MAX_ROUNDS : GuessRules.ROUNDS, run.Rounds + (state is State.Round or State.Loading ? 1 : 0));
+            roundText.Text = run.Endless
+                ? ClickerStrings.Pick($"Round {shown}", $"Runde {shown}")
+                : ClickerStrings.Pick($"Round {shown}/{GuessRules.ROUNDS}", $"Runde {shown}/{GuessRules.ROUNDS}");
             scoreText.Text = run.Score.ToString("N0");
             streakText.Text = run.Streak >= 2 ? ClickerStrings.Pick($"{run.Streak} in a row", $"{run.Streak} in Folge") : string.Empty;
         }
 
         private void showResults()
         {
-            resultTitle.Text = run.Correct == GuessRules.ROUNDS
-                ? ClickerStrings.Text("Perfect!", "Perfekt!")
-                : run.Correct >= GuessRules.ROUNDS * 0.7 ? ClickerStrings.Text("Well done!", "Gut gemacht!") : ClickerStrings.Text("Done.", "Fertig.");
+            if (run.Endless)
+            {
+                resultTitle.Text = run.Correct >= 25
+                    ? ClickerStrings.Text("Impressive!", "Beeindruckend!")
+                    : run.Correct >= 10 ? ClickerStrings.Text("Nice run!", "Guter Lauf!") : ClickerStrings.Text("Run over.", "Lauf vorbei.");
+            }
+            else
+            {
+                resultTitle.Text = run.Correct == GuessRules.ROUNDS
+                    ? ClickerStrings.Text("Perfect!", "Perfekt!")
+                    : run.Correct >= GuessRules.ROUNDS * 0.7 ? ClickerStrings.Text("Well done!", "Gut gemacht!") : ClickerStrings.Text("Done.", "Fertig.");
+            }
 
             resultLines.Clear();
 
             foreach (string line in new[]
                      {
                          ClickerStrings.Pick($"Score {run.Score:N0}", $"Score {run.Score:N0}"),
-                         ClickerStrings.Pick($"{run.Correct} of {run.Rounds} correct · best streak {run.BestStreak}", $"{run.Correct} von {run.Rounds} richtig · beste Serie {run.BestStreak}"),
+                         run.Endless
+                             ? ClickerStrings.Pick($"{run.Correct} in a row", $"{run.Correct} in Folge")
+                             : ClickerStrings.Pick($"{run.Correct} of {run.Rounds} correct · best streak {run.BestStreak}", $"{run.Correct} von {run.Rounds} richtig · beste Serie {run.BestStreak}"),
                          ClickerStrings.Pick($"{run.AverageAnswerMs / 1000.0:0.0} s per correct answer", $"{run.AverageAnswerMs / 1000.0:0.0} s je richtiger Antwort"),
                          previousBest is int before
                              ? ClickerStrings.Pick($"Previous best: {before:N0} ({(run.Score >= before ? "+" : string.Empty)}{run.Score - before:N0})", $"Bisherige Bestleistung: {before:N0} ({(run.Score >= before ? "+" : string.Empty)}{run.Score - before:N0})")
-                             : ClickerStrings.Pick("First run", "Erster Lauf"),
+                             : ClickerStrings.Pick("First run on this board", "Erster Lauf auf dieser Rangliste"),
                      })
             {
                 resultLines.Add(new OsuSpriteText { Text = line, Font = OsuFont.GetFont(size: 18, weight: FontWeight.SemiBold) });
@@ -576,19 +721,17 @@ namespace osu.Game.Screens.Banchosucks.Guess
 
         // ---------------------------------------------------------------- server
 
-        private int? bestScore;
-
         private void updateBestText()
         {
             if (!api.IsLoggedIn)
                 bestText.Text = ClickerStrings.Text("Log in to save your runs on the leaderboard.", "Melde dich an, damit deine Läufe auf der Rangliste landen.");
-            else if (bestScore is int best)
-                bestText.Text = ClickerStrings.Pick($"Your best: {best:N0}", $"Deine Bestleistung: {best:N0}");
+            else if (bests.TryGetValue(kind, out int best))
+                bestText.Text = ClickerStrings.Pick($"Your best on this board: {best:N0}", $"Deine Bestleistung auf dieser Rangliste: {best:N0}");
             else
-                bestText.Text = ClickerStrings.Text("No run yet.", "Noch kein Lauf.");
+                bestText.Text = ClickerStrings.Text("No run on this board yet.", "Noch kein Lauf auf dieser Rangliste.");
         }
 
-        private void loadBest()
+        private void loadBests()
         {
             if (!api.IsLoggedIn) return;
 
@@ -598,7 +741,8 @@ namespace osu.Game.Screens.Banchosucks.Guess
             {
                 if (IsDisposed || request != bestRequest) return;
 
-                bestScore = response.Best.TryGetValue(Kind, out var entry) ? entry.Score : null;
+                bests.Clear();
+                foreach (var (key, entry) in response.Best) bests[key] = entry.Score;
                 updateBestText();
             };
             api.Queue(request);
@@ -608,10 +752,11 @@ namespace osu.Game.Screens.Banchosucks.Guess
         {
             if (!api.IsLoggedIn || run.Score <= 0) return;
 
+            string submittedKind = kind;
             submitRequest?.Cancel();
             var request = submitRequest = new SubmitGuessRequest(new GuessSubmission
             {
-                Kind = Kind,
+                Kind = submittedKind,
                 Score = run.Score,
                 Correct = run.Correct,
                 Rounds = run.Rounds,
@@ -628,7 +773,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
                     return;
                 }
 
-                bestScore = response.BestScore;
+                bests[submittedKind] = response.BestScore;
                 resultSubmit.Text = response.PersonalBest
                     ? ClickerStrings.Pick($"New personal best! Rank #{response.Rank}.", $"Neue Bestleistung! Rang #{response.Rank}.")
                     : ClickerStrings.Pick($"Saved. Your best: {response.BestScore:N0} (rank #{response.Rank}).", $"Gespeichert. Deine Bestleistung: {response.BestScore:N0} (Rang #{response.Rank}).");
@@ -637,7 +782,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
             {
                 if (IsDisposed || request != submitRequest) return;
 
-                Logger.Log($"{Kind} guesser submission failed: {e.Message}", LoggingTarget.Network);
+                Logger.Log($"{GameKey} guesser submission failed: {e.Message}", LoggingTarget.Network);
                 resultSubmit.Text = ClickerStrings.Text("The server could not be reached; the run is not saved.", "Der Server war nicht erreichbar; der Lauf wurde nicht gespeichert.");
             };
             api.Queue(request);
@@ -710,8 +855,64 @@ namespace osu.Game.Screens.Banchosucks.Guess
         {
             if (state != State.Menu) showMenu();
             bestRequest?.Cancel();
+            poolRequest?.Cancel();
             this.FadeOut(200);
             return base.OnExiting(e);
+        }
+
+        /// <summary>A mode card: icon, name, one line of explanation, highlighted when selected.</summary>
+        private partial class ModeButton : OsuClickableContainer
+        {
+            private readonly Box background;
+            private readonly Color4 accent;
+
+            public bool Active
+            {
+                set
+                {
+                    background.FadeColour(value ? accent.Opacity(0.45f) : Color4.White.Opacity(0.08f), 150);
+                    BorderThickness = value ? 2 : 0;
+                }
+            }
+
+            public ModeButton(LocalisableString title, LocalisableString description, IconUsage icon, Color4 accent, Action action)
+            {
+                this.accent = accent;
+                Action = action;
+                Width = 285;
+                Height = 64;
+                Masking = true;
+                CornerRadius = 12;
+                BorderColour = accent;
+
+                Children = new Drawable[]
+                {
+                    background = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.08f) },
+                    new SpriteIcon
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 14,
+                        Size = new Vector2(22),
+                        Icon = icon,
+                        Colour = accent,
+                    },
+                    new FillFlowContainer
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 48,
+                        Width = 225,
+                        AutoSizeAxes = Axes.Y,
+                        Direction = FillDirection.Vertical,
+                        Children = new Drawable[]
+                        {
+                            new OsuSpriteText { Text = title, Font = OsuFont.GetFont(size: 16, weight: FontWeight.Bold) },
+                            new TruncatingSpriteText { Text = description, Font = OsuFont.GetFont(size: 12), Colour = Color4.White.Opacity(0.75f), MaxWidth = 225 },
+                        },
+                    },
+                };
+            }
         }
 
         /// <summary>An answer: a wide pill with the label, coloured after the round.</summary>
@@ -728,7 +929,6 @@ namespace osu.Game.Screens.Banchosucks.Guess
 
             private readonly Box background;
             private readonly TruncatingSpriteText label;
-            private readonly OsuSpriteText number;
             private readonly Color4 accent;
 
             [Resolved]
@@ -745,7 +945,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
                 Children = new Drawable[]
                 {
                     background = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.1f) },
-                    number = new OsuSpriteText
+                    new OsuSpriteText
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
@@ -848,7 +1048,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
         }
     }
 
-    /// <summary>Top 50 of one guessing game plus the player's own row.</summary>
+    /// <summary>Top 50 of one guessing board plus the player's own row.</summary>
     internal partial class GuessLeaderboardPanel : CompositeDrawable
     {
         private const double refresh_interval = 45_000;
@@ -859,9 +1059,10 @@ namespace osu.Game.Screens.Banchosucks.Guess
         [Resolved]
         private OsuColour colours { get; set; } = null!;
 
-        private readonly string kind;
+        private string kind;
         private readonly Color4 accent;
         private GetGuessLeaderboardRequest? request;
+        private OsuSpriteText titleText = null!;
         private OsuSpriteText ownText = null!;
         private OsuSpriteText statusText = null!;
         private FillFlowContainer rows = null!;
@@ -894,9 +1095,8 @@ namespace osu.Game.Screens.Banchosucks.Guess
                         Spacing = new Vector2(0, 8),
                         Children = new Drawable[]
                         {
-                            new OsuSpriteText
+                            titleText = new OsuSpriteText
                             {
-                                Text = ClickerStrings.Text("Leaderboard", "Rangliste"),
                                 Font = OsuFont.GetFont(size: 20, weight: FontWeight.Bold),
                                 Colour = accent,
                             },
@@ -934,6 +1134,8 @@ namespace osu.Game.Screens.Banchosucks.Guess
                     },
                 },
             };
+
+            updateTitle();
         }
 
         protected override void LoadComplete()
@@ -947,6 +1149,22 @@ namespace osu.Game.Screens.Banchosucks.Guess
             base.Update();
             if (IsPresent && Time.Current - lastRefresh > refresh_interval)
                 Refresh();
+        }
+
+        public void SetKind(string newKind)
+        {
+            if (kind == newKind) return;
+
+            kind = newKind;
+            updateTitle();
+            if (IsLoaded) Refresh();
+        }
+
+        private void updateTitle()
+        {
+            titleText.Text = kind.EndsWith("_endless", StringComparison.Ordinal)
+                ? ClickerStrings.Text("Leaderboard · popular, endless", "Rangliste · beliebt, endlos")
+                : ClickerStrings.Text("Leaderboard · my library", "Rangliste · meine Bibliothek");
         }
 
         public void Refresh()

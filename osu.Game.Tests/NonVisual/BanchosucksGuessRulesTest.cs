@@ -40,5 +40,20 @@ namespace osu.Game.Tests.NonVisual
             Assert.That(run.Finished, Is.True);
             Assert.That(run.Rounds, Is.EqualTo(10));
         }
+
+        [Test]
+        public void TestEndlessRunEndsWithTheFirstMistake()
+        {
+            var run = new GuessRun(true);
+            Assert.That(run.Answer(true, 0), Is.EqualTo(250));
+            Assert.That(run.Answer(true, 1_000), Is.EqualTo(250), "240 for fourteen seconds left plus 10 streak bonus");
+            Assert.That(run.Finished, Is.False);
+            Assert.That(run.Answer(false, 3_000), Is.EqualTo(0));
+            Assert.That(run.Ended, Is.True);
+            Assert.That(run.Finished, Is.True);
+            Assert.That((run.Score, run.Correct, run.Rounds), Is.EqualTo((500, 2, 3)));
+            Assert.That(GuessRules.KindFor("song", GuessMode.Popular), Is.EqualTo("song_endless"));
+            Assert.That(GuessRules.KindFor("skin", GuessMode.Library), Is.EqualTo("skin"));
+        }
     }
 }

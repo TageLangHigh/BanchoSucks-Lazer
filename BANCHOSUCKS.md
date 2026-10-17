@@ -159,8 +159,13 @@ and restart the app container.
   else starts over. `TycoonRules.cs` holds the economy, mirrored by the plugin
   `banchosucks_tycoon/economy.py`; the save (JSON, see `TycoonState`) goes to the plugin every 30 s
   and on leaving, plus a local file `banchosucks-tycoon.json` in the osu! storage for offline play;
-  on load up to eight hours of offline progress are simulated. The server bounds what a save may
-  have earned since the last one and refuses saves that spent more than they earned. Leaderboards
+  on load up to eight hours of offline progress are simulated. The office (button next to the
+  Discord post) is a 14x9 grid the player furnishes: racks (free, one per hardware level plus two),
+  carpet, plant, desk, poster, coffee machine, sofa, fridge, air conditioning, arcade cabinet;
+  comfort points give +0.5 % donations each, capped at +15 %; left click places, right click removes
+  for half the price; the layout is part of the save and of the server's spending check. The server
+  bounds what a save may have earned since the last one and refuses saves that spent more than they
+  earned. A stats tab lists play time, posts, events, seasons and thirteen milestones. Leaderboards
   by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.
   Tests: `osu.Game.Tests/NonVisual/BanchosucksTycoonRulesTest.cs` (same numbers as the plugin
   tests) and `TestSceneBanchosucksMinigames`.
@@ -169,8 +174,12 @@ and restart the app container.
   answer gives 100 points plus 10 per second left, streaks add up to 50 (max 3000). The song guesser
   plays the preview snippet of one of the player's own beatmap sets (the global music pauses, the
   cover and title appear once answered); the skin guesser shows cursor, hit circle and judgements
-  of one of the installed skins. Both need at least four items with different names. Overlays are
-  closed during a round so the toolbar cannot spoil the answer. `GuessRules.cs` is mirrored by the
-  plugin `banchosucks_guess/rules.py`, which only bounds results (the content is local): best run
-  per player and game, leaderboards in the screen and on banchosucks.cc/lazer/guess. Tests:
+  of one of the installed skins. Both need at least four items with different names. Popular mode
+  (boards `song_endless`, `skin_endless`) asks about the server's pools until the first mistake: the
+  most played sets on banchosucks (the client streams the official preview by set id through
+  `PreviewTrackManager` and shows the cover from assets.ppy.sh once answered) and the skins of the
+  plugin's `skins/manifest.json` (element images by url). Overlays are closed during a round so the
+  toolbar cannot spoil the answer. `GuessRules.cs` is mirrored by the plugin
+  `banchosucks_guess/rules.py`, which only bounds results: best run per player and board,
+  leaderboards in the screen and on banchosucks.cc/lazer/guess. Tests:
   `osu.Game.Tests/NonVisual/BanchosucksGuessRulesTest.cs` and `TestSceneBanchosucksMinigames`.

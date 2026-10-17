@@ -11,6 +11,7 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
@@ -96,6 +97,13 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private Container effectLayer = null!;
         private OsuSpriteText nextEventText = null!;
         private FillFlowContainer statsFlow = null!;
+        private Drawable dashboard = null!;
+        private Container office = null!;
+        private OfficeView officeView = null!;
+        private OsuSpriteText officeInfoText = null!;
+        private readonly Dictionary<string, PaletteButton> paletteButtons = new Dictionary<string, PaletteButton>();
+        private string? selectedDecoration;
+        private double officeRefresh;
 
         private readonly Dictionary<Tab, ClickerTabButton> tabButtons = new Dictionary<Tab, ClickerTabButton>();
         private readonly Dictionary<Tab, Drawable> tabContents = new Dictionary<Tab, Drawable>();
@@ -141,7 +149,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 {
                     RelativeSizeAxes = Axes.Both,
                     Padding = new MarginPadding { Top = 56, Bottom = 24, Left = 30, Right = side_width + 50 },
-                    Child = createLeftColumn(),
+                    Children = new Drawable[]
+                    {
+                        dashboard = createLeftColumn(),
+                        office = createOffice(),
+                    },
                 },
                 new Container
                 {
@@ -234,6 +246,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         Children = new Drawable[]
                         {
                             postButton = new PostButton(post),
+                            new ClickerPillButton(t("Office", "Büro"), colours.Purple, () => showOffice(true), FontAwesome.Solid.Couch)
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                            },
                             boostText = new OsuSpriteText
                             {
                                 Anchor = Anchor.CentreLeft,
@@ -646,6 +663,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 : t("An event waits for your decision.", "Ein Ereignis wartet auf deine Entscheidung.");
 
             checkMilestones();
+
+            if (office.Alpha > 0 && Time.Current - officeRefresh > 500)
+                refreshOffice();
         }
 
         private void post()
@@ -718,6 +738,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 boosts.Clear();
                 pending = null;
                 eventCard.Dismiss();
+                refreshOffice();
                 log(t("Season {0} started with {1} legacy", "Saison {0} gestartet mit {1} Legacy", state.Prestige + 1, state.Legacy), colours.Purple);
                 dirty = true;
                 saveCloud(true);
@@ -733,6 +754,411 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             }
             else
                 doPrestige();
+        }
+
+        // ---------------------------------------------------------------- the office
+
+        private Container createOffice()
+        {
+            officeView = new OfficeView
+            {
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                CellLeft = officeLeft,
+                CellRight = officeRight,
+            };
+
+            var palette = new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Full,
+                Spacing = new Vector2(6),
+            };
+
+            foreach (var deco in TycoonRules.Decorations)
+            {
+                var captured = deco;
+                palette.Add(paletteButtons[deco.Key] = new PaletteButton(deco, () => selectDecoration(captured.Key)));
+            }
+
+            return new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                Alpha = 0,
+                Child = new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, 10),
+                    Children = new Drawable[]
+                    {
+                        new Container
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            Children = new Drawable[]
+                            {
+                                new FillFlowContainer
+                                {
+                                    AutoSizeAxes = Axes.Both,
+                                    Direction = FillDirection.Vertical,
+                                    Children = new Drawable[]
+                                    {
+                                        new OsuSpriteText { Text = t("The office", "Das Büro"), Font = OsuFont.GetFont(size: 32, weight: FontWeight.Bold) },
+                                        officeInfoText = new OsuSpriteText { Font = OsuFont.GetFont(size: 14), Colour = colours.Gray9 },
+                                    },
+                                },
+                                new ClickerPillButton(t("Back to the dashboard", "Zurück zur Übersicht"), colours.Blue, () => showOffice(false), FontAwesome.Solid.ArrowLeft)
+                                {
+                                    Anchor = Anchor.CentreRight,
+                                    Origin = Anchor.CentreRight,
+                                },
+                            },
+                        },
+                        new Container
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            Height = OfficeView.HEIGHT,
+                            Child = officeView,
+                        },
+                        palette,
+                        new OsuTextFlowContainer(st => st.Font = OsuFont.GetFont(size: 13))
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            Colour = colours.Gray9,
+                            Text = t("Pick something below, then left-click a free cell to place it. Right-click removes an item and returns half its price. Furniture adds comfort: donations +0.5 % per point, up to +15 %. Racks are free, one per hardware level.",
+                                "Wähl unten etwas aus und platziere es per Linksklick auf einem freien Feld. Rechtsklick entfernt einen Gegenstand und gibt den halben Preis zurück. Einrichtung bringt Gemütlichkeit: Spenden +0,5 % je Punkt, bis zu +15 %. Racks sind kostenlos, eins je Hardware-Stufe."),
+                        },
+                    },
+                },
+            };
+        }
+
+        private void showOffice(bool show)
+        {
+            office.FadeTo(show ? 1 : 0, 200);
+            dashboard.FadeTo(show ? 0 : 1, 200);
+            if (show) refreshOffice();
+        }
+
+        private void selectDecoration(string key)
+        {
+            selectedDecoration = selectedDecoration == key ? null : key;
+            foreach (var (k, button) in paletteButtons) button.Active = k == selectedDecoration;
+            officeView.SetGhost(selectedDecoration);
+        }
+
+        private void refreshOffice()
+        {
+            officeRefresh = Time.Current;
+            if (!officeView.IsLoaded) return;
+
+            officeView.SetLayout(state.Layout);
+            int racks = state.Layout.Count(p => p.Key == "rack");
+            officeInfoText.Text = ClickerStrings.Pick(
+                $"Comfort +{(TycoonRules.ComfortMult(state.Layout) - 1) * 100:0.0} % on donations · {state.Layout.Count} items · racks {racks}/{TycoonRules.RackLimit(state.Hardware)}",
+                $"Gemütlichkeit +{(TycoonRules.ComfortMult(state.Layout) - 1) * 100:0.0} % auf Spenden · {state.Layout.Count} Gegenstände · Racks {racks}/{TycoonRules.RackLimit(state.Hardware)}");
+
+            foreach (var (key, button) in paletteButtons)
+            {
+                bool allowed = key == "rack" ? racks < TycoonRules.RackLimit(state.Hardware) : TycoonRules.CanAfford(state, TycoonRules.DecorationCost(key));
+                button.SetAvailable(ready && allowed && state.Layout.Count < TycoonRules.OFFICE_MAX_ITEMS);
+            }
+        }
+
+        private void officeLeft(int x, int y)
+        {
+            if (!ready || selectedDecoration == null) return;
+
+            if (TycoonRules.Place(state, x, y, selectedDecoration))
+            {
+                dirty = true;
+                refreshOffice();
+            }
+            else
+                officeView.Shake();
+        }
+
+        private void officeRight(int x, int y)
+        {
+            if (!ready) return;
+
+            if (TycoonRules.Remove(state, x, y))
+            {
+                dirty = true;
+                refreshOffice();
+            }
+        }
+
+        /// <summary>The office floor: a grid of cells with the placed items and a ghost of the selected one under the cursor.</summary>
+        private partial class OfficeView : CompositeDrawable
+        {
+            public const float CELL = 44;
+            public const float WIDTH = CELL * TycoonRules.OFFICE_WIDTH;
+            public const float HEIGHT = CELL * TycoonRules.OFFICE_HEIGHT;
+
+            public Action<int, int>? CellLeft;
+            public Action<int, int>? CellRight;
+
+            private readonly Container items;
+            private readonly Container ghost;
+            private readonly Box hover;
+
+            public OfficeView()
+            {
+                Size = new Vector2(WIDTH, HEIGHT);
+                Masking = true;
+                CornerRadius = 12;
+
+                var floor = new Container { RelativeSizeAxes = Axes.Both };
+
+                for (int y = 0; y < TycoonRules.OFFICE_HEIGHT; y++)
+                {
+                    for (int x = 0; x < TycoonRules.OFFICE_WIDTH; x++)
+                    {
+                        floor.Add(new Box
+                        {
+                            Position = new Vector2(x * CELL, y * CELL),
+                            Size = new Vector2(CELL),
+                            Colour = (x + y) % 2 == 0 ? Color4Extensions.FromHex("23283a") : Color4Extensions.FromHex("1f2334"),
+                        });
+                    }
+                }
+
+                InternalChildren = new Drawable[]
+                {
+                    floor,
+                    hover = new Box { Size = new Vector2(CELL), Colour = Color4.White.Opacity(0.08f), Alpha = 0 },
+                    items = new Container { RelativeSizeAxes = Axes.Both },
+                    ghost = new Container { Size = new Vector2(CELL), Alpha = 0 },
+                };
+            }
+
+            public void SetLayout(IEnumerable<TycoonPlacement> layout)
+            {
+                items.Clear();
+
+                foreach (var placement in layout)
+                    items.Add(new OfficeItem(placement.Key) { Position = new Vector2(placement.X * CELL, placement.Y * CELL) });
+            }
+
+            public void SetGhost(string? key)
+            {
+                ghost.Clear();
+                if (key != null) ghost.Add(new OfficeItem(key) { Alpha = 0.55f });
+            }
+
+            public void Shake() => this.MoveToX(-4, 40).Then().MoveToX(4, 80).Then().MoveToX(0, 40);
+
+            private (int x, int y)? cellAt(Vector2 screenSpace)
+            {
+                var local = ToLocalSpace(screenSpace);
+                int x = (int)Math.Floor(local.X / CELL), y = (int)Math.Floor(local.Y / CELL);
+                if (x < 0 || y < 0 || x >= TycoonRules.OFFICE_WIDTH || y >= TycoonRules.OFFICE_HEIGHT) return null;
+
+                return (x, y);
+            }
+
+            protected override bool OnMouseMove(MouseMoveEvent e)
+            {
+                var cell = cellAt(e.ScreenSpaceMousePosition);
+
+                if (cell == null)
+                {
+                    hover.Alpha = 0;
+                    ghost.Alpha = 0;
+                    return false;
+                }
+
+                var position = new Vector2(cell.Value.x * CELL, cell.Value.y * CELL);
+                hover.Position = position;
+                hover.Alpha = 1;
+                ghost.Position = position;
+                ghost.Alpha = ghost.Children.Count > 0 ? 1 : 0;
+                return false;
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                hover.Alpha = 0;
+                ghost.Alpha = 0;
+                base.OnHoverLost(e);
+            }
+
+            protected override bool OnMouseDown(MouseDownEvent e)
+            {
+                var cell = cellAt(e.ScreenSpaceMouseDownPosition);
+                if (cell == null) return false;
+
+                if (e.Button == MouseButton.Left) CellLeft?.Invoke(cell.Value.x, cell.Value.y);
+                else if (e.Button == MouseButton.Right) CellRight?.Invoke(cell.Value.x, cell.Value.y);
+                else return false;
+
+                return true;
+            }
+        }
+
+        /// <summary>One piece of furniture: a coloured tile with an icon; racks blink.</summary>
+        private partial class OfficeItem : CompositeDrawable
+        {
+            private readonly List<Box> leds = new List<Box>();
+
+            public static Color4 ColourOf(string key) => key switch
+            {
+                "rack" => Color4Extensions.FromHex("2a2f42"),
+                "carpet" => Color4Extensions.FromHex("4a3b5c"),
+                "plant" => Color4Extensions.FromHex("2e7d32"),
+                "desk" => Color4Extensions.FromHex("8d6e63"),
+                "poster" => Color4Extensions.FromHex("5e35b1"),
+                "coffee" => Color4Extensions.FromHex("6d4c41"),
+                "sofa" => Color4Extensions.FromHex("ad1457"),
+                "fridge" => Color4Extensions.FromHex("78909c"),
+                "aircon" => Color4Extensions.FromHex("0288d1"),
+                _ => Color4Extensions.FromHex("ff7043"),
+            };
+
+            public static IconUsage IconOf(string key) => key switch
+            {
+                "rack" => FontAwesome.Solid.Server,
+                "carpet" => FontAwesome.Solid.Th,
+                "plant" => FontAwesome.Solid.Seedling,
+                "desk" => FontAwesome.Solid.Desktop,
+                "poster" => FontAwesome.Solid.Image,
+                "coffee" => FontAwesome.Solid.Coffee,
+                "sofa" => FontAwesome.Solid.Couch,
+                "fridge" => FontAwesome.Solid.Snowflake,
+                "aircon" => FontAwesome.Solid.Wind,
+                _ => FontAwesome.Solid.Gamepad,
+            };
+
+            public OfficeItem(string key)
+            {
+                Size = new Vector2(OfficeView.CELL);
+                Padding = new MarginPadding(3);
+
+                var tile = new Container
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Masking = true,
+                    CornerRadius = 7,
+                    EdgeEffect = new EdgeEffectParameters
+                    {
+                        Type = EdgeEffectType.Shadow,
+                        Colour = Color4.Black.Opacity(0.35f),
+                        Radius = 4,
+                        Offset = new Vector2(0, 2),
+                    },
+                    Children = new Drawable[]
+                    {
+                        new Box { RelativeSizeAxes = Axes.Both, Colour = ColourOf(key) },
+                        new Box { RelativeSizeAxes = Axes.Both, Height = 0.35f, Colour = Color4.White.Opacity(0.08f) },
+                        new SpriteIcon
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Size = new Vector2(key == "carpet" ? 26 : 20),
+                            Icon = IconOf(key),
+                            Colour = Color4.White.Opacity(key == "carpet" ? 0.25f : 0.95f),
+                        },
+                    },
+                };
+
+                if (key == "rack")
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var led = new Box
+                        {
+                            Anchor = Anchor.BottomLeft,
+                            Origin = Anchor.BottomLeft,
+                            Size = new Vector2(4),
+                            Position = new Vector2(5 + i * 7, -5),
+                            Colour = Color4Extensions.FromHex("5fe07a"),
+                        };
+                        leds.Add(led);
+                        tile.Add(led);
+                    }
+                }
+
+                InternalChild = tile;
+            }
+
+            protected override void Update()
+            {
+                base.Update();
+
+                for (int i = 0; i < leds.Count; i++)
+                    leds[i].Alpha = Math.Sin(Time.Current / 1000 * (2 + i * 0.7) + i) > 0 ? 1 : 0.25f;
+            }
+        }
+
+        /// <summary>A palette entry: the item's tile, its name and price.</summary>
+        private partial class PaletteButton : OsuClickableContainer
+        {
+            private readonly Box background;
+            private readonly TycoonDecoration decoration;
+
+            public bool Active
+            {
+                set => BorderThickness = value ? 2 : 0;
+            }
+
+            public PaletteButton(TycoonDecoration decoration, Action action)
+            {
+                this.decoration = decoration;
+                Action = action;
+                Size = new Vector2(118, 50);
+                Masking = true;
+                CornerRadius = 10;
+                BorderColour = Color4.White;
+
+                Children = new Drawable[]
+                {
+                    background = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.08f) },
+                    new OfficeItem(decoration.Key) { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 3, Scale = new Vector2(0.9f) },
+                    new FillFlowContainer
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 48,
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Vertical,
+                        Children = new Drawable[]
+                        {
+                            new TruncatingSpriteText { Text = ClickerStrings.Text(decoration.NameEn, decoration.NameDe), Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold), MaxWidth = 66 },
+                            new OsuSpriteText
+                            {
+                                Text = decoration.Cost == 0 ? ClickerStrings.Text("free", "gratis") : ClickerFormat.Number(decoration.Cost),
+                                Font = OsuFont.GetFont(size: 11),
+                                Colour = Color4.White.Opacity(0.75f),
+                            },
+                        },
+                    },
+                };
+
+                TooltipText = ClickerStrings.Text(decoration.DescriptionEn, decoration.DescriptionDe);
+            }
+
+            public void SetAvailable(bool available)
+            {
+                Enabled.Value = available;
+                this.FadeTo(available ? 1 : 0.45f, 150);
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                if (Enabled.Value) background.FadeColour(Color4.White.Opacity(0.16f), 100);
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                background.FadeColour(Color4.White.Opacity(0.08f), 100);
+                base.OnHoverLost(e);
+            }
         }
 
         // ---------------------------------------------------------------- flair and statistics
@@ -815,6 +1241,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             row(t("Lifetime donations", "Spenden insgesamt"), n(state.LifetimeTotal));
             row(t("This season", "Diese Saison"), n(state.RunTotal));
             row(t("Spent this season", "Diese Saison ausgegeben"), n(TycoonRules.Spent(state)));
+            row(t("Comfort", "Gemütlichkeit"), $"+{(TycoonRules.ComfortMult(state.Layout) - 1) * 100:0.0} % · {ClickerFormat.Count(state.Layout.Count)} {ClickerStrings.Pick("items", "Gegenstände")}");
             row(t("Player record", "Spieler-Rekord"), n(state.MaxPlayers));
             row(t("Seasons", "Saisons"), ClickerFormat.Count(state.Prestige + 1));
             row(t("Legacy", "Legacy"), $"{state.Legacy} (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
@@ -1013,6 +1440,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             ready = true;
             dirty = true;
+            refreshOffice();
             firstMilestonePass = true;
             reachedMilestones.Clear();
             lastCloudSave = Time.Current;

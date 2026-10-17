@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE-OSU file in the repository root for full licence text.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
@@ -22,8 +23,8 @@ using osuTK.Graphics;
 namespace osu.Game.Screens.Banchosucks.Guess
 {
     /// <summary>
-    /// Banchosucks: the skin guesser. Cursor, hit circle and judgement images of one of the player's installed skins are
-    /// shown, four skin names are offered.
+    /// Banchosucks: the skin guesser. Library mode shows cursor, hit circle and judgements of one of the player's installed
+    /// skins; popular mode shows the element images of a skin from the server's pool (see the plugin's skins/README.md).
     /// </summary>
     public partial class SkinGuessScreen : GuessScreen
     {
@@ -33,13 +34,14 @@ namespace osu.Game.Screens.Banchosucks.Guess
         [Resolved]
         private SkinManager skins { get; set; } = null!;
 
-        protected override string Kind => "skin";
+        protected override string GameKey => "skin";
         protected override LocalisableString GameTitle => ClickerStrings.Text("Skin Guesser", "Skin-Guesser");
 
         protected override LocalisableString GameDescription => ClickerStrings.Text(
-            "Cursor, hit circle and judgements of one of your installed skins. Which skin is it? Works with the skins you have imported.",
-            "Cursor, Hitcircle und Trefferbilder eines deiner installierten Skins. Welcher Skin ist das? Funktioniert mit den Skins, die du importiert hast.");
+            "Cursor, hit circle and judgements are shown, four skin names are offered. Your own skins, or the popular ones from the server's pool.",
+            "Cursor, Hitcircle und Trefferbilder werden gezeigt, vier Skin-Namen stehen zur Wahl. Deine eigenen Skins, oder die beliebten aus dem Pool des Servers.");
 
+        protected override LocalisableString PopularDescription => ClickerStrings.Text("Well-known skins from the server, until you miss", "Bekannte Skins vom Server, bis zum ersten Fehler");
         protected override LocalisableString TooFewItemsText => ClickerStrings.Text("You need at least four imported skins.", "Du brauchst mindestens vier importierte Skins.");
         protected override IconUsage GameIcon => FontAwesome.Solid.PaintBrush;
         protected override Color4 Accent => Colours.Blue;
@@ -52,27 +54,26 @@ namespace osu.Game.Screens.Banchosucks.Guess
                         .ToList();
         }
 
-        protected override GuessPrompt CreatePrompt(GuessItem item) => new SkinPrompt(skins.GetSkin((SkinInfo)item.Payload), item.Label, Accent);
+        protected override GuessPrompt CreatePrompt(GuessItem item) => new LocalSkinPrompt(skins.GetSkin((SkinInfo)item.Payload), item.Label, Accent);
 
-        /// <summary>The skin's elements in a row; the name appears once answered.</summary>
-        private partial class SkinPrompt : GuessPrompt
+        protected override GuessPrompt CreatePopularPrompt(GuessPoolItem item) => new OnlineSkinPrompt(item, Accent);
+
+        /// <summary>Element cells in a row, the name once answered; subclasses fill the cells.</summary>
+        private abstract partial class SkinPrompt : GuessPrompt
         {
-            private static readonly string[] judgement_names = { "hit300", "hit100", "hit50", "hit0" };
-
-            private readonly Skin skin;
-            private readonly ISkin lookup;
+            protected readonly Color4 Accent;
             private readonly string name;
-            private readonly Color4 accent;
             private OsuSpriteText nameText = null!;
             private OsuSpriteText statusText = null!;
 
-            public SkinPrompt(Skin skin, string name, Color4 accent)
+            protected SkinPrompt(string name, Color4 accent)
             {
-                this.skin = skin;
-                lookup = skin;
                 this.name = name;
-                this.accent = accent;
+                Accent = accent;
             }
+
+            /// <summary>The element pictures, up to five; may be empty.</summary>
+            protected abstract IEnumerable<Drawable> CreateCells();
 
             [BackgroundDependencyLoader]
             private void load()
@@ -84,27 +85,8 @@ namespace osu.Game.Screens.Banchosucks.Guess
                     AutoSizeAxes = Axes.Both,
                     Direction = FillDirection.Horizontal,
                     Spacing = new Vector2(18, 0),
+                    ChildrenEnumerable = CreateCells().Take(5),
                 };
-
-                var cursor = lookup.GetTexture("cursor");
-                if (cursor != null) cells.Add(cell(new[] { sprite(cursor, 1), sprite(lookup.GetTexture("cursormiddle"), 1) }));
-
-                var circle = lookup.GetTexture("hitcircle");
-
-                if (circle != null)
-                {
-                    string prefix = lookup.GetConfig<SkinConfiguration.LegacySetting, string>(SkinConfiguration.LegacySetting.HitCirclePrefix)?.Value ?? "default";
-                    var combo = lookup.GetConfig<GlobalSkinColours, IReadOnlyList<Color4>>(GlobalSkinColours.ComboColours)?.Value;
-                    var tint = combo != null && combo.Count > 0 ? combo[0] : accent;
-                    cells.Add(cell(new[] { sprite(circle, 1, tint), sprite(lookup.GetTexture("hitcircleoverlay"), 1), sprite(lookup.GetTexture($"{prefix}-1"), 0.8f) }));
-                }
-
-                foreach (string judgement in judgement_names)
-                {
-                    var texture = lookup.GetTexture(judgement) ?? lookup.GetTexture($"{judgement}-0");
-                    if (texture != null) cells.Add(cell(new[] { sprite(texture, 1) }));
-                    if (cells.Count >= 5) break;
-                }
 
                 InternalChildren = new Drawable[]
                 {
@@ -115,9 +97,9 @@ namespace osu.Game.Screens.Banchosucks.Guess
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.TopCentre,
                         Y = 18,
-                        Text = cells.Count > 0
+                        Text = cells.Children.Count > 0
                             ? ClickerStrings.Text("Whose elements are these?", "Wessen Elemente sind das?")
-                            : ClickerStrings.Text("This skin has no standard elements. Guess anyway!", "Dieser Skin hat keine Standard-Elemente. Rate trotzdem!"),
+                            : ClickerStrings.Text("No pictures for this skin. Guess anyway!", "Keine Bilder für diesen Skin. Rate trotzdem!"),
                         Font = OsuFont.GetFont(size: 18, weight: FontWeight.SemiBold),
                         Colour = Color4.White.Opacity(0.8f),
                     },
@@ -134,7 +116,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
                 };
             }
 
-            private static Drawable cell(IEnumerable<Drawable?> layers) => new Container
+            protected static Drawable Cell(IEnumerable<Drawable?> layers) => new Container
             {
                 Size = new Vector2(120),
                 Masking = true,
@@ -143,7 +125,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
                     .Concat(layers.Where(l => l != null).Select(l => l!)).ToArray(),
             };
 
-            private static Drawable? sprite(Texture? texture, float scale, Color4? colour = null)
+            protected static Drawable? Picture(Texture? texture, float scale = 1, Color4? colour = null)
             {
                 if (texture == null) return null;
 
@@ -169,11 +151,83 @@ namespace osu.Game.Screens.Banchosucks.Guess
                 statusText.FadeOut(200);
                 nameText.FadeIn(300);
             }
+        }
+
+        /// <summary>An installed skin: its own textures, composed like the game draws them.</summary>
+        private partial class LocalSkinPrompt : SkinPrompt
+        {
+            private static readonly string[] judgement_names = { "hit300", "hit100", "hit50", "hit0" };
+
+            private readonly Skin skin;
+            private readonly ISkin lookup;
+
+            public LocalSkinPrompt(Skin skin, string name, Color4 accent)
+                : base(name, accent)
+            {
+                this.skin = skin;
+                lookup = skin;
+            }
+
+            protected override IEnumerable<Drawable> CreateCells()
+            {
+                var cursor = lookup.GetTexture("cursor");
+                if (cursor != null) yield return Cell(new[] { Picture(cursor), Picture(lookup.GetTexture("cursormiddle")) });
+
+                var circle = lookup.GetTexture("hitcircle");
+
+                if (circle != null)
+                {
+                    string prefix = lookup.GetConfig<SkinConfiguration.LegacySetting, string>(SkinConfiguration.LegacySetting.HitCirclePrefix)?.Value ?? "default";
+                    var combo = lookup.GetConfig<GlobalSkinColours, IReadOnlyList<Color4>>(GlobalSkinColours.ComboColours)?.Value;
+                    var tint = combo != null && combo.Count > 0 ? combo[0] : Accent;
+                    yield return Cell(new[] { Picture(circle, 1, tint), Picture(lookup.GetTexture("hitcircleoverlay")), Picture(lookup.GetTexture($"{prefix}-1"), 0.8f) });
+                }
+
+                foreach (string judgement in judgement_names)
+                {
+                    var texture = lookup.GetTexture(judgement) ?? lookup.GetTexture($"{judgement}-0");
+                    if (texture != null) yield return Cell(new[] { Picture(texture) });
+                }
+            }
 
             protected override void Dispose(bool isDisposing)
             {
                 base.Dispose(isDisposing);
                 skin.Dispose();
+            }
+        }
+
+        /// <summary>A skin from the server's pool: its element pictures, fetched by url while the prompt loads.</summary>
+        private partial class OnlineSkinPrompt : SkinPrompt
+        {
+            [Resolved]
+            private LargeTextureStore textures { get; set; } = null!;
+
+            private readonly GuessPoolItem item;
+
+            public OnlineSkinPrompt(GuessPoolItem item, Color4 accent)
+                : base(item.Name, accent)
+            {
+                this.item = item;
+            }
+
+            protected override IEnumerable<Drawable> CreateCells()
+            {
+                foreach (string url in item.Images.Take(5))
+                {
+                    Texture? texture;
+
+                    try
+                    {
+                        texture = textures.Get(url);
+                    }
+                    catch (Exception)
+                    {
+                        texture = null;
+                    }
+
+                    if (texture != null) yield return Cell(new[] { Picture(texture) });
+                }
             }
         }
     }

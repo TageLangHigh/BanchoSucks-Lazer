@@ -10,12 +10,20 @@ using osu.Game.Online.API;
 
 namespace osu.Game.Screens.Banchosucks.Guess
 {
+    /// <summary>Library mode asks ten rounds about the player's own content; popular mode asks about the server's pool until the first mistake.</summary>
+    public enum GuessMode
+    {
+        Library,
+        Popular,
+    }
+
     /// <summary>
     /// Banchosucks: scoring of the guessing games, mirrored by the plugin's <c>banchosucks_guess/rules.py</c>.
     /// </summary>
     public static class GuessRules
     {
         public const int ROUNDS = 10;
+        public const int ENDLESS_MAX_ROUNDS = 1000;
         public const int ROUND_MS = 15_000;
         public const int BASE_POINTS = 100;
         public const int POINTS_PER_SECOND = 10;
@@ -32,21 +40,32 @@ namespace osu.Game.Screens.Banchosucks.Guess
             int bonus = Math.Min(STREAK_BONUS_CAP, STREAK_BONUS * Math.Max(0, streak - 1));
             return BASE_POINTS + remaining / 1000 * POINTS_PER_SECOND + bonus;
         }
+
+        /// <summary>"song", "skin", "song_endless" or "skin_endless": the board a run goes to.</summary>
+        public static string KindFor(string game, GuessMode mode) => mode == GuessMode.Popular ? $"{game}_endless" : game;
     }
 
-    /// <summary>One finished run of a guessing game.</summary>
+    /// <summary>One run of a guessing game: ten rounds, or in endless mode until the first wrong answer.</summary>
     public class GuessRun
     {
+        public readonly bool Endless;
+
         public int Score { get; private set; }
         public int Correct { get; private set; }
         public int Rounds { get; private set; }
         public int Streak { get; private set; }
         public int BestStreak { get; private set; }
+        public bool Ended { get; private set; }
         private long answerMsSum;
+
+        public GuessRun(bool endless = false)
+        {
+            Endless = endless;
+        }
 
         public int AverageAnswerMs => Correct > 0 ? (int)(answerMsSum / Correct) : 0;
 
-        public bool Finished => Rounds >= GuessRules.ROUNDS;
+        public bool Finished => Ended || (Endless ? Rounds >= GuessRules.ENDLESS_MAX_ROUNDS : Rounds >= GuessRules.ROUNDS);
 
         /// <summary>Records an answer; returns the points it gave.</summary>
         public int Answer(bool correct, int elapsedMs)
@@ -56,6 +75,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
             if (!correct)
             {
                 Streak = 0;
+                if (Endless) Ended = true;
                 return 0;
             }
 
@@ -113,6 +133,23 @@ namespace osu.Game.Screens.Banchosucks.Guess
         [JsonProperty("best")] public Dictionary<string, GuessLeaderboardEntry> Best { get; set; } = new Dictionary<string, GuessLeaderboardEntry>();
     }
 
+    /// <summary>One entry of the server's pool: a popular beatmap set (id, artist, title) or a skin (name, image urls).</summary>
+    public class GuessPoolItem
+    {
+        [JsonProperty("id")] public long Id { get; set; }
+        [JsonProperty("name")] public string Name { get; set; } = string.Empty;
+        [JsonProperty("artist")] public string? Artist { get; set; }
+        [JsonProperty("title")] public string? Title { get; set; }
+        [JsonProperty("images")] public List<string> Images { get; set; } = new List<string>();
+    }
+
+    public class GuessPoolResponse
+    {
+        [JsonProperty("kind")] public string Kind { get; set; } = "song";
+        [JsonProperty("total")] public int Total { get; set; }
+        [JsonProperty("items")] public List<GuessPoolItem> Items { get; set; } = new List<GuessPoolItem>();
+    }
+
     /// <summary>Banchosucks: sends a finished guessing run to the lazer server plugin.</summary>
     public class SubmitGuessRequest : APIRequest<GuessSubmitResponse>
     {
@@ -137,7 +174,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
         }
     }
 
-    /// <summary>Banchosucks: leaderboard of one guessing game.</summary>
+    /// <summary>Banchosucks: leaderboard of one guessing game and mode.</summary>
     public class GetGuessLeaderboardRequest : APIRequest<GuessLeaderboardResponse>
     {
         public readonly string Kind;
@@ -160,11 +197,33 @@ namespace osu.Game.Screens.Banchosucks.Guess
         }
     }
 
-    /// <summary>Banchosucks: the player's best runs of both guessing games.</summary>
+    /// <summary>Banchosucks: the player's best runs of all guessing boards.</summary>
     public class GetGuessBestRequest : APIRequest<GuessBestResponse>
     {
         protected override string Route => "plugins";
 
         protected override string Target => "banchosucks_guess/best";
+    }
+
+    /// <summary>Banchosucks: the server's pool of popular songs or skins for the endless mode.</summary>
+    public class GetGuessPoolRequest : APIRequest<GuessPoolResponse>
+    {
+        public readonly string Game;
+
+        public GetGuessPoolRequest(string game)
+        {
+            Game = game;
+        }
+
+        protected override string Route => "plugins";
+
+        protected override string Target => "banchosucks_guess/pool";
+
+        protected override WebRequest CreateWebRequest()
+        {
+            var req = base.CreateWebRequest();
+            req.AddParameter("kind", Game);
+            return req;
+        }
     }
 }

@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE-OSU file in the repository root for full licence text.
 
+using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 using NUnit.Framework;
@@ -67,7 +68,7 @@ namespace osu.Game.Tests.NonVisual
             Assert.That(TycoonRules.DonationRate(state), Is.EqualTo(2.295056).Within(1e-6));
             Assert.That(TycoonRules.Spent(state), Is.EqualTo(611.0));
             Assert.That(TycoonRules.MaxPlayersBound(state), Is.EqualTo(466.4352).Within(1e-4));
-            Assert.That(TycoonRules.MaxDonationRate(state), Is.EqualTo(83.958333).Within(1e-6));
+            Assert.That(TycoonRules.MaxDonationRate(state), Is.EqualTo(83.958333 * 1.15).Within(1e-6), "the comfort cap is part of the bound");
         }
 
         [Test]
@@ -109,9 +110,44 @@ namespace osu.Game.Tests.NonVisual
         }
 
         [Test]
+        public void TestOffice()
+        {
+            var layout = new List<TycoonPlacement>
+            {
+                new TycoonPlacement { X = 0, Y = 0, Key = "plant" },
+                new TycoonPlacement { X = 1, Y = 0, Key = "coffee" },
+                new TycoonPlacement { X = 2, Y = 0, Key = "sofa" },
+                new TycoonPlacement { X = 3, Y = 0, Key = "rack" },
+            };
+            Assert.That(TycoonRules.ComfortPoints(layout), Is.EqualTo(6));
+            Assert.That(TycoonRules.ComfortMult(layout), Is.EqualTo(1.03).Within(1e-9));
+            Assert.That(TycoonRules.LayoutCost(layout), Is.EqualTo(3250.0));
+            var many = Enumerable.Range(0, 40).Select(i => new TycoonPlacement { X = i % 14, Y = i / 14, Key = "arcade" }).ToList();
+            Assert.That(TycoonRules.ComfortMult(many), Is.EqualTo(1.15).Within(1e-9), "comfort is capped");
+
+            var state = new TycoonState { Players = 100, Layout = layout };
+            Assert.That(TycoonRules.DonationRate(state), Is.EqualTo(100 * 0.05 * 1.5 * 1.03).Within(1e-9));
+            Assert.That(TycoonRules.Spent(state), Is.EqualTo(3250.0));
+
+            state = new TycoonState { Donations = 1000 };
+            Assert.That(TycoonRules.Place(state, 2, 3, "plant"), Is.True);
+            Assert.That(state.Donations, Is.EqualTo(850.0));
+            Assert.That(TycoonRules.Place(state, 2, 3, "coffee"), Is.False, "the cell is taken");
+            Assert.That(TycoonRules.Place(state, 14, 0, "plant"), Is.False, "outside the office");
+            Assert.That(TycoonRules.Place(state, 0, 0, "sofa"), Is.False, "too expensive");
+            Assert.That(TycoonRules.Place(state, 0, 0, "rack"), Is.True);
+            Assert.That(TycoonRules.Place(state, 1, 0, "rack"), Is.True);
+            Assert.That(TycoonRules.Place(state, 3, 0, "rack"), Is.False, "two racks on a Raspberry Pi");
+            Assert.That(TycoonRules.Remove(state, 2, 3), Is.True);
+            Assert.That(state.Donations, Is.EqualTo(925.0), "half the price comes back");
+            Assert.That(TycoonRules.Remove(state, 2, 3), Is.False);
+        }
+
+        [Test]
         public void TestSaveRoundTrip()
         {
             var state = sampleRun();
+            state.Layout.Add(new TycoonPlacement { X = 4, Y = 2, Key = "coffee" });
             string json = JsonConvert.SerializeObject(state);
             Assert.That(json, Does.Contain("\"lifetime_total\""));
             Assert.That(json, Does.Contain("\"marketing\":{\"discord\":3"));
@@ -120,6 +156,8 @@ namespace osu.Game.Tests.NonVisual
             Assert.That(back.Players, Is.EqualTo(state.Players));
             Assert.That(back.Features, Is.EqualTo(new[] { "website" }));
             Assert.That(back.MarketingCount("reddit"), Is.EqualTo(0));
+            Assert.That(json, Does.Contain("\"layout\":[{\"x\":4,\"y\":2,\"k\":\"coffee\"}]"));
+            Assert.That(back.Layout.Single().Key, Is.EqualTo("coffee"));
         }
     }
 }

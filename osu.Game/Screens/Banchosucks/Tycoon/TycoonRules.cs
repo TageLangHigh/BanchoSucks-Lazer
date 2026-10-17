@@ -41,10 +41,23 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         [JsonProperty("events")] public int Events { get; set; }
         [JsonProperty("play_seconds")] public double PlaySeconds { get; set; }
 
+        /// <summary>What stands where in the office.</summary>
+        [JsonProperty("layout")] public List<TycoonPlacement> Layout { get; set; } = new List<TycoonPlacement>();
+
         public int MarketingCount(string key) => Marketing.TryGetValue(key, out int count) ? count : 0;
 
         public bool Has(string feature) => Features.Contains(feature);
     }
+
+    /// <summary>One thing on one cell of the office grid.</summary>
+    public class TycoonPlacement
+    {
+        [JsonProperty("x")] public int X { get; set; }
+        [JsonProperty("y")] public int Y { get; set; }
+        [JsonProperty("k")] public string Key { get; set; } = "plant";
+    }
+
+    public readonly record struct TycoonDecoration(string Key, long Cost, int Comfort, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
     public readonly record struct TycoonHardware(string Key, int Capacity, long Cost, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
@@ -76,6 +89,27 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public const double CLICK_PER_BUILDING = 0.05;
         public const double COST_GROWTH = 1.15;
         public const double EVENT_BOOST = 2.0;
+
+        public const int OFFICE_WIDTH = 14;
+        public const int OFFICE_HEIGHT = 9;
+        public const int OFFICE_MAX_ITEMS = OFFICE_WIDTH * OFFICE_HEIGHT;
+        public const double COMFORT_PER_POINT = 0.005;
+        public const double COMFORT_CAP = 0.15;
+
+        /// <summary>Things to put into the office; comfort raises donations a little (see <see cref="ComfortMult"/>).</summary>
+        public static readonly TycoonDecoration[] Decorations =
+        {
+            new TycoonDecoration("rack", 0, 0, "Server rack", "Server-Rack", "Free; one per hardware level, two to begin with.", "Kostenlos; eins je Hardware-Stufe, zwei zu Beginn."),
+            new TycoonDecoration("carpet", 100, 0, "Carpet", "Teppich", "Looks tidy. Does nothing.", "Sieht ordentlich aus. Macht nichts."),
+            new TycoonDecoration("plant", 150, 1, "Plant", "Pflanze", "Someone remembers to water it.", "Irgendwer denkt ans Gießen."),
+            new TycoonDecoration("desk", 250, 1, "Desk", "Schreibtisch", "A PC, a mug, a sticker collection.", "Ein PC, eine Tasse, eine Stickersammlung."),
+            new TycoonDecoration("poster", 300, 1, "Poster", "Poster", "A top play, framed.", "Ein Top-Play, gerahmt."),
+            new TycoonDecoration("coffee", 600, 2, "Coffee machine", "Kaffeemaschine", "Runs hotter than the server.", "Läuft heißer als der Server."),
+            new TycoonDecoration("sofa", 2_500, 3, "Sofa", "Sofa", "For the night shift.", "Für die Nachtschicht."),
+            new TycoonDecoration("fridge", 4_000, 3, "Fridge", "Kühlschrank", "Full of energy drinks.", "Voller Energy-Drinks."),
+            new TycoonDecoration("aircon", 8_000, 4, "Air conditioning", "Klimaanlage", "The racks stop sweating.", "Die Racks hören auf zu schwitzen."),
+            new TycoonDecoration("arcade", 15_000, 5, "Arcade cabinet", "Arcade-Automat", "osu! on a cabinet. Of course.", "osu! am Automaten. Natürlich."),
+        };
 
         public static readonly TycoonHardware[] Hardware =
         {
@@ -147,6 +181,20 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
         public static double LegacyMult(int legacy) => 1.0 + LEGACY_BONUS * Math.Max(0, legacy);
 
+        public static TycoonDecoration? DecorationOf(string key) => Decorations.Any(d => d.Key == key) ? Decorations.First(d => d.Key == key) : null;
+
+        public static long DecorationCost(string key) => DecorationOf(key)?.Cost ?? 0;
+
+        public static int ComfortPoints(IEnumerable<TycoonPlacement> layout) => layout.Sum(p => DecorationOf(p.Key)?.Comfort ?? 0);
+
+        /// <summary>Furniture makes the team happier and the donors more generous: +0.5 % per comfort point, up to +15 %.</summary>
+        public static double ComfortMult(IEnumerable<TycoonPlacement> layout) => 1.0 + Math.Min(COMFORT_CAP, COMFORT_PER_POINT * ComfortPoints(layout));
+
+        /// <summary>Racks on the plot are free but limited by the hardware: one per level, two at the start.</summary>
+        public static int RackLimit(int hardware) => hardware + 2;
+
+        public static double LayoutCost(IEnumerable<TycoonPlacement> layout) => layout.Sum(p => (double)DecorationCost(p.Key));
+
         public static double MarketingRate(TycoonState state) => Marketing.Sum(m => state.MarketingCount(m.Key) * m.Rate);
 
         public static double ClickValue(TycoonState state) => CLICK_BASE + CLICK_PER_BUILDING * Marketing.Sum(m => state.MarketingCount(m.Key));
@@ -160,6 +208,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             for (int level = 1; level <= state.Hardware; level++) total += HardwareCost(level);
             foreach (var m in Marketing) total += MarketingTotalCost(m.Key, state.MarketingCount(m.Key));
             foreach (string key in state.Features) total += FeatureCost(key);
+            total += LayoutCost(state.Layout);
             return total;
         }
 
@@ -167,7 +216,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             MarketingRate(state) * InflowMult(state.Features) * LegacyMult(state.Legacy) * RufFactor(state.Ruf) * boost;
 
         public static double DonationRate(TycoonState state, double boost = 1.0) =>
-            state.Players * DONATION_PER_PLAYER * RufFactor(state.Ruf) * DonationMult(state.Features) * LegacyMult(state.Legacy) * boost;
+            state.Players * DONATION_PER_PLAYER * RufFactor(state.Ruf) * DonationMult(state.Features) * LegacyMult(state.Legacy) * ComfortMult(state.Layout) * boost;
 
         /// <summary>Advances the simulation by <paramref name="dt"/> seconds (at most one second per call); returns the donations gained.</summary>
         public static double Step(TycoonState state, double dt, double inflowBoost = 1.0, double donationBoost = 1.0)
@@ -248,6 +297,32 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             return true;
         }
 
+        /// <summary>Puts a decoration on a free cell, paying for it; racks are free but limited by the hardware.</summary>
+        public static bool Place(TycoonState state, int x, int y, string key)
+        {
+            if (DecorationOf(key) == null || x < 0 || x >= OFFICE_WIDTH || y < 0 || y >= OFFICE_HEIGHT) return false;
+            if (state.Layout.Any(p => p.X == x && p.Y == y) || state.Layout.Count >= OFFICE_MAX_ITEMS) return false;
+            if (key == "rack" && state.Layout.Count(p => p.Key == "rack") >= RackLimit(state.Hardware)) return false;
+
+            long cost = DecorationCost(key);
+            if (!CanAfford(state, cost)) return false;
+
+            state.Donations -= cost;
+            state.Layout.Add(new TycoonPlacement { X = x, Y = y, Key = key });
+            return true;
+        }
+
+        /// <summary>Takes a decoration away; half the price comes back.</summary>
+        public static bool Remove(TycoonState state, int x, int y)
+        {
+            var placement = state.Layout.FirstOrDefault(p => p.X == x && p.Y == y);
+            if (placement == null) return false;
+
+            state.Layout.Remove(placement);
+            state.Donations += DecorationCost(placement.Key) / 2.0;
+            return true;
+        }
+
         public static bool BuyFeature(TycoonState state, string key)
         {
             if (FeatureOf(key) == null || state.Has(key) || !CanAfford(state, FeatureCost(key))) return false;
@@ -291,6 +366,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             state.Legacy = fresh.Legacy;
             state.Events = fresh.Events;
             state.PlaySeconds = fresh.PlaySeconds;
+            state.Layout = fresh.Layout;
             return gain;
         }
 
@@ -305,6 +381,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
         /// <summary>The server's bound on donations per second for this save.</summary>
         public static double MaxDonationRate(TycoonState state) =>
-            MaxPlayersBound(state) * DONATION_PER_PLAYER * 1.5 * DonationMult(state.Features) * LegacyMult(state.Legacy) * EVENT_BOOST;
+            MaxPlayersBound(state) * DONATION_PER_PLAYER * 1.5 * DonationMult(state.Features) * LegacyMult(state.Legacy) * (1.0 + COMFORT_CAP) * EVENT_BOOST;
     }
 }
