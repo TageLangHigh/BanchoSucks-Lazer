@@ -77,6 +77,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
     public readonly record struct TycoonFeature(string Key, long Cost, double DonationMult, double InflowMult, double RegenMult, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
+    public readonly record struct TycoonPerk(int Legacy, string Key, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
+
     public readonly record struct TycoonStaff(string Key, long BaseCost, double DonationPerHead, double InflowPerHead, double RegenPerHead, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
     /// <summary>
@@ -113,6 +115,26 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
         public const int STAFF_MAX_LEVEL = 5;
         public const double STAFF_GROWTH = 2.0;
+
+        public const int PERK_MARKETING_PERCENT = 90;
+        public const int PERK_HARDWARE_PERCENT = 85;
+        public const double QUICKSTART_CASH = 100;
+        public const double REGULARS_PLAYERS = 50;
+        public const double OFFLINE_CAP_NIGHTSHIFT = 12 * 3600;
+
+        /// <summary>Unlocked by legacy points for good, nothing is spent (see economy.py LEGACY_PERKS).</summary>
+        public static readonly TycoonPerk[] LegacyPerks =
+        {
+            new TycoonPerk(1, "quickstart", "Quick start", "Schnellstart", "A new season starts with the old laptop and 100 donations.", "Eine neue Saison beginnt mit dem alten Laptop und 100 Spenden."),
+            new TycoonPerk(3, "bulk", "Bulk discount", "Mengenrabatt", "Marketing costs 10 % less.", "Marketing kostet 10 % weniger."),
+            new TycoonPerk(6, "hardware", "Hardware partner", "Hardware-Partner", "Hardware costs 15 % less.", "Hardware kostet 15 % weniger."),
+            new TycoonPerk(10, "regulars", "Regulars", "Stammspieler", "A new season starts with 50 players online.", "Eine neue Saison beginnt mit 50 Spielern online."),
+            new TycoonPerk(15, "nightshift", "Night shift", "Nachtschicht", "Offline progress counts for up to 12 hours.", "Offline-Fortschritt zählt bis zu 12 Stunden."),
+        };
+
+        public static bool HasPerk(int legacy, string key) => LegacyPerks.Any(p => p.Key == key && legacy >= p.Legacy);
+
+        public static double OfflineCap(int legacy) => HasPerk(legacy, "nightshift") ? OFFLINE_CAP_NIGHTSHIFT : OFFLINE_CAP;
 
         /// <summary>Things to put into the office; comfort raises donations a little (see <see cref="ComfortMult"/>).</summary>
         public static readonly TycoonDecoration[] Decorations =
@@ -181,17 +203,25 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
         public static int Capacity(int level) => HardwareAt(level).Capacity;
 
-        /// <summary>Price of upgrading to <paramref name="level"/>; 0 for the starting hardware and beyond the ladder.</summary>
-        public static long HardwareCost(int level) => level >= 0 && level < Hardware.Length ? Hardware[level].Cost : 0;
+        /// <summary>Price of upgrading to <paramref name="level"/>; 0 for the starting hardware and beyond the ladder; 15 % off with the hardware perk.</summary>
+        public static long HardwareCost(int level, int legacy = 0)
+        {
+            long cost = level >= 0 && level < Hardware.Length ? Hardware[level].Cost : 0;
+            return HasPerk(legacy, "hardware") ? cost * PERK_HARDWARE_PERCENT / 100 : cost;
+        }
 
         public static TycoonMarketing MarketingOf(string key) => Marketing.First(m => m.Key == key);
 
-        public static long MarketingCost(string key, int owned) => (long)Math.Floor(MarketingOf(key).BaseCost * Math.Pow(COST_GROWTH, owned));
+        public static long MarketingCost(string key, int owned, int legacy = 0)
+        {
+            long cost = (long)Math.Floor(MarketingOf(key).BaseCost * Math.Pow(COST_GROWTH, owned));
+            return HasPerk(legacy, "bulk") ? cost * PERK_MARKETING_PERCENT / 100 : cost;
+        }
 
-        public static long MarketingTotalCost(string key, int owned)
+        public static long MarketingTotalCost(string key, int owned, int legacy = 0)
         {
             long total = 0;
-            for (int i = 0; i < owned; i++) total += MarketingCost(key, i);
+            for (int i = 0; i < owned; i++) total += MarketingCost(key, i, legacy);
             return total;
         }
 
@@ -248,8 +278,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public static double Spent(TycoonState state)
         {
             double total = 0;
-            for (int level = 1; level <= state.Hardware; level++) total += HardwareCost(level);
-            foreach (var m in Marketing) total += MarketingTotalCost(m.Key, state.MarketingCount(m.Key));
+            for (int level = 1; level <= state.Hardware; level++) total += HardwareCost(level, state.Legacy);
+            foreach (var m in Marketing) total += MarketingTotalCost(m.Key, state.MarketingCount(m.Key), state.Legacy);
             foreach (string key in state.Features) total += FeatureCost(key);
             total += LayoutCost(state.Layout);
             foreach (var s in Staff) total += StaffTotalCost(s.Key, state.StaffCount(s.Key));
@@ -333,9 +363,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public static bool BuyHardware(TycoonState state)
         {
             int level = state.Hardware + 1;
-            if (level >= Hardware.Length || !CanAfford(state, HardwareCost(level))) return false;
+            long cost = HardwareCost(level, state.Legacy);
+            if (level >= Hardware.Length || !CanAfford(state, cost)) return false;
 
-            state.Donations -= HardwareCost(level);
+            state.Donations -= cost;
             state.Hardware = level;
             return true;
         }
@@ -347,7 +378,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             int owned = state.MarketingCount(key);
             if (owned >= MAX_COUNT || state.Hardware < MarketingOf(key).MinHardware) return false;
 
-            long cost = MarketingCost(key, owned);
+            long cost = MarketingCost(key, owned, state.Legacy);
             if (!CanAfford(state, cost)) return false;
 
             state.Donations -= cost;
@@ -425,6 +456,20 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 Legacy = state.Legacy + gain,
                 Quest = state.Quest,
             };
+
+            if (HasPerk(fresh.Legacy, "quickstart"))
+            {
+                fresh.Hardware = 1;
+                fresh.Donations = QUICKSTART_CASH;
+                fresh.RunTotal = QUICKSTART_CASH;
+                fresh.LifetimeTotal += QUICKSTART_CASH;
+            }
+
+            if (HasPerk(fresh.Legacy, "regulars"))
+            {
+                fresh.Players = REGULARS_PLAYERS;
+                fresh.MaxPlayers = Math.Max(fresh.MaxPlayers, REGULARS_PLAYERS);
+            }
 
             state.Donations = fresh.Donations;
             state.Pending = fresh.Pending;

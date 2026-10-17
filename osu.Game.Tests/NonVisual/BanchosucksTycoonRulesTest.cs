@@ -131,8 +131,8 @@ namespace osu.Game.Tests.NonVisual
             state.RunTotal = 4_000_000;
             state.LifetimeTotal = 4_000_000;
             Assert.That(TycoonRules.Prestige(state), Is.EqualTo(2));
-            Assert.That((state.Legacy, state.Prestige, state.Hardware, state.Ruf, state.Donations), Is.EqualTo((2, 1, 0, 100.0, 0.0)));
-            Assert.That(state.LifetimeTotal, Is.EqualTo(4_000_000.0), "the lifetime total survives the restart");
+            Assert.That((state.Legacy, state.Prestige, state.Hardware, state.Ruf, state.Donations), Is.EqualTo((2, 1, 1, 100.0, 100.0)), "quick start perk: laptop and 100 donations");
+            Assert.That((state.RunTotal, state.LifetimeTotal), Is.EqualTo((100.0, 4_000_100.0)), "the start money counts as earned, the lifetime total survives");
             Assert.That(state.MarketingCount("discord"), Is.EqualTo(0));
             Assert.That(TycoonRules.Prestige(new TycoonState()), Is.EqualTo(0));
         }
@@ -166,6 +166,33 @@ namespace osu.Game.Tests.NonVisual
             Assert.That(TycoonRules.Remove(state, 2, 3), Is.True);
             Assert.That(state.Donations, Is.EqualTo(925.0), "half the price comes back");
             Assert.That(TycoonRules.Remove(state, 2, 3), Is.False);
+        }
+
+        [Test]
+        public void TestPerks()
+        {
+            Assert.That(TycoonRules.HasPerk(1, "quickstart"), Is.True);
+            Assert.That(TycoonRules.HasPerk(0, "quickstart"), Is.False);
+            Assert.That(TycoonRules.HasPerk(15, "nightshift"), Is.True);
+            Assert.That(TycoonRules.HasPerk(14, "nightshift"), Is.False);
+            Assert.That(TycoonRules.OfflineCap(15), Is.EqualTo(12 * 3600));
+            Assert.That((TycoonRules.MarketingCost("discord", 0, 2), TycoonRules.MarketingCost("discord", 0, 3)), Is.EqualTo((15L, 13L)));
+            Assert.That(TycoonRules.MarketingTotalCost("discord", 3, 3), Is.EqualTo(45), "13 + 15 + 17");
+            Assert.That((TycoonRules.HardwareCost(1, 5), TycoonRules.HardwareCost(1, 6), TycoonRules.HardwareCost(3, 6)), Is.EqualTo((60L, 51L, 2550L)));
+
+            var state = sampleRun();
+            state.Legacy = 6;
+            Assert.That(TycoonRules.Spent(state), Is.EqualTo(596.0), "51 + 45 + 500");
+
+            state = new TycoonState { Legacy = 6, Donations = 51 };
+            Assert.That(TycoonRules.BuyHardware(state), Is.True, "the laptop costs 51 with the perk");
+            Assert.That(state.Donations, Is.EqualTo(0.0));
+
+            state = sampleRun();
+            state.RunTotal = 100_000_000;
+            state.LifetimeTotal = 100_000_000;
+            Assert.That(TycoonRules.Prestige(state), Is.EqualTo(10));
+            Assert.That((state.Players, state.MaxPlayers, state.Hardware), Is.EqualTo((50.0, 50.0, 1)));
         }
 
         [Test]

@@ -183,7 +183,16 @@ and restart the app container.
   (`TycoonScreen.Extras.cs`): a four-minute day and night with lamps, chatter bubbles, a trophy
   shelf for the milestones, a floor that changes with the hardware, smoke and a LAG sign when
   overloaded, event effects (cheaters walking in and getting banned, DDoS rings, sparks, confetti,
-  coin showers). The layout and the team are part of the save and of the server's spending check. The server bounds what a save may have earned since the last one
+  coin showers, cloud shadows, bobbing avatars). Legacy thresholds unlock perks for good (`LegacyPerks`,
+  mirrored in economy.py): quick start (laptop and 100 donations, counted as earned), 10 % off
+  marketing, 15 % off hardware (integer percentages so both sides round alike), 50 regulars at the
+  start of a season, 12 hours of offline progress; seasons carry titles and stars on the owner sign,
+  the restart plays an animation. Side panel: a help overlay ("How to play"), Shift buys ten marketing
+  buildings at once, the income line has a tooltip with every factor, the stats tab starts with an
+  income graph (last five minutes) and lists the perks, a bar shows the progress to the next legacy
+  point, and an Audio tab binds the osu! master, music and effect volumes with music controls. Two
+  sounds (`UI/notification-pop`, `UI/check-on`). The layout and the team are part of the save and of
+  the server's spending check. The server bounds what a save may have earned since the last one
   and refuses saves that spent more than they earned. A stats tab lists play time, posts, events,
   seasons, team, quests and sixteen milestones. Leaderboards
   by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.

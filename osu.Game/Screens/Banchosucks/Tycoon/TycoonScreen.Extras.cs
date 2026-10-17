@@ -222,9 +222,25 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             private int lastStaffTotal = -1;
             private int lastTheme = -1;
             private bool lagging;
+            private readonly List<CloudShadow> clouds = new List<CloudShadow>();
+
+            /// <summary>Shift is held: marketing pads offer ten at once.</summary>
+            public bool Bulk;
 
             private void buildExtras()
             {
+                // the season restart scales the buildings down around the middle of the plot
+                structures.Anchor = Anchor.Centre;
+                structures.Origin = Anchor.Centre;
+
+                // cloud shadows drift over the floor by day
+                for (int i = 0; i < 3; i++)
+                {
+                    var cloud = new CloudShadow(rng);
+                    clouds.Add(cloud);
+                    floor.Add(cloud);
+                }
+
                 // the team office right of the lower droppers: a lighter floor patch, desks per hire, three pads
                 structures.Add(new Container
                 {
@@ -387,13 +403,28 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
                 foreach (var lamp in lamps)
                     lamp.SetNight(night);
+
+                foreach (var cloud in clouds)
+                    cloud.Alpha = 0.03f + 0.12f * (1 - night);
             }
 
             // ------------------------------------------------------------ things the screen asks for
 
             public void Announce(IconUsage icon, LocalisableString text, Color4 colour) => banner.Show(icon, text, colour);
 
-            public void SetOwner(string name) => ownerSign.SetName(name);
+            public void SetOwner(string name, int prestige) => ownerSign.Set(name, prestige);
+
+            public void PopupAtCollector(string text, Color4 colour) => popup(cell(18, 10.2f), text, colour);
+
+            /// <summary>The old season goes down, the new one rises: buildings shrink away and come back, confetti, a banner.</summary>
+            public void PlaySeasonReset(int season)
+            {
+                structures.ClearTransforms();
+                structures.ScaleTo(0.92f, 350, Easing.In).FadeOut(350).Then().ScaleTo(1, 600, Easing.OutBack).FadeIn(600);
+                flash(Color4Extensions.FromHex("9c7cf5"));
+                confetti(40);
+                Scheduler.AddDelayed(() => Announce(FontAwesome.Solid.Redo, ClickerStrings.Text("Season {0}", "Saison {0}", season), Color4Extensions.FromHex("9c7cf5")), 400);
+            }
 
             public void LightTrophy(int index, bool animate) => trophies.Light(index, animate);
 
@@ -561,6 +592,22 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 Scheduler.AddDelayed(collector.Pulse, count * 70 + 600);
             }
 
+            /// <summary>A line of text floating up from a spot on the plot.</summary>
+            private void popup(Vector2 position, string text, Color4 colour)
+            {
+                var label = new OsuSpriteText
+                {
+                    Origin = Anchor.BottomCentre,
+                    Position = position,
+                    Text = text,
+                    Font = OsuFont.GetFont(size: 15, weight: FontWeight.Bold),
+                    Colour = colour,
+                    Shadow = true,
+                };
+                effects.Add(label);
+                label.MoveToOffset(new Vector2(0, -30), 800, Easing.OutQuint).FadeOut(800, Easing.In).Expire();
+            }
+
             /// <summary>A puff of smoke from the servers while they lag.</summary>
             private void puff()
             {
@@ -668,6 +715,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             private partial class OwnerSign : CompositeDrawable
             {
                 private readonly OsuSpriteText nameText;
+                private readonly FillFlowContainer stars;
+                private string shownName = string.Empty;
+                private int shownStars = -1;
 
                 public OwnerSign()
                 {
@@ -685,17 +735,69 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             new Box { RelativeSizeAxes = Axes.X, Height = 6, Colour = Color4Extensions.FromHex("34475c") },
                             new SpriteIcon { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 8, Y = 2, Size = new Vector2(12), Icon = FontAwesome.Solid.Home, Colour = Color4Extensions.FromHex("F5CD30") },
                             nameText = new OsuSpriteText { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 26, Y = 2, Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold), Shadow = true },
+                            stars = new FillFlowContainer { Anchor = Anchor.CentreRight, Origin = Anchor.CentreRight, X = -46, Y = 2, AutoSizeAxes = Axes.Both, Direction = FillDirection.Horizontal, Spacing = new Vector2(1, 0) },
                             new OsuSpriteText { Anchor = Anchor.CentreRight, Origin = Anchor.CentreRight, X = -8, Y = 2, Text = "TYCOON", Font = OsuFont.GetFont(size: 8, weight: FontWeight.Bold), Colour = Color4Extensions.FromHex("F5CD30") },
                         },
                     };
                 }
 
-                public void SetName(string name) => nameText.Text = name;
+                /// <summary>The name and one star per season played, up to five.</summary>
+                public void Set(string name, int prestige)
+                {
+                    if (name != shownName)
+                    {
+                        shownName = name;
+                        nameText.Text = name;
+                    }
+
+                    int count = Math.Min(5, prestige);
+                    if (count == shownStars) return;
+
+                    shownStars = count;
+                    stars.Clear();
+
+                    for (int i = 0; i < count; i++)
+                        stars.Add(new SpriteIcon { Size = new Vector2(7), Icon = FontAwesome.Solid.Star, Colour = Color4Extensions.FromHex("F5CD30") });
+                }
 
                 protected override void Update()
                 {
                     base.Update();
-                    nameText.Scale = new Vector2(Math.Min(1, (DrawWidth - 80) / Math.Max(1, nameText.DrawWidth)));
+                    nameText.Scale = new Vector2(Math.Min(1, (DrawWidth - 86 - shownStars * 8) / Math.Max(1, nameText.DrawWidth)));
+                }
+            }
+
+            /// <summary>A soft dark blob drifting over the floor: the shadow of a cloud.</summary>
+            private partial class CloudShadow : CompositeDrawable
+            {
+                private readonly float speed;
+
+                public CloudShadow(Random rng)
+                {
+                    speed = 6 + (float)rng.NextDouble() * 6;
+                    Position = new Vector2((float)rng.NextDouble() * WIDTH, (float)rng.NextDouble() * HEIGHT);
+                    Origin = Anchor.Centre;
+                    Size = new Vector2(150, 70);
+                    Alpha = 0.1f;
+
+                    InternalChildren = new Drawable[]
+                    {
+                        new Circle { Anchor = Anchor.CentreLeft, Origin = Anchor.Centre, X = 45, Size = new Vector2(80, 60), Colour = Color4.Black },
+                        new Circle { Anchor = Anchor.Centre, Origin = Anchor.Centre, Y = -6, Size = new Vector2(90, 70), Colour = Color4.Black },
+                        new Circle { Anchor = Anchor.CentreRight, Origin = Anchor.Centre, X = -40, Size = new Vector2(70, 50), Colour = Color4.Black },
+                    };
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    X += (float)(speed * Clock.ElapsedFrameTime / 1000);
+
+                    if (X > WIDTH + 100)
+                    {
+                        X = -100;
+                        Y = (float)(RNG.NextDouble() * HEIGHT);
+                    }
                 }
             }
 

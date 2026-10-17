@@ -11,6 +11,7 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
@@ -19,6 +20,7 @@ using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Framework.Screens;
+using osu.Framework.Utils;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Containers;
@@ -85,7 +87,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private OsuSpriteText serverNameText = null!;
         private OsuSpriteText seasonText = null!;
         private OsuSpriteText cashText = null!;
-        private OsuSpriteText rateText = null!;
+        private TooltipSpriteText rateText = null!;
         private OsuSpriteText boxText = null!;
         private OsuSpriteText playersText = null!;
         private OsuSpriteText capacityText = null!;
@@ -102,6 +104,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private ClickerPillButton prestigeButton = null!;
         private FillFlowContainer statsFlow = null!;
         private QuestCard questCard = null!;
+        private HelpOverlay helpOverlay = null!;
+        private TruncatingSpriteText keysText = null!;
+        private Box prestigeBar = null!;
+        private bool prestigePulsing;
         private TycoonLeaderboardPanel board = null!;
         private readonly Dictionary<Tab, ClickerTabButton> tabButtons = new Dictionary<Tab, ClickerTabButton>();
         private readonly Dictionary<Tab, Drawable> tabContents = new Dictionary<Tab, Drawable>();
@@ -111,6 +117,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         {
             Stats,
             Board,
+            Audio,
         }
 
         private static string n(double value) => ClickerFormat.Number(value);
@@ -170,13 +177,22 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                     Anchor = Anchor.CentreLeft,
                                     Origin = Anchor.CentreLeft,
                                 },
+                                new ClickerPillButton(t("How to play", "Wie spielt man?"), colours.Blue, toggleHelp, FontAwesome.Solid.QuestionCircle)
+                                {
+                                    Anchor = Anchor.CentreLeft,
+                                    Origin = Anchor.CentreLeft,
+                                },
                             },
                         },
                         plotHost = new Container
                         {
                             RelativeSizeAxes = Axes.Both,
                             Padding = new MarginPadding { Top = 44 },
-                            Child = plot = new TycoonPlot(this, colours),
+                            Children = new Drawable[]
+                            {
+                                plot = new TycoonPlot(this, colours),
+                                helpOverlay = new HelpOverlay(),
+                            },
                         },
                     },
                 },
@@ -198,8 +214,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         protected override void LoadComplete()
         {
             base.LoadComplete();
-            serverNameText.Text = serverName();
-            plot.SetOwner(serverName());
+            ownerName = serverName();
+            serverNameText.Text = ownerName;
+            plot.SetOwner(ownerName, 0);
+            keysText.Text = t("Space: post · C / Enter: collect · Shift + pad: ten at once · right click: sell decoration", "Leertaste: posten · C / Enter: einsammeln · Shift + Pad: zehn auf einmal · Rechtsklick: Deko verkaufen");
             beginLoading();
         }
 
@@ -237,6 +255,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                      {
                          (Tab.Stats, t("Stats", "Statistik"), FontAwesome.Solid.ChartBar),
                          (Tab.Board, t("Ranking", "Rangliste"), FontAwesome.Solid.Trophy),
+                         (Tab.Audio, t("Audio", "Audio"), FontAwesome.Solid.Music),
                      })
             {
                 var captured = value;
@@ -257,6 +276,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 },
             };
             tabContents[Tab.Board] = board = new TycoonLeaderboardPanel();
+            tabContents[Tab.Audio] = new AudioPanel();
 
             return new Container
             {
@@ -294,7 +314,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                     {
                                         label(t("Cash", "Kasse")),
                                         cashText = new OsuSpriteText { Font = OsuFont.GetFont(size: 34, weight: FontWeight.Bold), Colour = colours.Yellow },
-                                        rateText = small(),
+                                        rateText = new TooltipSpriteText { Font = OsuFont.GetFont(size: 12), Colour = colours.Gray9 },
                                         boxText = new OsuSpriteText { Font = OsuFont.GetFont(size: 13, weight: FontWeight.SemiBold), Colour = Color4Extensions.FromHex("ffd54f") },
                                         label(t("Players online", "Spieler online")).With(l => l.Margin = new MarginPadding { Top = 8 }),
                                         new FillFlowContainer
@@ -349,6 +369,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                                 },
                                             },
                                         },
+                                        keysText = new TruncatingSpriteText
+                                        {
+                                            RelativeSizeAxes = Axes.X,
+                                            Font = OsuFont.GetFont(size: 11),
+                                            Colour = colours.Gray9,
+                                        },
                                     },
                                 },
                             },
@@ -379,6 +405,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                     Children = new Drawable[]
                                     {
                                         prestigeText = small(),
+                                        bar(out prestigeBar, colours.Purple),
                                         prestigeButton = new ClickerPillButton(t("Start a new season", "Neue Saison starten"), colours.Purple, askPrestige, FontAwesome.Solid.Redo),
                                         statusText = small(),
                                     },
@@ -422,6 +449,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             plot.Flow(TycoonRules.Inflow(state, boosts.Inflow), dt);
             dirty = true;
             tickSupply(dt);
+            sampleIncome();
+            plot.Bulk = shiftHeld();
 
             if (pending == null)
             {
@@ -450,6 +479,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             cashText.Text = n(state.Donations);
             rateText.Text = ClickerStrings.Pick($"+{n(TycoonRules.DonationRate(state, boosts.Donation))}/s · {n(state.RunTotal)} this season", $"+{n(TycoonRules.DonationRate(state, boosts.Donation))}/s · {n(state.RunTotal)} diese Saison");
+            rateText.TooltipText = incomeBreakdown();
             boxText.Text = state.Has("autocollect")
                 ? t("Auto collector: donations go straight to the cash", "Auto-Kasse: Spenden landen direkt in der Kasse")
                 : ClickerStrings.Pick($"{n(state.Pending)} waiting in the collector box, click it", $"{n(state.Pending)} warten in der Spendenbox, klick sie an");
@@ -462,7 +492,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             rufText.Text = ClickerStrings.Pick($"REPUTATION {state.Ruf:0}/100{(lagging ? " · THE SERVER LAGS" : string.Empty)}", $"RUF {state.Ruf:0}/100{(lagging ? " · DER SERVER LAGGT" : string.Empty)}");
             rufBar.Width = (float)(state.Ruf / 100);
             rufBar.Colour = state.Ruf > 60 ? colours.Green : state.Ruf > 30 ? colours.Yellow : colours.Red;
-            seasonText.Text = ClickerStrings.Pick($"season {state.Prestige + 1} · {state.Legacy} legacy (x{TycoonRules.LegacyMult(state.Legacy):0.00})", $"Saison {state.Prestige + 1} · {state.Legacy} Legacy (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
+            seasonText.Text = ClickerStrings.Pick($"season {state.Prestige + 1} · {seasonTitle(state.Prestige)} · {state.Legacy} legacy (x{TycoonRules.LegacyMult(state.Legacy):0.00})", $"Saison {state.Prestige + 1} · {seasonTitle(state.Prestige)} · {state.Legacy} Legacy (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
             postButton.Detail = ClickerStrings.Pick($"+{n(TycoonRules.ClickValue(state))} players · Space", $"+{n(TycoonRules.ClickValue(state))} Spieler · Leertaste");
 
             var boostParts = new List<string>();
@@ -479,6 +509,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             prestigeText.Text = gain > 0
                 ? ClickerStrings.Pick($"A new season gives +{gain} legacy (everything else starts over).", $"Eine neue Saison bringt +{gain} Legacy (alles andere beginnt von vorn).")
                 : ClickerStrings.Pick($"New season from {n(TycoonRules.PRESTIGE_MIN_TOTAL)} donations in a season ({n(state.RunTotal)} so far).", $"Neue Saison ab {n(TycoonRules.PRESTIGE_MIN_TOTAL)} Spenden in einer Saison (bisher {n(state.RunTotal)}).");
+            prestigeBar.Width = (float)prestigeProgress(gain);
+            pulsePrestige(gain > 0);
+            plot.SetOwner(ownerName, state.Prestige);
 
             plot.Refresh(state, load, ready, TycoonRules.DonationRate(state, boosts.Donation));
             questCard.Set(TycoonQuests.Current(state), state.Quest, TycoonQuests.All.Length, state);
@@ -501,6 +534,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             if (!ready || state.Pending < 0.5) return;
 
             double amount = TycoonRules.Collect(state);
+            plot.PopupAtCollector($"+$ {n(amount)}", colours.Yellow);
+            collectSample?.Play();
             dirty = true;
             flyCoins(plot.CollectorScreenPosition, cashText.ScreenSpaceDrawQuad.Centre, Math.Clamp((int)Math.Log10(amount + 1) * 2 + 3, 3, 12));
             cashText.ScaleTo(1.12f, 60).Then().ScaleTo(1, 250, Easing.OutQuint);
@@ -529,9 +564,22 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private void buyMarketing(string key)
         {
             var kind = TycoonRules.MarketingOf(key);
+            string name = ClickerStrings.Pick(kind.NameEn, kind.NameDe);
             int before = state.MarketingCount(key);
-            if (buy(() => TycoonRules.BuyMarketing(state, key), before == 0 ? t("{0} built", "{0} gebaut", ClickerStrings.Pick(kind.NameEn, kind.NameDe)) : (LocalisableString?)null))
-                plot.Burst(key, 2);
+            int wanted = shiftHeld() ? 10 : 1;
+
+            bool purchase()
+            {
+                int bought = 0;
+                while (bought < wanted && TycoonRules.BuyMarketing(state, key)) bought++;
+                return bought > 0;
+            }
+
+            if (!buy(purchase, null)) return;
+
+            int added = state.MarketingCount(key) - before;
+            log(before == 0 ? t("{0} built", "{0} gebaut", name) : t("{0}: +{1} (now {2})", "{0}: +{1} (jetzt {2})", name, added, before + added), colours.Green);
+            plot.Burst(key, Math.Min(6, 2 * added));
         }
 
         private void buyFeature(string key)
@@ -635,6 +683,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 pending = null;
                 eventCard.Dismiss();
                 plot.Reset();
+                plot.PlaySeasonReset(state.Prestige + 1);
                 log(t("Season {0} started with {1} legacy", "Saison {0} gestartet mit {1} Legacy", state.Prestige + 1, state.Legacy), colours.Purple);
                 dirty = true;
                 saveCloud(true);
@@ -644,8 +693,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 dialogOverlay.Push(new ClickerConfirmDialog(
                     t("Start a new season?", "Neue Saison starten?"),
-                    t("Hardware, marketing, features, the team, the plot and the cash start over. You keep +{0} legacy: +{1} % on donations and players for ever.",
-                        "Hardware, Marketing, Features, Team, Bauplatz und Kasse beginnen von vorn. Du behältst +{0} Legacy: dauerhaft +{1} % auf Spenden und Zulauf.", gain, gain * 5),
+                    prestigeSummary(gain),
                     t("Start the season", "Saison starten"), FontAwesome.Solid.Redo, doPrestige));
             }
             else
@@ -688,6 +736,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 {
                     log(t("Milestone: {0}", "Meilenstein: {0}", ClickerStrings.Pick(en, de)), colours.Yellow);
                     plot.Announce(FontAwesome.Solid.Trophy, t("Milestone: {0}", "Meilenstein: {0}", ClickerStrings.Pick(en, de)), colours.Yellow);
+                    popSample?.Play();
                 }
             }
 
@@ -698,6 +747,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         {
             statsRefresh = Time.Current;
             statsFlow.Clear();
+            statsFlow.Add(new IncomeGraph(incomeHistory, colours));
 
             void row(LocalisableString label, string value) => statsFlow.Add(new StatRow(label, value));
 
@@ -725,6 +775,20 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             foreach (var (_, en, de, reached) in milestones)
                 statsFlow.Add(new MilestoneRow(t(en, de), reached(state), colours));
+
+            statsFlow.Add(new OsuSpriteText
+            {
+                Text = t("Legacy perks", "Legacy-Perks"),
+                Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
+                Colour = colours.Purple,
+                Margin = new MarginPadding { Top = 8 },
+            });
+
+            foreach (var perk in TycoonRules.LegacyPerks)
+            {
+                statsFlow.Add(new MilestoneRow(ClickerStrings.Text("{0} (legacy {1}): {2}", "{0} (Legacy {1}): {2}", ClickerStrings.Pick(perk.NameEn, perk.NameDe), perk.Legacy, ClickerStrings.Pick(perk.DescriptionEn, perk.DescriptionDe)),
+                    TycoonRules.HasPerk(state.Legacy, perk.Key), colours));
+            }
         }
 
         // ---------------------------------------------------------------- saving and loading
@@ -829,7 +893,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             }
             else if (savedAt != null)
             {
-                double away = Math.Min(TycoonRules.OFFLINE_CAP, Math.Max(0, nowUnix() - savedAt.Value));
+                double away = Math.Min(TycoonRules.OfflineCap(state.Legacy), Math.Max(0, nowUnix() - savedAt.Value));
 
                 if (away >= 10)
                 {
@@ -1104,7 +1168,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 if (next < TycoonRules.Hardware.Length)
                 {
                     var tier = TycoonRules.Hardware[next];
-                    hardwarePad.Set(ClickerStrings.Pick(tier.NameEn, tier.NameDe), ClickerStrings.Pick($"{ClickerFormat.Count(tier.Capacity)} players", $"{ClickerFormat.Count(tier.Capacity)} Spieler"), tier.Cost, ready && TycoonRules.CanAfford(state, tier.Cost), true);
+                    long hardwareCost = TycoonRules.HardwareCost(next, state.Legacy);
+                    hardwarePad.Set(ClickerStrings.Pick($"{tier.NameEn} · {ClickerFormat.Count(tier.Capacity)} players", $"{tier.NameDe} · {ClickerFormat.Count(tier.Capacity)} Spieler"), ClickerStrings.Pick(tier.DescriptionEn, tier.DescriptionDe),
+                        hardwareCost, ready && TycoonRules.CanAfford(state, hardwareCost), true);
                 }
                 else
                     hardwarePad.Set(string.Empty, string.Empty, 0, false, false);
@@ -1123,14 +1189,20 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     string key = dropper_slots[i].key;
                     var kind = TycoonRules.MarketingOf(key);
                     int count = state.MarketingCount(key);
-                    bool unlocked = i == 0 || state.MarketingCount(dropper_slots[i - 1].key) > 0;
-                    long cost = TycoonRules.MarketingCost(key, count);
+                    bool hardwareOk = state.Hardware >= kind.MinHardware;
+                    // the next kind shows up (locked) as soon as the one before it is available, so the ladder is visible
+                    bool unlocked = hardwareOk || i == 0 || state.Hardware >= TycoonRules.MarketingOf(dropper_slots[i - 1].key).MinHardware;
+                    int batch = Bulk && hardwareOk ? 10 : 1;
+                    long cost = batch == 1
+                        ? TycoonRules.MarketingCost(key, count, state.Legacy)
+                        : TycoonRules.MarketingTotalCost(key, count + batch, state.Legacy) - TycoonRules.MarketingTotalCost(key, count, state.Legacy);
+                    string? locked = hardwareOk ? null : ClickerStrings.Pick($"from {TycoonRules.HardwareAt(kind.MinHardware).NameEn}", $"ab {TycoonRules.HardwareAt(kind.MinHardware).NameDe}");
 
                     string shortName = padName(key);
                     marketingPads[key].Set(
-                        count == 0 ? shortName : $"{shortName} Lv {count + 1}",
-                        ClickerStrings.Pick($"{kind.NameEn}, +{ClickerFormat.Number(kind.Rate)} players/s each", $"{kind.NameDe}, +{ClickerFormat.Number(kind.Rate)} Spieler/s je Stück"),
-                        cost, ready && TycoonRules.CanAfford(state, cost), unlocked && count < TycoonRules.MAX_COUNT);
+                        (count == 0 ? shortName : $"{shortName} Lv {count + 1}") + (batch > 1 ? $" x{batch}" : string.Empty),
+                        ClickerStrings.Pick($"{kind.NameEn}, +{ClickerFormat.Number(kind.Rate)} players/s each; Shift buys ten", $"{kind.NameDe}, +{ClickerFormat.Number(kind.Rate)} Spieler/s je Stück; Shift kauft zehn"),
+                        cost, ready && hardwareOk && TycoonRules.CanAfford(state, cost), unlocked && count < TycoonRules.MAX_COUNT, locked);
 
                     if (!lastMarketing.TryGetValue(key, out int shown) || shown != count)
                     {
@@ -1315,6 +1387,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 private readonly OsuSpriteText priceText;
                 private bool affordable;
                 private bool shown = true;
+                private string? lockedText;
+                private long lastCost;
 
                 public BuyPad(IconUsage iconUsage, Color4 accent, Action action)
                 {
@@ -1371,7 +1445,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     };
                 }
 
-                public void Set(string name, string detail, long cost, bool canAfford, bool visible)
+                /// <param name="locked">When set, the pad cannot be used yet and shows this instead of the price (the hardware it needs).</param>
+                public void Set(string name, string detail, long cost, bool canAfford, bool visible, string? locked = null)
                 {
                     if (visible != shown)
                     {
@@ -1382,8 +1457,36 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
                     nameText.Text = name;
                     TooltipText = string.IsNullOrEmpty(detail) ? name : $"{name}: {detail}";
+                    lastCost = cost;
+                    Enabled.Value = visible && canAfford && locked == null;
+
+                    if (locked != lockedText)
+                    {
+                        lockedText = locked;
+
+                        if (locked != null)
+                        {
+                            var grey = Color4Extensions.FromHex("635F62");
+                            capTop.ClearTransforms();
+                            capSide.ClearTransforms();
+                            priceText.ClearTransforms();
+                            capTop.Colour = grey;
+                            capTop.Alpha = 1;
+                            capSide.Colour = grey.Darken(0.5f);
+                            priceText.Colour = Color4.White.Opacity(0.7f);
+                        }
+
+                        // force the colours below to be applied once the pad is unlocked again
+                        affordable = !canAfford;
+                    }
+
+                    if (locked != null)
+                    {
+                        priceText.Text = locked;
+                        return;
+                    }
+
                     priceText.Text = cost == 0 ? ClickerStrings.Pick("free", "gratis") : $"$ {ClickerFormat.Number(cost)}";
-                    Enabled.Value = visible && canAfford;
 
                     if (canAfford != affordable)
                     {
@@ -1405,6 +1508,26 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
                     if (affordable)
                         capTop.Alpha = 0.78f + 0.22f * (float)Math.Sin(Time.Current / 300);
+                }
+
+                protected override bool OnClick(ClickEvent e)
+                {
+                    if (Enabled.Value && lastCost > 0)
+                    {
+                        var popup = new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.BottomCentre,
+                            Text = $"-$ {ClickerFormat.Number(lastCost)}",
+                            Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
+                            Colour = Color4Extensions.FromHex("ff8a80"),
+                            Shadow = true,
+                        };
+                        Add(popup);
+                        popup.MoveToOffset(new Vector2(0, -22), 650, Easing.OutQuint).FadeOut(650, Easing.In).Expire();
+                    }
+
+                    return base.OnClick(e);
                 }
 
                 protected override bool OnHover(HoverEvent e)
@@ -1628,6 +1751,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("151926") },
                             new Box { RelativeSizeAxes = Axes.X, Height = 20, Colour = Color4Extensions.FromHex("343c5c") },
                             new Box { RelativeSizeAxes = Axes.Y, Width = 6, Anchor = Anchor.TopRight, Origin = Anchor.TopRight, Colour = Color4Extensions.FromHex("0b0e18") },
+                            new Box { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, Y = 40, Size = new Vector2(12, 32), Colour = Color4Extensions.FromHex("0b0e18") },
+                            new Box { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 2, Y = 40, Size = new Vector2(8, 28), Colour = Color4Extensions.FromHex("f5cd30").Opacity(0.15f) },
                             glow = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("ff4040").Opacity(0.2f), Alpha = 0 },
                             racks = new Container { RelativeSizeAxes = Axes.Both, Padding = new MarginPadding { Top = 22, Bottom = 8, Horizontal = 8 } },
                             nameText = new OsuSpriteText
@@ -1863,9 +1988,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             }
 
             /// <summary>A decoration on its pad; right-click sells it for half.</summary>
-            private partial class DecoItem : CompositeDrawable
+            private partial class DecoItem : CompositeDrawable, IHasTooltip
             {
                 private readonly Action remove;
+
+                public LocalisableString TooltipText => ClickerStrings.Text("Right click: sell for half the price", "Rechtsklick: für die Hälfte verkaufen");
 
                 public static IconUsage IconOf(string key) => key switch
                 {
@@ -1950,18 +2077,31 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 {
                 }
 
+                private readonly Container body;
+                private readonly double phase = RNG.NextDouble() * 1000;
+
                 public Figure(Color4 colour)
                 {
                     Origin = Anchor.Centre;
                     Size = new Vector2(10, 15);
 
-                    InternalChildren = new Drawable[]
+                    InternalChild = body = new Container
                     {
-                        new Box { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Size = new Vector2(5), Colour = Color4Extensions.FromHex("F5CD30") },
-                        new Box { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Y = 5.5f, Size = new Vector2(8, 6), Colour = colour },
-                        new Box { Anchor = Anchor.BottomLeft, Origin = Anchor.BottomLeft, X = 1, Size = new Vector2(3, 3.5f), Colour = Color4Extensions.FromHex("1B2A35") },
-                        new Box { Anchor = Anchor.BottomRight, Origin = Anchor.BottomRight, X = -1, Size = new Vector2(3, 3.5f), Colour = Color4Extensions.FromHex("1B2A35") },
+                        RelativeSizeAxes = Axes.Both,
+                        Children = new Drawable[]
+                        {
+                            new Box { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Size = new Vector2(5), Colour = Color4Extensions.FromHex("F5CD30") },
+                            new Box { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Y = 5.5f, Size = new Vector2(8, 6), Colour = colour },
+                            new Box { Anchor = Anchor.BottomLeft, Origin = Anchor.BottomLeft, X = 1, Size = new Vector2(3, 3.5f), Colour = Color4Extensions.FromHex("1B2A35") },
+                            new Box { Anchor = Anchor.BottomRight, Origin = Anchor.BottomRight, X = -1, Size = new Vector2(3, 3.5f), Colour = Color4Extensions.FromHex("1B2A35") },
+                        },
                     };
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    body.Y = (float)Math.Sin((Time.Current + phase) / 110) * 0.8f;
                 }
 
                 /// <summary>A speech bubble above the head for a moment.</summary>
