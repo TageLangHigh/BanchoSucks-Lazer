@@ -15,6 +15,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Screens.Banchosucks.CircleRush;
+using osu.Game.Screens.Banchosucks.Guess;
 using osu.Game.Screens.Banchosucks.Tycoon;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
@@ -38,15 +39,20 @@ namespace osu.Game.Screens.Banchosucks
         [BackgroundDependencyLoader]
         private void load(OsuColour colours)
         {
-            InternalChild = new FillFlowContainer
+            InternalChild = new OsuScrollContainer
             {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                AutoSizeAxes = Axes.Both,
-                Direction = FillDirection.Vertical,
-                Spacing = new Vector2(0, 24),
-                Children = new Drawable[]
+                RelativeSizeAxes = Axes.Both,
+                ScrollbarVisible = false,
+                Child = new FillFlowContainer
                 {
+                    Anchor = Anchor.TopCentre,
+                    Origin = Anchor.TopCentre,
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, 24),
+                    Padding = new MarginPadding { Top = 70, Bottom = 40 },
+                    Children = new Drawable[]
+                    {
                     new OsuSpriteText
                     {
                         Anchor = Anchor.TopCentre,
@@ -66,8 +72,10 @@ namespace osu.Game.Screens.Banchosucks
                     {
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.TopCentre,
-                        AutoSizeAxes = Axes.Both,
-                        Direction = FillDirection.Horizontal,
+                        // three tiles per row, more rows below
+                        Width = 3 * 280 + 2 * 20,
+                        AutoSizeAxes = Axes.Y,
+                        Direction = FillDirection.Full,
                         Spacing = new Vector2(20),
                         Children = new Drawable[]
                         {
@@ -83,7 +91,16 @@ namespace osu.Game.Screens.Banchosucks
                                 ClickerStrings.Text("Run your own osu! server: attract players, buy hardware before it lags, survive cheater waves and broken deploys. Idle game with seasons and leaderboards.",
                                     "Betreib deinen eigenen osu!-Server: Lock Spieler an, kauf Hardware, bevor es laggt, überstehe Cheater-Wellen und kaputte Deploys. Idle-Spiel mit Saisons und Ranglisten."),
                                 FontAwesome.Solid.Server, colours.Purple, () => this.Push(new TycoonScreen())),
+                            new GameTile(ClickerStrings.Text("Song Guesser", "Song-Guesser"),
+                                ClickerStrings.Text("A snippet from one of your own beatmaps plays. Which song is it? Ten rounds, four answers, leaderboards.",
+                                    "Ein Schnipsel aus einer deiner Beatmaps läuft. Welcher Song ist das? Zehn Runden, vier Antworten, Ranglisten."),
+                                FontAwesome.Solid.Music, colours.Pink, () => this.Push(new SongGuessScreen())),
+                            new GameTile(ClickerStrings.Text("Skin Guesser", "Skin-Guesser"),
+                                ClickerStrings.Text("Cursor, hit circle and judgements of one of your skins. Which skin is it? Ten rounds, four answers, leaderboards.",
+                                    "Cursor, Hitcircle und Trefferbilder eines deiner Skins. Welcher Skin ist das? Zehn Runden, vier Antworten, Ranglisten."),
+                                FontAwesome.Solid.PaintBrush, colours.Blue, () => this.Push(new SkinGuessScreen())),
                         },
+                    },
                     },
                 },
             };

@@ -26,6 +26,7 @@ using osu.Game.Overlays;
 using osu.Game.Overlays.Dialog;
 using osu.Game.Screens.Banchosucks;
 using osu.Game.Screens.Banchosucks.CircleRush;
+using osu.Game.Screens.Banchosucks.Guess;
 using osu.Game.Screens.Banchosucks.Tycoon;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osu.Game.Screens.Menu;
@@ -149,6 +150,38 @@ namespace osu.Game.Tests.Visual.Navigation
         }
 
         private Drawable circleRush() => (Drawable)Game.ScreenStack.CurrentScreen;
+
+        [TestCase(3, typeof(SongGuessScreen), "beatmap sets")]
+        [TestCase(4, typeof(SkinGuessScreen), "imported skins")]
+        public void TestGuessersFromMinigames(int tile, Type screenType, string needs)
+        {
+            AddStep("open play menu", () =>
+            {
+                InputManager.Key(Key.P);
+                InputManager.Key(Key.P);
+            });
+            AddStep("press G", () => InputManager.Key(Key.G));
+            AddUntilStep("minigames open", () => Game.ScreenStack.CurrentScreen is MinigamesScreen screen && screen.IsLoaded && screen.Alpha == 1);
+
+            AddStep("click the tile", () =>
+            {
+                var target = ((Drawable)Game.ScreenStack.CurrentScreen).ChildrenOfType<OsuClickableContainer>().ElementAt(tile);
+                InputManager.MoveMouseTo(target);
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("guesser open", () => Game.ScreenStack.CurrentScreen.GetType() == screenType && ((Drawable)Game.ScreenStack.CurrentScreen).IsLoaded);
+            AddAssert("start shown", () => hasText("Start"));
+
+            AddStep("press start", () =>
+            {
+                InputManager.MoveMouseTo(((Drawable)Game.ScreenStack.CurrentScreen).ChildrenOfType<OsuClickableContainer>().First(b => b.GetType().Name == "ClickerPillButton"));
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("needs four items", () => hasTextContaining(needs) || hasTextContaining("Round 1/"));
+
+            AddStep("escape the screen", () => InputManager.Key(Key.Escape));
+            AddUntilStep("back on minigames", () => Game.ScreenStack.CurrentScreen is MinigamesScreen);
+        }
 
         [Test]
         public void TestTycoonFromMinigames()

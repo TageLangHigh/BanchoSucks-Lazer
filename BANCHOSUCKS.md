@@ -164,3 +164,13 @@ and restart the app container.
   by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.
   Tests: `osu.Game.Tests/NonVisual/BanchosucksTycoonRulesTest.cs` (same numbers as the plugin
   tests) and `TestSceneBanchosucksMinigames`.
+- **Song Guesser and Skin Guesser** (minigames, fourth and fifth tile, since 2026.913.15):
+  `osu.Game/Screens/Banchosucks/Guess/`. Ten rounds, four answers each, 15 s per round; a correct
+  answer gives 100 points plus 10 per second left, streaks add up to 50 (max 3000). The song guesser
+  plays the preview snippet of one of the player's own beatmap sets (the global music pauses, the
+  cover and title appear once answered); the skin guesser shows cursor, hit circle and judgements
+  of one of the installed skins. Both need at least four items with different names. Overlays are
+  closed during a round so the toolbar cannot spoil the answer. `GuessRules.cs` is mirrored by the
+  plugin `banchosucks_guess/rules.py`, which only bounds results (the content is local): best run
+  per player and game, leaderboards in the screen and on banchosucks.cc/lazer/guess. Tests:
+  `osu.Game.Tests/NonVisual/BanchosucksGuessRulesTest.cs` and `TestSceneBanchosucksMinigames`.
