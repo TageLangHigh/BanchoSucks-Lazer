@@ -47,7 +47,15 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         /// <summary>What stands where in the office.</summary>
         [JsonProperty("layout")] public List<TycoonPlacement> Layout { get; set; } = new List<TycoonPlacement>();
 
+        /// <summary>Heads per role in the team (see <see cref="TycoonRules.Staff"/>).</summary>
+        [JsonProperty("staff")] public Dictionary<string, int> Staff { get; set; } = TycoonRules.Staff.ToDictionary(s => s.Key, _ => 0);
+
+        /// <summary>Index of the next quest in <see cref="TycoonQuests.All"/>; survives seasons.</summary>
+        [JsonProperty("quest")] public int Quest { get; set; }
+
         public int MarketingCount(string key) => Marketing.TryGetValue(key, out int count) ? count : 0;
+
+        public int StaffCount(string key) => Staff.TryGetValue(key, out int count) ? count : 0;
 
         public bool Has(string feature) => Features.Contains(feature);
     }
@@ -64,26 +72,30 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
     public readonly record struct TycoonHardware(string Key, int Capacity, long Cost, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
-    public readonly record struct TycoonMarketing(string Key, double Rate, long BaseCost, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
+    /// <param name="MinHardware">Hardware level the building needs, so nobody buys YouTube videos for a Raspberry Pi.</param>
+    public readonly record struct TycoonMarketing(string Key, double Rate, long BaseCost, int MinHardware, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
     public readonly record struct TycoonFeature(string Key, long Cost, double DonationMult, double InflowMult, double RegenMult, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
+
+    public readonly record struct TycoonStaff(string Key, long BaseCost, double DonationPerHead, double InflowPerHead, double RegenPerHead, string NameEn, string NameDe, string DescriptionEn, string DescriptionDe);
 
     /// <summary>
     /// Banchosucks: the economy of the Private Server Tycoon, mirrored by the plugin's <c>economy.py</c> (same numbers in both test suites).
     /// Marketing attracts players, players donate, donations buy hardware (capacity), more marketing and features. Too many
-    /// players for the hardware means lag: reputation falls and players leave. A season restart trades the run for legacy points.
+    /// players for the hardware means lag: reputation falls and players leave. The team (moderators, developers, community
+    /// managers) adds small multipliers per head. A season restart trades the run for legacy points.
     /// </summary>
     public static class TycoonRules
     {
         public const int STATE_VERSION = 1;
         public const int MAX_COUNT = 2000;
         public const double OFFLINE_CAP = 8 * 3600;
-        public const double CHURN = 0.004;
-        public const double OVERLOAD_CHURN = 0.05;
-        public const double OVERLOAD_TOLERANCE = 1.05;
+        public const double CHURN = 0.0025;
+        public const double OVERLOAD_CHURN = 0.08;
+        public const double OVERLOAD_TOLERANCE = 1.10;
         public const double RUF_REGEN = 0.3;
-        public const double RUF_LOSS = 3.0;
-        public const double RUF_LOSS_CAP = 10.0;
+        public const double RUF_LOSS = 1.5;
+        public const double RUF_LOSS_CAP = 5.0;
         public const double DONATION_PER_PLAYER = 0.05;
         public const double LEGACY_BONUS = 0.05;
         public const double PRESTIGE_MIN_TOTAL = 1_000_000;
@@ -99,6 +111,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public const double COMFORT_PER_POINT = 0.005;
         public const double COMFORT_CAP = 0.15;
 
+        public const int STAFF_MAX_LEVEL = 5;
+        public const double STAFF_GROWTH = 2.0;
+
         /// <summary>Things to put into the office; comfort raises donations a little (see <see cref="ComfortMult"/>).</summary>
         public static readonly TycoonDecoration[] Decorations =
         {
@@ -111,6 +126,14 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             new TycoonDecoration("fridge", 4_000, 3, "Fridge", "Kühlschrank", "Full of energy drinks.", "Voller Energy-Drinks."),
             new TycoonDecoration("aircon", 8_000, 4, "Air conditioning", "Klimaanlage", "The racks stop sweating.", "Die Racks hören auf zu schwitzen."),
             new TycoonDecoration("arcade", 15_000, 5, "Arcade cabinet", "Arcade-Automat", "osu! on a cabinet. Of course.", "osu! am Automaten. Natürlich."),
+        };
+
+        /// <summary>The team; every hire doubles the price, five per role.</summary>
+        public static readonly TycoonStaff[] Staff =
+        {
+            new TycoonStaff("moderator", 2_000, 0, 0, 0.25, "Moderator", "Moderator", "Reads the reports, answers the tickets. Reputation recovers 25 % faster per moderator.", "Liest die Reports, beantwortet die Tickets. Ruf erholt sich je Moderator 25 % schneller."),
+            new TycoonStaff("developer", 5_000, 0.05, 0, 0, "Developer", "Entwickler", "Ships features and fixes at 3 am. Donations +5 % per developer.", "Liefert Features und Fixes um drei Uhr nachts. Spenden +5 % je Entwickler."),
+            new TycoonStaff("community", 3_500, 0, 0.05, 0, "Community manager", "Community-Manager", "Keeps the Discord alive and the newcomers around. Inflow +5 % per manager.", "Hält den Discord lebendig und die Neuen bei der Stange. Zulauf +5 % je Manager."),
         };
 
         public static readonly TycoonHardware[] Hardware =
@@ -128,13 +151,13 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
         public static readonly TycoonMarketing[] Marketing =
         {
-            new TycoonMarketing("discord", 0.1, 15, "Discord server", "Discord-Server", "Someone has to answer the questions.", "Irgendwer muss die Fragen beantworten."),
-            new TycoonMarketing("reddit", 0.5, 100, "Reddit posts", "Reddit-Posts", "\"Private server with lazer support, no, really.\"", "„Privatserver mit Lazer-Support, nein, wirklich.“"),
-            new TycoonMarketing("youtube", 3.0, 1_100, "YouTube videos", "YouTube-Videos", "Top plays, server tours, a tutorial with bad audio.", "Top-Plays, Server-Touren, ein Tutorial mit schlechtem Ton."),
-            new TycoonMarketing("streamer", 15.0, 12_000, "Streamer sponsoring", "Streamer-Sponsoring", "One evening on stream brings a wave.", "Ein Abend im Stream bringt eine Welle."),
-            new TycoonMarketing("tournament", 60.0, 130_000, "Tournament", "Turnier", "Prize pool, brackets, a referee who falls asleep.", "Preisgeld, Brackets, ein Schiedsrichter, der einschläft."),
-            new TycoonMarketing("campaign", 250.0, 1_400_000, "Ad campaign", "Werbekampagne", "Banners everywhere. Even on the toilet door.", "Banner überall. Sogar an der Klotür."),
-            new TycoonMarketing("influencer", 1_000.0, 20_000_000, "Influencer deal", "Influencer-Deal", "A face everyone knows plays on your server.", "Ein Gesicht, das jeder kennt, spielt auf deinem Server."),
+            new TycoonMarketing("discord", 0.1, 15, 0, "Discord server", "Discord-Server", "Someone has to answer the questions.", "Irgendwer muss die Fragen beantworten."),
+            new TycoonMarketing("reddit", 0.5, 100, 1, "Reddit posts", "Reddit-Posts", "\"Private server with lazer support, no, really.\"", "„Privatserver mit Lazer-Support, nein, wirklich.“"),
+            new TycoonMarketing("youtube", 3.0, 1_100, 2, "YouTube videos", "YouTube-Videos", "Top plays, server tours, a tutorial with bad audio.", "Top-Plays, Server-Touren, ein Tutorial mit schlechtem Ton."),
+            new TycoonMarketing("streamer", 15.0, 12_000, 3, "Streamer sponsoring", "Streamer-Sponsoring", "One evening on stream brings a wave.", "Ein Abend im Stream bringt eine Welle."),
+            new TycoonMarketing("tournament", 60.0, 130_000, 4, "Tournament", "Turnier", "Prize pool, brackets, a referee who falls asleep.", "Preisgeld, Brackets, ein Schiedsrichter, der einschläft."),
+            new TycoonMarketing("campaign", 250.0, 1_400_000, 5, "Ad campaign", "Werbekampagne", "Banners everywhere. Even on the toilet door.", "Banner überall. Sogar an der Klotür."),
+            new TycoonMarketing("influencer", 1_000.0, 20_000_000, 6, "Influencer deal", "Influencer-Deal", "A face everyone knows plays on your server.", "Ein Gesicht, das jeder kennt, spielt auf deinem Server."),
         };
 
         public static readonly TycoonFeature[] Features =
@@ -195,6 +218,26 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
         public static double LayoutCost(IEnumerable<TycoonPlacement> layout) => layout.Sum(p => (double)DecorationCost(p.Key));
 
+        public static TycoonStaff? StaffOf(string key) => Staff.Any(s => s.Key == key) ? Staff.First(s => s.Key == key) : null;
+
+        /// <summary>Price of the hire that takes <paramref name="key"/> from <paramref name="level"/> heads to the next.</summary>
+        public static long StaffCost(string key, int level) => (long)((StaffOf(key)?.BaseCost ?? 0) * Math.Pow(STAFF_GROWTH, level));
+
+        public static long StaffTotalCost(string key, int level)
+        {
+            long total = 0;
+            for (int i = 0; i < level; i++) total += StaffCost(key, i);
+            return total;
+        }
+
+        public static double StaffDonationMult(TycoonState state) => 1.0 + Staff.Sum(s => s.DonationPerHead * state.StaffCount(s.Key));
+
+        public static double StaffInflowMult(TycoonState state) => 1.0 + Staff.Sum(s => s.InflowPerHead * state.StaffCount(s.Key));
+
+        public static double StaffRegenMult(TycoonState state) => 1.0 + Staff.Sum(s => s.RegenPerHead * state.StaffCount(s.Key));
+
+        public static int StaffTotal(TycoonState state) => Staff.Sum(s => state.StaffCount(s.Key));
+
         public static double MarketingRate(TycoonState state) => Marketing.Sum(m => state.MarketingCount(m.Key) * m.Rate);
 
         public static double ClickValue(TycoonState state) => CLICK_BASE + CLICK_PER_BUILDING * Marketing.Sum(m => state.MarketingCount(m.Key));
@@ -209,14 +252,15 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             foreach (var m in Marketing) total += MarketingTotalCost(m.Key, state.MarketingCount(m.Key));
             foreach (string key in state.Features) total += FeatureCost(key);
             total += LayoutCost(state.Layout);
+            foreach (var s in Staff) total += StaffTotalCost(s.Key, state.StaffCount(s.Key));
             return total;
         }
 
         public static double Inflow(TycoonState state, double boost = 1.0) =>
-            MarketingRate(state) * InflowMult(state.Features) * LegacyMult(state.Legacy) * RufFactor(state.Ruf) * boost;
+            MarketingRate(state) * InflowMult(state.Features) * StaffInflowMult(state) * LegacyMult(state.Legacy) * RufFactor(state.Ruf) * boost;
 
         public static double DonationRate(TycoonState state, double boost = 1.0) =>
-            state.Players * DONATION_PER_PLAYER * RufFactor(state.Ruf) * DonationMult(state.Features) * LegacyMult(state.Legacy) * ComfortMult(state.Layout) * boost;
+            state.Players * DONATION_PER_PLAYER * RufFactor(state.Ruf) * DonationMult(state.Features) * StaffDonationMult(state) * LegacyMult(state.Legacy) * ComfortMult(state.Layout) * boost;
 
         /// <summary>Advances the simulation by <paramref name="dt"/> seconds (at most one second per call); returns the donations gained.</summary>
         public static double Step(TycoonState state, double dt, double inflowBoost = 1.0, double donationBoost = 1.0)
@@ -233,7 +277,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             if (players > cap * OVERLOAD_TOLERANCE)
                 state.Ruf = Math.Max(0.0, state.Ruf - Math.Min(RUF_LOSS_CAP, RUF_LOSS * (players / cap - 1.0)) * dt);
             else
-                state.Ruf = Math.Min(100.0, state.Ruf + RUF_REGEN * RegenMult(state.Features) * dt);
+                state.Ruf = Math.Min(100.0, state.Ruf + RUF_REGEN * RegenMult(state.Features) * StaffRegenMult(state) * dt);
 
             state.Players = Math.Max(0.0, players);
             state.MaxPlayers = Math.Max(state.MaxPlayers, state.Players);
@@ -301,7 +345,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             if (Marketing.All(m => m.Key != key)) return false;
 
             int owned = state.MarketingCount(key);
-            if (owned >= MAX_COUNT) return false;
+            if (owned >= MAX_COUNT || state.Hardware < MarketingOf(key).MinHardware) return false;
 
             long cost = MarketingCost(key, owned);
             if (!CanAfford(state, cost)) return false;
@@ -346,6 +390,22 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             return true;
         }
 
+        /// <summary>One more team member of this role; every hire doubles the price, five per role.</summary>
+        public static bool Hire(TycoonState state, string key)
+        {
+            if (StaffOf(key) == null) return false;
+
+            int level = state.StaffCount(key);
+            if (level >= STAFF_MAX_LEVEL) return false;
+
+            long cost = StaffCost(key, level);
+            if (!CanAfford(state, cost)) return false;
+
+            state.Donations -= cost;
+            state.Staff[key] = level + 1;
+            return true;
+        }
+
         public static int LegacyGain(double runTotal) => runTotal < PRESTIGE_MIN_TOTAL ? 0 : (int)Math.Floor(Math.Sqrt(runTotal / PRESTIGE_MIN_TOTAL));
 
         /// <summary>Season restart: everything but legacy, lifetime total, clicks, events and the player record starts over. Returns the legacy gained (0 = refused).</summary>
@@ -363,6 +423,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 MaxPlayers = state.MaxPlayers,
                 Prestige = state.Prestige + 1,
                 Legacy = state.Legacy + gain,
+                Quest = state.Quest,
             };
 
             state.Donations = fresh.Donations;
@@ -381,13 +442,15 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             state.Events = fresh.Events;
             state.PlaySeconds = fresh.PlaySeconds;
             state.Layout = fresh.Layout;
+            state.Staff = fresh.Staff;
+            state.Quest = fresh.Quest;
             return gain;
         }
 
         /// <summary>The server's bound on sustainable players for this save (see economy.py).</summary>
         public static double MaxPlayersBound(TycoonState state)
         {
-            double joined = MarketingRate(state) * InflowMult(state.Features) * LegacyMult(state.Legacy) * 1.5 * EVENT_BOOST;
+            double joined = MarketingRate(state) * InflowMult(state.Features) * StaffInflowMult(state) * LegacyMult(state.Legacy) * 1.5 * EVENT_BOOST;
             joined += MAX_CLICKS_PER_SECOND * ClickValue(state);
             double sustainable = (joined + Capacity(state.Hardware) * OVERLOAD_CHURN) / (CHURN + OVERLOAD_CHURN);
             return Math.Max(1.5 * Capacity(state.Hardware), sustainable * 1.25);
@@ -395,6 +458,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
         /// <summary>The server's bound on donations per second for this save.</summary>
         public static double MaxDonationRate(TycoonState state) =>
-            MaxPlayersBound(state) * DONATION_PER_PLAYER * 1.5 * DonationMult(state.Features) * LegacyMult(state.Legacy) * (1.0 + COMFORT_CAP) * EVENT_BOOST;
+            MaxPlayersBound(state) * DONATION_PER_PLAYER * 1.5 * DonationMult(state.Features) * StaffDonationMult(state) * LegacyMult(state.Legacy) * (1.0 + COMFORT_CAP) * EVENT_BOOST;
     }
 }

@@ -101,6 +101,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private OsuSpriteText prestigeText = null!;
         private ClickerPillButton prestigeButton = null!;
         private FillFlowContainer statsFlow = null!;
+        private QuestCard questCard = null!;
         private TycoonLeaderboardPanel board = null!;
         private readonly Dictionary<Tab, ClickerTabButton> tabButtons = new Dictionary<Tab, ClickerTabButton>();
         private readonly Dictionary<Tab, Drawable> tabContents = new Dictionary<Tab, Drawable>();
@@ -198,6 +199,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         {
             base.LoadComplete();
             serverNameText.Text = serverName();
+            plot.SetOwner(serverName());
             beginLoading();
         }
 
@@ -225,7 +227,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             var tabRow = new FillFlowContainer
             {
-                AutoSizeAxes = Axes.Both,
+                AutoSizeAxes = Axes.X,
+                Height = 26,
                 Direction = FillDirection.Horizontal,
                 Spacing = new Vector2(4, 0),
             };
@@ -325,6 +328,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                     Children = new Drawable[]
                                     {
                                         postButton = new PostButton(post),
+                                        questCard = new QuestCard(),
                                         eventCard = new EventCard(),
                                         new Container
                                         {
@@ -417,6 +421,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             plot.Earned(state.Pending + state.Donations - before);
             plot.Flow(TycoonRules.Inflow(state, boosts.Inflow), dt);
             dirty = true;
+            tickSupply(dt);
 
             if (pending == null)
             {
@@ -475,8 +480,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 ? ClickerStrings.Pick($"A new season gives +{gain} legacy (everything else starts over).", $"Eine neue Saison bringt +{gain} Legacy (alles andere beginnt von vorn).")
                 : ClickerStrings.Pick($"New season from {n(TycoonRules.PRESTIGE_MIN_TOTAL)} donations in a season ({n(state.RunTotal)} so far).", $"Neue Saison ab {n(TycoonRules.PRESTIGE_MIN_TOTAL)} Spenden in einer Saison (bisher {n(state.RunTotal)}).");
 
-            plot.Refresh(state, load, ready);
+            plot.Refresh(state, load, ready, TycoonRules.DonationRate(state, boosts.Donation));
+            questCard.Set(TycoonQuests.Current(state), state.Quest, TycoonQuests.All.Length, state);
             checkMilestones();
+            checkQuest();
         }
 
         /// <summary>A post in the Discord: players join at once (button, Space or the Discord booth on the plot).</summary>
@@ -555,6 +562,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         {
             var ev = TycoonEvents.Roll(state, rng, colours);
             state.Events++;
+            plot.PlayEvent(ev.Key, ev.Colour == colours.Red || ev.Colour == colours.Yellow);
             nextEventIn = rng.Next((int)TycoonEvents.MIN_INTERVAL, (int)TycoonEvents.MAX_INTERVAL);
 
             if (ev.Choices.Count == 0)
@@ -636,8 +644,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 dialogOverlay.Push(new ClickerConfirmDialog(
                     t("Start a new season?", "Neue Saison starten?"),
-                    t("Hardware, marketing, features, the plot and the cash start over. You keep +{0} legacy: +{1} % on donations and players for ever.",
-                        "Hardware, Marketing, Features, der Bauplatz und die Kasse beginnen von vorn. Du behältst +{0} Legacy: dauerhaft +{1} % auf Spenden und Zulauf.", gain, gain * 5),
+                    t("Hardware, marketing, features, the team, the plot and the cash start over. You keep +{0} legacy: +{1} % on donations and players for ever.",
+                        "Hardware, Marketing, Features, Team, Bauplatz und Kasse beginnen von vorn. Du behältst +{0} Legacy: dauerhaft +{1} % auf Spenden und Zulauf.", gain, gain * 5),
                     t("Start the season", "Saison starten"), FontAwesome.Solid.Redo, doPrestige));
             }
             else
@@ -662,16 +670,25 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             ("billion", "A billion donations", "Eine Milliarde Spenden", s => s.LifetimeTotal >= 1_000_000_000),
             ("season", "Second season", "Zweite Saison", s => s.Prestige >= 1),
             ("clicks", "1,000 Discord posts", "1.000 Discord-Posts", s => s.Clicks >= 1000),
+            ("team", "Three people on the team", "Drei Leute im Team", s => TycoonRules.StaffTotal(s) >= 3),
+            ("quests", "Ten quests done", "Zehn Aufträge erledigt", s => s.Quest >= 10),
         };
 
         private void checkMilestones()
         {
-            foreach (var (key, en, de, reached) in milestones)
+            for (int i = 0; i < milestones.Length; i++)
             {
+                var (key, en, de, reached) = milestones[i];
                 if (reachedMilestones.Contains(key) || !reached(state)) continue;
 
                 reachedMilestones.Add(key);
-                if (!firstMilestonePass) log(t("Milestone: {0}", "Meilenstein: {0}", ClickerStrings.Pick(en, de)), colours.Yellow);
+                plot.LightTrophy(i, !firstMilestonePass);
+
+                if (!firstMilestonePass)
+                {
+                    log(t("Milestone: {0}", "Meilenstein: {0}", ClickerStrings.Pick(en, de)), colours.Yellow);
+                    plot.Announce(FontAwesome.Solid.Trophy, t("Milestone: {0}", "Meilenstein: {0}", ClickerStrings.Pick(en, de)), colours.Yellow);
+                }
             }
 
             firstMilestonePass = false;
@@ -693,6 +710,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             row(t("Legacy", "Legacy"), $"{state.Legacy} (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
             row(t("Events survived", "Ereignisse überstanden"), ClickerFormat.Count(state.Events));
             row(t("Discord posts", "Discord-Posts"), ClickerFormat.Count(state.Clicks));
+            row(t("Team", "Team"), ClickerFormat.Count(TycoonRules.StaffTotal(state)));
+            row(t("Quests done", "Aufträge erledigt"), $"{Math.Min(state.Quest, TycoonQuests.All.Length)}/{TycoonQuests.All.Length}");
+            row(t("Supply drops caught", "Lieferungen gefangen"), ClickerFormat.Count(supplies));
             row(t("Play time", "Spielzeit"), ClickerFormat.Duration(state.PlaySeconds));
 
             statsFlow.Add(new OsuSpriteText
@@ -800,11 +820,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             state.Marketing ??= TycoonRules.Marketing.ToDictionary(m => m.Key, _ => 0);
             state.Features ??= new List<string>();
             state.Layout ??= new List<TycoonPlacement>();
+            state.Staff ??= TycoonRules.Staff.ToDictionary(s => s.Key, _ => 0);
 
             if (loaded == null)
             {
-                log(t("Welcome. A Raspberry Pi, no players, big plans. Buy the Discord pad, click the booth to post, empty the collector box.",
-                    "Willkommen. Ein Raspberry Pi, keine Spieler, große Pläne. Kauf das Discord-Pad, klick die Bude zum Posten, leer die Spendenbox."), colours.Pink);
+                log(t("Welcome. A Raspberry Pi, no players, big plans. Buy the Discord pad, click the booth to post, empty the collector box, follow the quests.",
+                    "Willkommen. Ein Raspberry Pi, keine Spieler, große Pläne. Kauf das Discord-Pad, klick die Bude zum Posten, leer die Spendenbox, folge den Aufträgen."), colours.Pink);
             }
             else if (savedAt != null)
             {
@@ -993,10 +1014,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 Origin = Anchor.TopCentre;
                 Masking = true;
                 CornerRadius = 14;
+                BorderThickness = 5;
+                BorderColour = Color4Extensions.FromHex("4B974B");
 
                 InternalChildren = new Drawable[]
                 {
-                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("1b2030") },
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("4B974B") },
                     floor = new Container { RelativeSizeAxes = Axes.Both },
                     new Walkway { Position = cell(2, 6), Size = new Vector2(CELL * 14, CELL) },
                     new Gate { Position = cell(0, 5), Size = new Vector2(CELL * 2, CELL * 3) },
@@ -1026,7 +1049,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 foreach (var (key, x, y, above) in dropper_slots)
                 {
                     var captured = key;
-                    var dropper = new Dropper(key, () => { if (captured == "discord") screen.post(); }) { Position = cell(x, y), Size = new Vector2(CELL * 2, CELL * 2) };
+                    var dropper = new Dropper(key, above, () => { if (captured == "discord") screen.post(); }) { Position = cell(x, y), Size = new Vector2(CELL * 2, CELL * 2) };
                     droppers[key] = dropper;
                     structures.Add(dropper);
                     var pad = new BuyPad(marketingIcon(key), colours.Green, () => screen.buyMarketing(captured)) { Position = cell(x, above ? y - 1 : y + 2), Size = new Vector2(CELL * 2, CELL) };
@@ -1055,6 +1078,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     decoPads[(x, y)] = pad;
                     pads.Add(pad);
                 }
+
+                buildExtras();
             }
 
             private static Vector2 cell(float x, float y) => new Vector2(x * CELL, y * CELL);
@@ -1067,10 +1092,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 lastHardware = -1;
                 lastFeatureCount = -1;
                 lastMarketing.Clear();
+                resetExtras();
             }
 
             /// <summary>Brings pads, buildings and the collector in line with the state.</summary>
-            public void Refresh(TycoonState state, double load, bool ready)
+            public void Refresh(TycoonState state, double load, bool ready, double rate)
             {
                 // hardware
                 int next = state.Hardware + 1;
@@ -1100,9 +1126,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     bool unlocked = i == 0 || state.MarketingCount(dropper_slots[i - 1].key) > 0;
                     long cost = TycoonRules.MarketingCost(key, count);
 
+                    string shortName = padName(key);
                     marketingPads[key].Set(
-                        count == 0 ? ClickerStrings.Pick(kind.NameEn, kind.NameDe) : ClickerStrings.Pick($"{kind.NameEn} Lv {count + 1}", $"{kind.NameDe} Lv {count + 1}"),
-                        ClickerStrings.Pick($"+{ClickerFormat.Number(kind.Rate)} players/s", $"+{ClickerFormat.Number(kind.Rate)} Spieler/s"),
+                        count == 0 ? shortName : $"{shortName} Lv {count + 1}",
+                        ClickerStrings.Pick($"{kind.NameEn}, +{ClickerFormat.Number(kind.Rate)} players/s each", $"{kind.NameDe}, +{ClickerFormat.Number(kind.Rate)} Spieler/s je Stück"),
                         cost, ready && TycoonRules.CanAfford(state, cost), unlocked && count < TycoonRules.MAX_COUNT);
 
                     if (!lastMarketing.TryGetValue(key, out int shown) || shown != count)
@@ -1126,7 +1153,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     var feature = TycoonRules.Features[i];
                     bool owned = state.Has(feature.Key);
                     bool unlocked = !owned && (i == 0 || state.Has(TycoonRules.Features[i - 1].Key));
-                    featurePads[feature.Key].Set(ClickerStrings.Pick(feature.NameEn, feature.NameDe), ClickerStrings.Pick(feature.DescriptionEn, feature.DescriptionDe), feature.Cost, ready && TycoonRules.CanAfford(state, feature.Cost), unlocked);
+                    featurePads[feature.Key].Set(featureShort(feature), $"{ClickerStrings.Pick(feature.NameEn, feature.NameDe)}. {ClickerStrings.Pick(feature.DescriptionEn, feature.DescriptionDe)}", feature.Cost, ready && TycoonRules.CanAfford(state, feature.Cost), unlocked);
                 }
 
                 // decorations: pads along the top once the first upgrade is bought, items where placed
@@ -1152,7 +1179,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     }
                 }
 
-                collector.SetAmount(state.Pending, state.Has("autocollect"));
+                collector.SetAmount(state.Pending, state.Has("autocollect"), rate > 0 ? state.Pending / (rate * 90) : 0);
+                refreshExtras(state, load, ready);
             }
 
             /// <summary>Players joining: figures leave the droppers and walk to the servers, about one per player, at most eight a second.</summary>
@@ -1236,6 +1264,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 var start = cell(slot.x + 1, slot.above ? slot.y + 2 : slot.y) + new Vector2((float)(rng.NextDouble() - 0.5) * 30, 0);
                 var figure = new Figure(rng) { Position = start };
                 figures.Add(figure);
+                if (rng.Next(14) == 0) figure.Say(chatter());
 
                 var onWalkway = new Vector2(start.X, walk_y * CELL + (float)(rng.NextDouble() - 0.5) * 16);
                 double walk = Math.Max(300, (walk_end_x * CELL - start.X) * 9);
@@ -1272,65 +1301,71 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 _ => FontAwesome.Solid.Vial,
             };
 
-            /// <summary>A pad on the floor: name, one line, price; green when affordable, grey when not, gone when locked.</summary>
+            /// <summary>A buy pad like in a tycoon: name and price float over a pill button that is green when affordable and red when not; locked pads are hidden.</summary>
             private partial class BuyPad : OsuClickableContainer
             {
-                private readonly Box background;
-                private readonly Box glow;
-                private readonly SpriteIcon icon;
-                private readonly TruncatingSpriteText nameText;
-                private readonly TruncatingSpriteText detailText;
+                private static readonly Color4 green = Color4Extensions.FromHex("4B974B");
+                private static readonly Color4 red = Color4Extensions.FromHex("C4281C");
+                private static readonly Color4 gold = Color4Extensions.FromHex("F5CD30");
+
+                private readonly Container cap;
+                private readonly Box capTop;
+                private readonly Box capSide;
+                private readonly OsuSpriteText nameText;
                 private readonly OsuSpriteText priceText;
-                private readonly Color4 accent;
                 private bool affordable;
                 private bool shown = true;
 
                 public BuyPad(IconUsage iconUsage, Color4 accent, Action action)
                 {
-                    this.accent = accent;
                     Action = action;
-                    Padding = new MarginPadding(3);
 
-                    Child = new Container
+                    Children = new Drawable[]
                     {
-                        RelativeSizeAxes = Axes.Both,
-                        Masking = true,
-                        CornerRadius = 8,
-                        BorderThickness = 2,
-                        BorderColour = Color4.White.Opacity(0.25f),
-                        Children = new Drawable[]
+                        cap = new Container
                         {
-                            background = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.08f) },
-                            glow = new Box { RelativeSizeAxes = Axes.Both, Colour = accent.Opacity(0.35f), Alpha = 0 },
-                            icon = new SpriteIcon
+                            Anchor = Anchor.BottomCentre,
+                            Origin = Anchor.BottomCentre,
+                            RelativeSizeAxes = Axes.X,
+                            Height = 13,
+                            Padding = new MarginPadding { Horizontal = 8 },
+                            Children = new Drawable[]
                             {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                X = 7,
-                                Size = new Vector2(16),
-                                Icon = iconUsage,
-                            },
-                            new FillFlowContainer
-                            {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                X = 28,
-                                AutoSizeAxes = Axes.Y,
-                                RelativeSizeAxes = Axes.X,
-                                Padding = new MarginPadding { Right = 60 },
-                                Direction = FillDirection.Vertical,
-                                Children = new Drawable[]
+                                new CircularContainer
                                 {
-                                    nameText = new TruncatingSpriteText { Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold), RelativeSizeAxes = Axes.X },
-                                    detailText = new TruncatingSpriteText { Font = OsuFont.GetFont(size: 9), Colour = Color4.White.Opacity(0.7f), RelativeSizeAxes = Axes.X },
+                                    RelativeSizeAxes = Axes.Both,
+                                    Y = 2.5f,
+                                    Masking = true,
+                                    Child = capSide = new Box { RelativeSizeAxes = Axes.Both, Colour = red.Darken(0.5f) },
+                                },
+                                new CircularContainer
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Masking = true,
+                                    Child = capTop = new Box { RelativeSizeAxes = Axes.Both, Colour = red },
                                 },
                             },
-                            priceText = new OsuSpriteText
+                        },
+                        nameText = new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Y = -1,
+                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold),
+                            Shadow = true,
+                        },
+                        new FillFlowContainer
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Y = 11,
+                            AutoSizeAxes = Axes.Both,
+                            Direction = FillDirection.Horizontal,
+                            Spacing = new Vector2(3, 0),
+                            Children = new Drawable[]
                             {
-                                Anchor = Anchor.CentreRight,
-                                Origin = Anchor.CentreRight,
-                                X = -7,
-                                Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
+                                new SpriteIcon { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, Size = new Vector2(10), Icon = iconUsage, Colour = accent },
+                                priceText = new OsuSpriteText { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold), Colour = gold, Shadow = true },
                             },
                         },
                     };
@@ -1346,16 +1381,18 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     }
 
                     nameText.Text = name;
-                    detailText.Text = detail;
-                    priceText.Text = cost == 0 ? ClickerStrings.Pick("free", "gratis") : ClickerFormat.Number(cost);
+                    TooltipText = string.IsNullOrEmpty(detail) ? name : $"{name}: {detail}";
+                    priceText.Text = cost == 0 ? ClickerStrings.Pick("free", "gratis") : $"$ {ClickerFormat.Number(cost)}";
                     Enabled.Value = visible && canAfford;
 
                     if (canAfford != affordable)
                     {
                         affordable = canAfford;
-                        glow.FadeTo(canAfford ? 1 : 0, 200);
-                        priceText.FadeColour(canAfford ? Color4.White : Color4.White.Opacity(0.5f), 200);
-                        icon.FadeColour(canAfford ? accent : Color4.White.Opacity(0.5f), 200);
+                        var colour = canAfford ? green : red;
+                        capTop.FadeColour(colour, 200);
+                        capSide.FadeColour(colour.Darken(0.5f), 200);
+                        priceText.FadeColour(canAfford ? gold : Color4.White.Opacity(0.7f), 200);
+                        if (!canAfford) capTop.Alpha = 1;
                     }
                 }
 
@@ -1363,24 +1400,27 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 {
                     base.Update();
 
+                    // long names shrink to the pad instead of being cut off
+                    nameText.Scale = new Vector2(Math.Min(1, (DrawWidth - 8) / Math.Max(1, nameText.DrawWidth)));
+
                     if (affordable)
-                        glow.Alpha = 0.7f + 0.3f * (float)Math.Sin(Time.Current / 350);
+                        capTop.Alpha = 0.78f + 0.22f * (float)Math.Sin(Time.Current / 300);
                 }
 
                 protected override bool OnHover(HoverEvent e)
                 {
-                    if (Enabled.Value) background.FadeColour(Color4.White.Opacity(0.2f), 100);
+                    if (Enabled.Value) cap.MoveToY(-2, 100, Easing.OutQuint);
                     return base.OnHover(e);
                 }
 
                 protected override void OnHoverLost(HoverLostEvent e)
                 {
-                    background.FadeColour(Color4.White.Opacity(0.08f), 100);
+                    cap.MoveToY(0, 100, Easing.OutQuint);
                     base.OnHoverLost(e);
                 }
             }
 
-            /// <summary>Where the players come from: a sign with a globe.</summary>
+            /// <summary>Where the players come from: a bright blue block with a globe and a sign.</summary>
             private partial class Gate : CompositeDrawable
             {
                 public Gate()
@@ -1390,18 +1430,20 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         RelativeSizeAxes = Axes.Both,
                         Padding = new MarginPadding(4),
                         Masking = true,
-                        CornerRadius = 10,
+                        CornerRadius = 6,
                         Children = new Drawable[]
                         {
-                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("2b3350") },
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("0D69AC") },
+                            new Box { RelativeSizeAxes = Axes.X, Height = 10, Colour = Color4Extensions.FromHex("3f8fd0") },
+                            new Box { RelativeSizeAxes = Axes.Y, Width = 6, Anchor = Anchor.TopRight, Origin = Anchor.TopRight, Colour = Color4Extensions.FromHex("084a7a") },
                             new SpriteIcon
                             {
                                 Anchor = Anchor.Centre,
                                 Origin = Anchor.Centre,
-                                Y = -10,
+                                Y = -6,
                                 Size = new Vector2(30),
                                 Icon = FontAwesome.Solid.Globe,
-                                Colour = Color4Extensions.FromHex("7fb2ff"),
+                                Colour = Color4.White,
                             },
                             new OsuSpriteText
                             {
@@ -1410,27 +1452,35 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                 Y = -8,
                                 Text = "INTERNET",
                                 Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
-                                Colour = Color4.White.Opacity(0.7f),
+                                Shadow = true,
                             },
                         },
                     };
                 }
             }
 
-            /// <summary>The conveyor the players walk on: a dark strip with chevrons moving right.</summary>
+            /// <summary>The conveyor the players ride on: a dark belt with hazard stripes along the edges and chevrons moving right.</summary>
             private partial class Walkway : CompositeDrawable
             {
                 private readonly Container chevrons;
 
                 public Walkway()
                 {
+                    var stripes = new Container { RelativeSizeAxes = Axes.Both };
+
                     InternalChildren = new Drawable[]
                     {
-                        new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("2a2f3f") },
-                        new Box { RelativeSizeAxes = Axes.X, Height = 2, Colour = Color4.White.Opacity(0.12f) },
-                        new Box { RelativeSizeAxes = Axes.X, Height = 2, Anchor = Anchor.BottomLeft, Origin = Anchor.BottomLeft, Colour = Color4.White.Opacity(0.12f) },
-                        chevrons = new Container { RelativeSizeAxes = Axes.Both, Masking = true },
+                        new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("1B2A35") },
+                        stripes,
+                        chevrons = new Container { RelativeSizeAxes = Axes.Both, Masking = true, Padding = new MarginPadding { Vertical = 4 } },
                     };
+
+                    for (int i = 0; i < 70; i++)
+                    {
+                        var colour = Color4Extensions.FromHex(i % 2 == 0 ? "F5CD30" : "1B2A35");
+                        stripes.Add(new Box { X = i * 8, Size = new Vector2(8, 4), Colour = colour });
+                        stripes.Add(new Box { X = i * 8, Size = new Vector2(8, 4), Anchor = Anchor.BottomLeft, Origin = Anchor.BottomLeft, Colour = colour });
+                    }
 
                     for (int i = 0; i < 16; i++)
                     {
@@ -1441,7 +1491,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             X = i * 40,
                             Size = new Vector2(12),
                             Icon = FontAwesome.Solid.ChevronRight,
-                            Colour = Color4.White.Opacity(0.18f),
+                            Colour = Color4.White.Opacity(0.22f),
                         });
                     }
                 }
@@ -1456,7 +1506,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 }
             }
 
-            /// <summary>A marketing building: a box with roof stripe, icon and level; it grows a little with every level and emits players.</summary>
+            /// <summary>A marketing building, a blocky dropper: lighter top face, darker side, a nozzle the players come out of; it grows a little with every level.</summary>
             private partial class Dropper : OsuClickableContainer
             {
                 public int Level { get; private set; }
@@ -1465,9 +1515,13 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 private readonly OsuSpriteText levelText;
                 private readonly Box light;
 
-                public Dropper(string key, Action click)
+                public Dropper(string key, bool above, Action click)
                 {
-                    Action = () => { if (Level > 0) click(); }; // the booth only works once it stands
+                    Action = () =>
+                    {
+                        // the booth only works once it stands
+                        if (Level > 0) click();
+                    };
                     Padding = new MarginPadding(3);
 
                     Color4 colour = key switch
@@ -1487,30 +1541,38 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre,
                         Masking = true,
-                        CornerRadius = 9,
+                        CornerRadius = 5,
                         Alpha = 0,
                         EdgeEffect = new EdgeEffectParameters { Type = EdgeEffectType.Shadow, Colour = Color4.Black.Opacity(0.4f), Radius = 6, Offset = new Vector2(0, 3) },
                         Children = new Drawable[]
                         {
-                            new Box { RelativeSizeAxes = Axes.Both, Colour = colour.Darken(0.3f) },
-                            new Box { RelativeSizeAxes = Axes.X, Height = 12, Colour = colour },
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = colour },
+                            new Box { RelativeSizeAxes = Axes.X, Height = 11, Colour = colour.Lighten(0.35f) },
+                            new Box { RelativeSizeAxes = Axes.Y, Width = 7, Anchor = Anchor.TopRight, Origin = Anchor.TopRight, Colour = colour.Darken(0.45f) },
                             light = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.12f), Alpha = 0 },
+                            new Box
+                            {
+                                Anchor = above ? Anchor.BottomCentre : Anchor.TopCentre,
+                                Origin = above ? Anchor.BottomCentre : Anchor.TopCentre,
+                                Size = new Vector2(16, 7),
+                                Colour = Color4Extensions.FromHex("1B2A35"),
+                            },
                             new SpriteIcon
                             {
                                 Anchor = Anchor.Centre,
                                 Origin = Anchor.Centre,
-                                Y = 2,
-                                Size = new Vector2(26),
+                                Y = 1,
+                                Size = new Vector2(24),
                                 Icon = marketingIcon(key),
                                 Colour = Color4.White,
                             },
                             levelText = new OsuSpriteText
                             {
-                                Anchor = Anchor.BottomRight,
-                                Origin = Anchor.BottomRight,
-                                Position = new Vector2(-5, -3),
+                                Anchor = Anchor.BottomLeft,
+                                Origin = Anchor.BottomLeft,
+                                Position = new Vector2(5, -3),
                                 Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
-                                Colour = Color4.White.Opacity(0.85f),
+                                Shadow = true,
                             },
                         },
                     };
@@ -1564,6 +1626,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         Children = new Drawable[]
                         {
                             new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("151926") },
+                            new Box { RelativeSizeAxes = Axes.X, Height = 20, Colour = Color4Extensions.FromHex("343c5c") },
+                            new Box { RelativeSizeAxes = Axes.Y, Width = 6, Anchor = Anchor.TopRight, Origin = Anchor.TopRight, Colour = Color4Extensions.FromHex("0b0e18") },
                             glow = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("ff4040").Opacity(0.2f), Alpha = 0 },
                             racks = new Container { RelativeSizeAxes = Axes.Both, Padding = new MarginPadding { Top = 22, Bottom = 8, Horizontal = 8 } },
                             nameText = new OsuSpriteText
@@ -1662,13 +1726,14 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 }
             }
 
-            /// <summary>The collector box: donations pile up here until the player clicks it.</summary>
+            /// <summary>The collector: a bright green cash block, donations pile up in it until the player clicks it.</summary>
             private partial class Collector : OsuClickableContainer
             {
                 private readonly OsuSpriteText amountText;
                 private readonly OsuSpriteText hintText;
                 private readonly Box glow;
                 private readonly SpriteIcon icon;
+                private readonly Box gauge;
                 private bool auto;
 
                 public Collector(Action collect)
@@ -1680,45 +1745,65 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     {
                         RelativeSizeAxes = Axes.Both,
                         Masking = true,
-                        CornerRadius = 9,
-                        BorderThickness = 2,
-                        BorderColour = Color4Extensions.FromHex("ffd54f").Opacity(0.6f),
+                        CornerRadius = 6,
                         EdgeEffect = new EdgeEffectParameters { Type = EdgeEffectType.Shadow, Colour = Color4.Black.Opacity(0.4f), Radius = 6, Offset = new Vector2(0, 3) },
                         Children = new Drawable[]
                         {
-                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("4a3b12") },
-                            glow = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("ffd54f").Opacity(0.25f), Alpha = 0 },
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("3d7a3d") },
+                            new Box { RelativeSizeAxes = Axes.X, Height = 10, Colour = Color4Extensions.FromHex("5fb65f") },
+                            new Box { RelativeSizeAxes = Axes.Y, Width = 6, Anchor = Anchor.TopRight, Origin = Anchor.TopRight, Colour = Color4Extensions.FromHex("2d5c2d") },
+                            glow = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("F5CD30").Opacity(0.3f), Alpha = 0 },
                             icon = new SpriteIcon
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
                                 X = 12,
-                                Size = new Vector2(28),
-                                Icon = FontAwesome.Solid.PiggyBank,
-                                Colour = Color4Extensions.FromHex("ffd54f"),
+                                Y = 3,
+                                Size = new Vector2(26),
+                                Icon = FontAwesome.Solid.DollarSign,
+                                Colour = Color4Extensions.FromHex("F5CD30"),
                             },
                             new FillFlowContainer
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                X = 50,
+                                X = 46,
+                                Y = 3,
                                 AutoSizeAxes = Axes.Both,
                                 Direction = FillDirection.Vertical,
                                 Children = new Drawable[]
                                 {
-                                    amountText = new OsuSpriteText { Font = OsuFont.GetFont(size: 18, weight: FontWeight.Bold), Colour = Color4Extensions.FromHex("ffd54f") },
-                                    hintText = new OsuSpriteText { Font = OsuFont.GetFont(size: 9), Colour = Color4.White.Opacity(0.75f) },
+                                    amountText = new OsuSpriteText { Font = OsuFont.GetFont(size: 18, weight: FontWeight.Bold), Colour = Color4Extensions.FromHex("F5CD30"), Shadow = true },
+                                    hintText = new OsuSpriteText { Font = OsuFont.GetFont(size: 9, weight: FontWeight.Bold), Colour = Color4.White.Opacity(0.9f), Shadow = true },
+                                },
+                            },
+                            new Container
+                            {
+                                Anchor = Anchor.CentreRight,
+                                Origin = Anchor.CentreRight,
+                                X = -12,
+                                Y = 3,
+                                Size = new Vector2(10, 48),
+                                Masking = true,
+                                CornerRadius = 4,
+                                Children = new Drawable[]
+                                {
+                                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Black.Opacity(0.4f) },
+                                    gauge = new Box { RelativeSizeAxes = Axes.Both, Height = 0, Anchor = Anchor.BottomLeft, Origin = Anchor.BottomLeft, Colour = Color4Extensions.FromHex("F5CD30") },
                                 },
                             },
                         },
                     };
                 }
 
-                public void SetAmount(double pending, bool autoCollect)
+                /// <param name="fill">How full the box looks; 1 = about 90 seconds of income waiting.</param>
+                public void SetAmount(double pending, bool autoCollect, double fill)
                 {
                     auto = autoCollect;
-                    amountText.Text = autoCollect ? "AUTO" : ClickerFormat.Number(pending);
-                    hintText.Text = autoCollect ? ClickerStrings.Text("Collector box, automatic", "Spendenbox, automatisch") : ClickerStrings.Text("Collector box, click to collect", "Spendenbox, klicken zum Einsammeln");
+                    amountText.Text = autoCollect ? "AUTO" : $"$ {ClickerFormat.Number(pending)}";
+                    hintText.Text = autoCollect ? ClickerStrings.Text("COLLECTOR, AUTOMATIC", "SPENDENBOX, AUTOMATISCH") : ClickerStrings.Text("COLLECTOR, CLICK TO COLLECT", "SPENDENBOX, KLICKEN");
+                    TooltipText = autoCollect ? ClickerStrings.Text("The auto collector empties the box for you", "Die Auto-Kasse leert die Box für dich") : ClickerStrings.Text("Click, C or Enter: collect the donations", "Klick, C oder Enter: Spenden einsammeln");
+                    gauge.Height = (float)Math.Clamp(autoCollect ? 0 : fill, 0, 1);
                     Enabled.Value = !autoCollect && pending >= 0.5;
                 }
 
@@ -1855,22 +1940,50 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 }
             }
 
-            /// <summary>A player: a small round figure in a pastel colour with a darker head band.</summary>
+            /// <summary>A player: a blocky little avatar (yellow head, coloured shirt, dark legs); it can say a word.</summary>
             private partial class Figure : CompositeDrawable
             {
-                private static readonly string[] palette = { "ff8a80", "ffd180", "ffff8d", "ccff90", "a7ffeb", "80d8ff", "8c9eff", "ea80fc" };
+                public static readonly string[] Palette = { "ff8a80", "ffd180", "ccff90", "a7ffeb", "80d8ff", "8c9eff", "ea80fc", "4B974B", "0D69AC", "C4281C" };
 
                 public Figure(Random rng)
+                    : this(Color4Extensions.FromHex(Palette[rng.Next(Palette.Length)]))
+                {
+                }
+
+                public Figure(Color4 colour)
                 {
                     Origin = Anchor.Centre;
-                    Size = new Vector2(12);
-                    var colour = Color4Extensions.FromHex(palette[rng.Next(palette.Length)]);
+                    Size = new Vector2(10, 15);
 
                     InternalChildren = new Drawable[]
                     {
-                        new Circle { RelativeSizeAxes = Axes.Both, Colour = colour },
-                        new Circle { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Y = 2, Size = new Vector2(6, 3), Colour = colour.Darken(0.6f) },
+                        new Box { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Size = new Vector2(5), Colour = Color4Extensions.FromHex("F5CD30") },
+                        new Box { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Y = 5.5f, Size = new Vector2(8, 6), Colour = colour },
+                        new Box { Anchor = Anchor.BottomLeft, Origin = Anchor.BottomLeft, X = 1, Size = new Vector2(3, 3.5f), Colour = Color4Extensions.FromHex("1B2A35") },
+                        new Box { Anchor = Anchor.BottomRight, Origin = Anchor.BottomRight, X = -1, Size = new Vector2(3, 3.5f), Colour = Color4Extensions.FromHex("1B2A35") },
                     };
+                }
+
+                /// <summary>A speech bubble above the head for a moment.</summary>
+                public void Say(string text, double duration = 1600)
+                {
+                    var bubble = new Container
+                    {
+                        Anchor = Anchor.TopCentre,
+                        Origin = Anchor.BottomCentre,
+                        Y = -3,
+                        AutoSizeAxes = Axes.Both,
+                        Masking = true,
+                        CornerRadius = 5,
+                        Alpha = 0,
+                        Children = new Drawable[]
+                        {
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White },
+                            new OsuSpriteText { Text = text, Margin = new MarginPadding { Horizontal = 4, Vertical = 1 }, Font = OsuFont.GetFont(size: 9, weight: FontWeight.Bold), Colour = Color4Extensions.FromHex("222") },
+                        },
+                    };
+                    AddInternal(bubble);
+                    bubble.FadeIn(150).Delay(duration).FadeOut(250).Expire();
                 }
             }
         }

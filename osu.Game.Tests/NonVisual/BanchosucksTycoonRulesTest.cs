@@ -50,13 +50,13 @@ namespace osu.Game.Tests.NonVisual
             var state = new TycoonState();
             state.Marketing["discord"] = 1;
             double gained = TycoonRules.Simulate(state, 60);
-            Assert.That(state.Players, Is.EqualTo(7.9836).Within(1e-4));
+            Assert.That(state.Players, Is.EqualTo(8.3463).Within(1e-4));
             Assert.That(state.Ruf, Is.EqualTo(100.0).Within(1e-4));
-            Assert.That(state.Pending, Is.EqualTo(18.3828).Within(1e-4), "income waits in the collector box");
+            Assert.That(state.Pending, Is.EqualTo(18.9360).Within(1e-4), "income waits in the collector box");
             Assert.That(state.Donations, Is.EqualTo(0));
             Assert.That(gained, Is.EqualTo(state.Pending).Within(1e-9));
-            Assert.That(TycoonRules.Collect(state), Is.EqualTo(18.3828).Within(1e-4));
-            Assert.That((Math.Round(state.Donations, 4), state.Pending), Is.EqualTo((18.3828, 0.0)));
+            Assert.That(TycoonRules.Collect(state), Is.EqualTo(18.9360).Within(1e-4));
+            Assert.That((Math.Round(state.Donations, 4), state.Pending), Is.EqualTo((18.9360, 0.0)));
             Assert.That(state.PlaySeconds, Is.EqualTo(60.0).Within(1e-9));
         }
 
@@ -64,15 +64,26 @@ namespace osu.Game.Tests.NonVisual
         public void TestOverloadedLaptop()
         {
             var state = sampleRun();
-            Assert.That(state.Players, Is.EqualTo(42.0029).Within(1e-4));
-            Assert.That(state.Ruf, Is.EqualTo(41.0675).Within(1e-4), "over capacity, the reputation suffers");
-            Assert.That(state.Pending, Is.EqualTo(1529.8419).Within(1e-4));
-            Assert.That(state.MaxPlayers, Is.EqualTo(44.4305).Within(1e-4));
-            Assert.That(TycoonRules.Inflow(state), Is.EqualTo(0.273202).Within(1e-6));
-            Assert.That(TycoonRules.DonationRate(state), Is.EqualTo(2.295056).Within(1e-6));
+            Assert.That(state.Players, Is.EqualTo(43.8999).Within(1e-4));
+            Assert.That(state.Ruf, Is.EqualTo(100.0000).Within(1e-4), "just over capacity, within tolerance: the reputation holds");
+            Assert.That(state.Pending, Is.EqualTo(2155.5571).Within(1e-4));
+            Assert.That(state.MaxPlayers, Is.EqualTo(43.8999).Within(1e-4));
+            Assert.That(TycoonRules.Inflow(state), Is.EqualTo(0.450000).Within(1e-6));
+            Assert.That(TycoonRules.DonationRate(state), Is.EqualTo(3.950995).Within(1e-6));
             Assert.That(TycoonRules.Spent(state), Is.EqualTo(611.0));
-            Assert.That(TycoonRules.MaxPlayersBound(state), Is.EqualTo(466.4352).Within(1e-4));
-            Assert.That(TycoonRules.MaxDonationRate(state), Is.EqualTo(83.958333 * 1.15).Within(1e-6), "the comfort cap is part of the bound");
+            Assert.That(TycoonRules.MaxPlayersBound(state), Is.EqualTo(323.4848).Within(1e-4));
+            Assert.That(TycoonRules.MaxDonationRate(state), Is.EqualTo(58.227273 * 1.15).Within(1e-6), "the comfort cap is part of the bound");
+        }
+
+        [Test]
+        public void TestOverloadedPi()
+        {
+            var state = new TycoonState();
+            state.Marketing["discord"] = 10;
+            TycoonRules.Simulate(state, 300);
+            Assert.That(state.Players, Is.EqualTo(15.2959).Within(1e-4), "far over the Pi's ten, the extra players keep leaving");
+            Assert.That(state.Ruf, Is.EqualTo(0.0000).Within(1e-4), "lag costs reputation");
+            Assert.That(state.Pending, Is.EqualTo(155.9943).Within(1e-4));
         }
 
         [Test]
@@ -101,6 +112,9 @@ namespace osu.Game.Tests.NonVisual
             Assert.That(TycoonRules.BuyMarketing(state, "discord"), Is.True);
             Assert.That((state.MarketingCount("discord"), state.Donations), Is.EqualTo((1, 5.0)));
             Assert.That(TycoonRules.BuyMarketing(state, "discord"), Is.False);
+            state.Donations = 2000;
+            Assert.That(TycoonRules.BuyMarketing(state, "youtube"), Is.False, "YouTube videos need the Mini PC, this is a laptop");
+            Assert.That(TycoonRules.MarketingOf("influencer").MinHardware, Is.EqualTo(6));
             state.Donations = 600;
             Assert.That(TycoonRules.BuyFeature(state, "website"), Is.True);
             Assert.That(state.Features, Is.EqualTo(new[] { "website" }));
@@ -155,6 +169,43 @@ namespace osu.Game.Tests.NonVisual
         }
 
         [Test]
+        public void TestTeam()
+        {
+            Assert.That(Enumerable.Range(0, 5).Select(i => TycoonRules.StaffCost("developer", i)), Is.EqualTo(new long[] { 5000, 10000, 20000, 40000, 80000 }));
+            Assert.That((TycoonRules.StaffCost("moderator", 0), TycoonRules.StaffCost("community", 4)), Is.EqualTo((2000L, 56000L)));
+            Assert.That(TycoonRules.StaffTotalCost("developer", 3), Is.EqualTo(35000));
+
+            var state = sampleRun();
+            state.Staff["developer"] = 2;
+            Assert.That(TycoonRules.StaffDonationMult(state), Is.EqualTo(1.10).Within(1e-9));
+            Assert.That(TycoonRules.DonationRate(state), Is.EqualTo(3.950995 * 1.10).Within(1e-5));
+            Assert.That(TycoonRules.MaxDonationRate(state), Is.EqualTo(58.227273 * 1.15 * 1.10).Within(1e-5));
+            Assert.That(TycoonRules.Spent(state), Is.EqualTo(611.0 + 15000.0));
+            state.Staff["community"] = 3;
+            state.Staff["moderator"] = 1;
+            Assert.That(TycoonRules.StaffInflowMult(state), Is.EqualTo(1.15).Within(1e-9));
+            Assert.That(TycoonRules.StaffRegenMult(state), Is.EqualTo(1.25).Within(1e-9));
+            Assert.That(TycoonRules.StaffTotal(state), Is.EqualTo(6));
+
+            state = new TycoonState { Donations = 6000 };
+            Assert.That(TycoonRules.Hire(state, "developer"), Is.True);
+            Assert.That((state.StaffCount("developer"), state.Donations), Is.EqualTo((1, 1000.0)));
+            Assert.That(TycoonRules.Hire(state, "developer"), Is.False, "the second developer costs 10000");
+            Assert.That(TycoonRules.Hire(state, "intern"), Is.False);
+            state.Staff["moderator"] = 5;
+            state.Donations = 1e9;
+            Assert.That(TycoonRules.Hire(state, "moderator"), Is.False, "five per role");
+
+            state = sampleRun();
+            state.Staff["community"] = 1;
+            state.Quest = 7;
+            state.RunTotal = 4_000_000;
+            state.LifetimeTotal = 4_000_000;
+            TycoonRules.Prestige(state);
+            Assert.That((state.StaffCount("community"), state.Quest), Is.EqualTo((0, 7)), "the team goes, the quest progress stays");
+        }
+
+        [Test]
         public void TestSaveRoundTrip()
         {
             var state = sampleRun();
@@ -162,6 +213,8 @@ namespace osu.Game.Tests.NonVisual
             string json = JsonConvert.SerializeObject(state);
             Assert.That(json, Does.Contain("\"lifetime_total\""));
             Assert.That(json, Does.Contain("\"marketing\":{\"discord\":3"));
+            Assert.That(json, Does.Contain("\"staff\":{\"moderator\":0,\"developer\":0,\"community\":0}"));
+            Assert.That(json, Does.Contain("\"quest\":0"));
 
             var back = JsonConvert.DeserializeObject<TycoonState>(json)!;
             Assert.That(back.Players, Is.EqualTo(state.Players));

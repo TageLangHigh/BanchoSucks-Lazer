@@ -145,8 +145,14 @@ and restart the app container.
   and `TestSceneBanchosucksMinigames`.
 - **Private Server Tycoon** (main menu > Play > minigames, third tile, since 2026.913.15):
   `osu.Game/Screens/Banchosucks/Tycoon/`, an idle game built like a tycoon game: the plot is the game.
-  Buy pads on the floor show the next building and its price and turn green when affordable; buying
-  turns the pad into the building and unlocks the next pad. The player runs an osu! private server:
+  Buy pads on the floor show the next building and its price, green when affordable, red when not
+  (long names shrink to fit, the full text is in the tooltip); buying turns the pad into the building
+  and unlocks the next pad. Marketing needs matching hardware (Reddit from the laptop, YouTube from
+  the Mini PC, streamers from the VPS, tournaments from the dedicated server, campaigns from the
+  second server, influencers from the cluster), so nobody buys YouTube videos for a Raspberry Pi;
+  a pad locked that way shows the hardware it needs. Players leave at 0.25 %/s, 8 %/s above capacity,
+  10 % over capacity is tolerated, lag costs 1.5 reputation per second per 100 % overload (capped at 5).
+  The player runs an osu! private server:
   marketing (Discord, Reddit, YouTube, streamers, tournaments, campaigns, influencers; cost x1.15
   per piece) brings players, players donate (0.05 per player and second times a reputation factor
   0.5 to 1.5), donations buy hardware (nine tiers from Raspberry Pi with 10 players to cloud with
@@ -168,10 +174,18 @@ and restart the app container.
   bottom, nine decoration pads along the top (comfort +0.5 % donations per point, capped at +15 %;
   right click sells for half). Players walk out of the droppers along the walkway into the servers;
   donations drop as coins into the collector box (`pending` in the save) and are collected by
-  clicking it, or automatically with the auto collector feature. The layout is part of the save and
-  of the server's spending check. The server bounds what a save may have earned since the last one
+  clicking it, or automatically with the auto collector feature. The team office (from the Mini PC
+  on): moderators, developers and community managers, five per role, every hire doubles the price,
+  small multipliers per head (`staff` in the save, mirrored in economy.py). Eighteen quests in a
+  fixed order guide the run (`TycoonQuests.cs`; `quest` in the save is the index of the next one and
+  survives seasons), rewards are seconds of income or a boost. Supply drops land next to the walkway
+  every few minutes and give a random reward when clicked within 25 seconds. Life on the plot
+  (`TycoonScreen.Extras.cs`): a four-minute day and night with lamps, chatter bubbles, a trophy
+  shelf for the milestones, a floor that changes with the hardware, smoke and a LAG sign when
+  overloaded, event effects (cheaters walking in and getting banned, DDoS rings, sparks, confetti,
+  coin showers). The layout and the team are part of the save and of the server's spending check. The server bounds what a save may have earned since the last one
   and refuses saves that spent more than they earned. A stats tab lists play time, posts, events,
-  seasons and fourteen milestones. Leaderboards
+  seasons, team, quests and sixteen milestones. Leaderboards
   by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.
   Tests: `osu.Game.Tests/NonVisual/BanchosucksTycoonRulesTest.cs` (same numbers as the plugin
   tests) and `TestSceneBanchosucksMinigames`.
