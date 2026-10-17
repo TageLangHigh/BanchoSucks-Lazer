@@ -69,6 +69,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private double lastLocalSave;
         private bool dirty;
         private int logCounter;
+        private double joinAccumulator;
+        private double statsRefresh;
+        private bool firstMilestonePass = true;
+        private readonly HashSet<string> reachedMilestones = new HashSet<string>();
         private GetTycoonSaveRequest? loadRequest;
         private SubmitTycoonSaveRequest? saveRequest;
 
@@ -89,6 +93,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private OsuSpriteText statusText = null!;
         private OsuSpriteText prestigeText = null!;
         private ClickerPillButton prestigeButton = null!;
+        private Container effectLayer = null!;
+        private OsuSpriteText nextEventText = null!;
+        private FillFlowContainer statsFlow = null!;
 
         private readonly Dictionary<Tab, ClickerTabButton> tabButtons = new Dictionary<Tab, ClickerTabButton>();
         private readonly Dictionary<Tab, Drawable> tabContents = new Dictionary<Tab, Drawable>();
@@ -103,6 +110,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             Hardware,
             Marketing,
             Features,
+            Stats,
             Board,
         }
 
@@ -144,6 +152,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     Padding = new MarginPadding { Top = 56, Bottom = 24, Right = 30 },
                     Child = createRightColumn(),
                 },
+                effectLayer = new Container { RelativeSizeAxes = Axes.Both },
             };
 
             rebuildShop();
@@ -235,6 +244,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         },
                     },
                     eventCard = new EventCard(),
+                    nextEventText = new OsuSpriteText
+                    {
+                        Font = OsuFont.GetFont(size: 13),
+                        Colour = colours.Gray9,
+                    },
                     new Container
                     {
                         RelativeSizeAxes = Axes.X,
@@ -370,6 +384,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                          (Tab.Hardware, t("Hardware", "Hardware"), FontAwesome.Solid.Server),
                          (Tab.Marketing, t("Marketing", "Marketing"), FontAwesome.Solid.Bullhorn),
                          (Tab.Features, t("Features", "Features"), FontAwesome.Solid.Cogs),
+                         (Tab.Stats, t("Stats", "Statistik"), FontAwesome.Solid.ChartBar),
                          (Tab.Board, t("Ranking", "Rangliste"), FontAwesome.Solid.Trophy),
                      })
             {
@@ -396,6 +411,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             tabContents[Tab.Hardware] = scroll(hardwareRows = rows());
             tabContents[Tab.Marketing] = scroll(marketingRows = rows());
             tabContents[Tab.Features] = scroll(featureRows = rows());
+            tabContents[Tab.Stats] = scroll(statsFlow = rows());
             tabContents[Tab.Board] = board = new TycoonLeaderboardPanel();
 
             return new Container
@@ -463,6 +479,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             if (value == Tab.Board && IsLoaded)
                 board.Refresh();
+
+            if (value == Tab.Stats && IsLoaded)
+                refreshStats();
         }
 
         private void rebuildShop()
@@ -569,6 +588,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             boosts.Tick(dt);
             TycoonRules.Step(state, dt, boosts.Inflow, boosts.Donation);
             dirty = true;
+            spawnJoins(dt);
 
             if (pending == null)
             {
@@ -581,6 +601,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             if (Time.Current - lastCloudSave > autosave_interval)
                 saveCloud();
+
+            if (tab == Tab.Stats && Time.Current - statsRefresh > 1000)
+                refreshStats();
 
             refreshTexts();
         }
@@ -617,6 +640,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 : ClickerStrings.Pick($"New season from {n(TycoonRules.PRESTIGE_MIN_TOTAL)} donations in a season ({n(state.RunTotal)} so far).", $"Neue Saison ab {n(TycoonRules.PRESTIGE_MIN_TOTAL)} Spenden in einer Saison (bisher {n(state.RunTotal)}).");
 
             rack.SetLoad(state.Hardware, load);
+
+            nextEventText.Text = pending == null
+                ? t("Next event in {0} s", "Nächstes Ereignis in {0} s", Math.Max(0, (int)Math.Ceiling(nextEventIn)))
+                : t("An event waits for your decision.", "Ein Ereignis wartet auf deine Entscheidung.");
+
+            checkMilestones();
         }
 
         private void post()
@@ -625,6 +654,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             double added = TycoonRules.Click(state);
             postButton.Pulse(ClickerStrings.Pick($"+{n(added)}", $"+{n(added)}"));
+            spawnDot();
         }
 
         private void buy(Func<bool> purchase, LocalisableString? logLine)
@@ -703,6 +733,168 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             }
             else
                 doPrestige();
+        }
+
+        // ---------------------------------------------------------------- flair and statistics
+
+        /// <summary>Players joining fly from the Discord button into the rack: one dot per player, at most about six a second.</summary>
+        private void spawnJoins(double dt)
+        {
+            double rate = TycoonRules.Inflow(state, boosts.Inflow);
+            if (rate <= 0) return;
+
+            double perDot = Math.Max(1, rate / 6);
+            joinAccumulator += rate * dt;
+
+            while (joinAccumulator >= perDot)
+            {
+                joinAccumulator -= perDot;
+                spawnDot();
+            }
+        }
+
+        private void spawnDot()
+        {
+            if (!effectLayer.IsLoaded || !postButton.IsLoaded || !rack.IsLoaded) return;
+
+            var from = effectLayer.ToLocalSpace(postButton.ScreenSpaceDrawQuad.Centre) + new Vector2((float)(rng.NextDouble() - 0.5) * 60, (float)(rng.NextDouble() - 0.5) * 20);
+            var to = effectLayer.ToLocalSpace(rack.ScreenSpaceDrawQuad.Centre) + new Vector2((float)(rng.NextDouble() - 0.5) * 90, (float)(rng.NextDouble() - 0.5) * 70);
+
+            var dot = new Circle
+            {
+                Origin = Anchor.Centre,
+                Position = from,
+                Size = new Vector2(8),
+                Colour = colours.Blue,
+                Alpha = 0.9f,
+            };
+
+            effectLayer.Add(dot);
+            dot.MoveTo(to, 650, Easing.InQuad).ScaleTo(0.4f, 650).FadeOut(650, Easing.In).Expire();
+        }
+
+        private static readonly (string key, string en, string de, Func<TycoonState, bool> reached)[] milestones =
+        {
+            ("first_player", "First player online", "Erster Spieler online", s => s.MaxPlayers >= 1),
+            ("hundred", "100 players at once", "100 Spieler gleichzeitig", s => s.MaxPlayers >= 100),
+            ("thousand", "1,000 players at once", "1.000 Spieler gleichzeitig", s => s.MaxPlayers >= 1000),
+            ("ten_thousand", "10,000 players at once", "10.000 Spieler gleichzeitig", s => s.MaxPlayers >= 10_000),
+            ("vps", "Rented a real server", "Einen richtigen Server gemietet", s => s.Hardware >= 3),
+            ("datacenter", "Own rack in a data centre", "Eigenes Rack im Rechenzentrum", s => s.Hardware >= 7),
+            ("features", "Six features live", "Sechs Features live", s => s.Features.Count >= 6),
+            ("all_features", "Every feature live", "Alle Features live", s => s.Features.Count >= TycoonRules.Features.Length),
+            ("events", "Survived 25 events", "25 Ereignisse überstanden", s => s.Events >= 25),
+            ("million", "A million donations", "Eine Million Spenden", s => s.LifetimeTotal >= 1_000_000),
+            ("billion", "A billion donations", "Eine Milliarde Spenden", s => s.LifetimeTotal >= 1_000_000_000),
+            ("season", "Second season", "Zweite Saison", s => s.Prestige >= 1),
+            ("clicks", "1,000 Discord posts", "1.000 Discord-Posts", s => s.Clicks >= 1000),
+        };
+
+        private void checkMilestones()
+        {
+            foreach (var (key, en, de, reached) in milestones)
+            {
+                if (reachedMilestones.Contains(key) || !reached(state)) continue;
+
+                reachedMilestones.Add(key);
+
+                if (!firstMilestonePass)
+                    log(t("Milestone: {0}", "Meilenstein: {0}", ClickerStrings.Pick(en, de)), colours.Yellow);
+            }
+
+            firstMilestonePass = false;
+        }
+
+        private void refreshStats()
+        {
+            statsRefresh = Time.Current;
+            statsFlow.Clear();
+
+            void row(LocalisableString label, string value) => statsFlow.Add(new StatRow(label, value));
+
+            row(t("Lifetime donations", "Spenden insgesamt"), n(state.LifetimeTotal));
+            row(t("This season", "Diese Saison"), n(state.RunTotal));
+            row(t("Spent this season", "Diese Saison ausgegeben"), n(TycoonRules.Spent(state)));
+            row(t("Player record", "Spieler-Rekord"), n(state.MaxPlayers));
+            row(t("Seasons", "Saisons"), ClickerFormat.Count(state.Prestige + 1));
+            row(t("Legacy", "Legacy"), $"{state.Legacy} (x{TycoonRules.LegacyMult(state.Legacy):0.00})");
+            row(t("Events survived", "Ereignisse überstanden"), ClickerFormat.Count(state.Events));
+            row(t("Discord posts", "Discord-Posts"), ClickerFormat.Count(state.Clicks));
+            row(t("Play time", "Spielzeit"), ClickerFormat.Duration(state.PlaySeconds));
+
+            statsFlow.Add(new OsuSpriteText
+            {
+                Text = t("Milestones", "Meilensteine"),
+                Font = OsuFont.GetFont(size: 15, weight: FontWeight.Bold),
+                Colour = colours.Yellow,
+                Margin = new MarginPadding { Top = 10 },
+            });
+
+            foreach (var (_, en, de, reached) in milestones)
+                statsFlow.Add(new MilestoneRow(t(en, de), reached(state), colours));
+        }
+
+        private partial class StatRow : CompositeDrawable
+        {
+            public StatRow(LocalisableString label, string value)
+            {
+                RelativeSizeAxes = Axes.X;
+                Height = 30;
+                Masking = true;
+                CornerRadius = 8;
+
+                InternalChildren = new Drawable[]
+                {
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.05f) },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 12,
+                        Text = label,
+                        Font = OsuFont.GetFont(size: 14),
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreRight,
+                        Origin = Anchor.CentreRight,
+                        X = -12,
+                        Text = value,
+                        Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
+                    },
+                };
+            }
+        }
+
+        private partial class MilestoneRow : CompositeDrawable
+        {
+            public MilestoneRow(LocalisableString label, bool reached, OsuColour colours)
+            {
+                RelativeSizeAxes = Axes.X;
+                Height = 26;
+                Alpha = reached ? 1 : 0.55f;
+
+                InternalChildren = new Drawable[]
+                {
+                    new SpriteIcon
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 6,
+                        Size = new Vector2(14),
+                        Icon = reached ? FontAwesome.Solid.CheckCircle : FontAwesome.Regular.Circle,
+                        Colour = reached ? colours.Green : colours.Gray9,
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        X = 28,
+                        Text = label,
+                        Font = OsuFont.GetFont(size: 13, weight: reached ? FontWeight.SemiBold : FontWeight.Regular),
+                    },
+                };
+            }
         }
 
         // ---------------------------------------------------------------- saving and loading
@@ -813,11 +1005,16 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                     double gained = TycoonRules.Simulate(state, away);
                     log(t("While you were away ({0}): +{1} donations, {2} players online now",
                         "Während du weg warst ({0}): +{1} Spenden, jetzt {2} Spieler online", ClickerFormat.Duration(away), n(gained), n(state.Players)), colours.Yellow);
+                    eventCard.Show(new TycoonEvent("welcome", t("Welcome back", "Willkommen zurück"),
+                        t("{0} away: your server took {1} donations, {2} players are online.", "{0} weg: Dein Server hat {1} Spenden eingenommen, {2} Spieler sind online.",
+                            ClickerFormat.Duration(away), n(gained), n(state.Players)), FontAwesome.Solid.Clock, colours.Yellow), null);
                 }
             }
 
             ready = true;
             dirty = true;
+            firstMilestonePass = true;
+            reachedMilestones.Clear();
             lastCloudSave = Time.Current;
             lastLocalSave = Time.Current;
             nextEventIn = rng.Next(40, 90);
@@ -922,6 +1119,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             private readonly FillFlowContainer units;
             private readonly Box loadBar;
             private readonly OsuSpriteText loadText;
+            private readonly OsuSpriteText nameText;
             private readonly SpriteIcon fan;
             private readonly List<Box> leds = new List<Box>();
             private int level = -1;
@@ -946,12 +1144,18 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         Padding = new MarginPadding(14),
                         Children = new Drawable[]
                         {
+                            nameText = new OsuSpriteText
+                            {
+                                Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
+                                Colour = Color4.White.Opacity(0.85f),
+                            },
                             units = new FillFlowContainer
                             {
                                 RelativeSizeAxes = Axes.X,
                                 AutoSizeAxes = Axes.Y,
                                 Direction = FillDirection.Vertical,
                                 Spacing = new Vector2(0, 5),
+                                Margin = new MarginPadding { Top = 24 },
                             },
                             fan = new SpriteIcon
                             {
@@ -1004,6 +1208,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 loadBar.Width = (float)Math.Clamp(load, 0, 1);
                 loadBar.Colour = load > TycoonRules.OVERLOAD_TOLERANCE ? colours.Red : load > 0.8 ? colours.Yellow : colours.Green;
                 loadText.Text = ClickerStrings.Pick($"load {load * 100:0} %", $"Auslastung {load * 100:0} %");
+
+                var tier = TycoonRules.HardwareAt(level);
+                bool lagging = load > TycoonRules.OVERLOAD_TOLERANCE;
+                nameText.Text = $"{ClickerStrings.Pick(tier.NameEn, tier.NameDe)} · {(lagging ? "LAG" : "ONLINE")}";
+                nameText.Colour = lagging ? colours.Red : Color4.White.Opacity(0.85f);
 
                 // the fan spins faster the busier the server is
                 int bucket = load > TycoonRules.OVERLOAD_TOLERANCE ? 2 : load > 0.8 ? 1 : 0;

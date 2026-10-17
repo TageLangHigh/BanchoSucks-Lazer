@@ -90,6 +90,9 @@ namespace osu.Game.Screens.Banchosucks.Guess
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
 
+        [Resolved(canBeNull: true)]
+        private OsuGame? game { get; set; }
+
         [Resolved]
         protected OsuColour Colours { get; private set; } = null!;
 
@@ -438,6 +441,7 @@ namespace osu.Game.Screens.Banchosucks.Guess
                 promptHost.Add(prompt = new GuessPrompt.Broken());
             }
 
+            prompt.FadeInFromZero(250).ScaleTo(0.97f).ScaleTo(1, 350, Easing.OutQuint);
             state = State.Round;
             roundStart = Time.Current;
             updateHud();
@@ -510,7 +514,9 @@ namespace osu.Game.Screens.Banchosucks.Guess
             }
 
             state = State.Menu;
+            // the toolbar was closed with the overlays for the run; bring it back
             OverlayActivationMode.Value = OverlayActivation.All;
+            game?.Toolbar.Show();
             resultsPanel.FadeOut(150);
             playArea.FadeOut(200);
             menu.FadeIn(200);
