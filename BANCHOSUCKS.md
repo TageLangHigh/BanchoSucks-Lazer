@@ -191,8 +191,14 @@ and restart the app container.
   buildings at once, the income line has a tooltip with every factor, the stats tab starts with an
   income graph (last five minutes) and lists the perks, a bar shows the progress to the next legacy
   point, and an Audio tab binds the osu! master, music and effect volumes with music controls. Two
-  sounds (`UI/notification-pop`, `UI/check-on`). The layout and the team are part of the save and of
-  the server's spending check. The server bounds what a save may have earned since the last one
+  sounds (`UI/notification-pop`, `UI/check-on`). The "autopost" feature lets the bot post half a click
+  per second (part of the inflow, mirrored). Three bad events (DDoS, broken deploy, medal crash) are
+  crises: the server block wants eight clicks within ten seconds for an emergency reboot, which halves
+  the damage (`TycoonEvent.Crisis` with severity 1 or 0.5). A well-known player walks the conveyor
+  every few minutes, a click gets an autograph and a reward; a drone delivers the supply crate; dust
+  flies when something is built; the cash and player numbers roll; a bouncing arrow points at the
+  cheapest affordable pad when nothing was bought for 40 s; the owner sign shows the player's avatar.
+  The layout and the team are part of the save and of the server's spending check. The server bounds what a save may have earned since the last one
   and refuses saves that spent more than they earned. A stats tab lists play time, posts, events,
   seasons, team, quests and sixteen milestones. Leaderboards
   by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.

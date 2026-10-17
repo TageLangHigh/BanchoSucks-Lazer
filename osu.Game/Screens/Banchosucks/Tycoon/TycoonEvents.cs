@@ -78,6 +78,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public readonly List<TycoonEventChoice> Choices = new List<TycoonEventChoice>();
         public TycoonEffect? Auto;
 
+        /// <summary>A crisis instead of <see cref="Auto"/>: applied with severity 1, or 0.5 when the player rebooted the servers in time.</summary>
+        public Func<TycoonState, TycoonBoosts, double, LocalisableString>? Crisis;
+
         public TycoonEvent(string key, LocalisableString title, LocalisableString text, IconUsage icon, Color4 colour)
         {
             Key = key;
@@ -96,6 +99,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
     {
         public const double MIN_INTERVAL = 75;
         public const double MAX_INTERVAL = 150;
+
+        /// <summary>Clicks on the server block that count as an emergency reboot, and the time to do them in.</summary>
+        public const int CRISIS_CLICKS = 8;
+
+        public const double CRISIS_MS = 10_000;
 
         private static LocalisableString t(string en, string de, params object[] args) => ClickerStrings.Text(en, de, args);
 
@@ -194,14 +202,17 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             }
 
             return new TycoonEvent("ddos", t("DDoS attack", "DDoS-Angriff"),
-                t("{0} Gbit/s and the server is gone for an hour.", "{0} Gbit/s, und der Server ist eine Stunde weg.", gbit),
+                t("{0} Gbit/s and the server is gone. Emergency reboot: click the servers {1} times within {2} seconds for half the damage.",
+                    "{0} Gbit/s, und der Server ist weg. Notfall-Reboot: Klick die Server {1}-mal in {2} Sekunden für halben Schaden.", gbit, CRISIS_CLICKS, CRISIS_MS / 1000),
                 FontAwesome.Solid.Bolt, colours.Red)
             {
-                Auto = (s, _) =>
+                Crisis = (s, _, severity) =>
                 {
-                    s.Players *= 0.75;
-                    s.Ruf = Math.Max(0, s.Ruf - 6);
-                    return t("Players -25 %, reputation -6. Cloudflare would have helped.", "Spieler -25 %, Ruf -6. Cloudflare hätte geholfen.");
+                    s.Players *= 1 - 0.25 * severity;
+                    s.Ruf = Math.Max(0, s.Ruf - 6 * severity);
+                    return severity < 1
+                        ? t("Rebooted in time: players -12.5 %, reputation -3", "Rechtzeitig neu gestartet: Spieler -12,5 %, Ruf -3")
+                        : t("Players -25 %, reputation -6. Cloudflare would have helped.", "Spieler -25 %, Ruf -6. Cloudflare hätte geholfen.");
                 },
             };
         }
@@ -258,13 +269,16 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             }
 
             return new TycoonEvent("deploy", t("Deploy failed", "Deploy fehlgeschlagen"),
-                t("'Illegal mix of collations': the leaderboards return 500 until someone wakes up.", "„Illegal mix of collations“: Die Ranglisten liefern 500, bis jemand aufwacht."),
+                t("'Illegal mix of collations': the leaderboards return 500. Roll back by hand: click the servers {0} times within {1} seconds.",
+                    "„Illegal mix of collations“: Die Ranglisten liefern 500. Von Hand zurückrollen: Klick die Server {0}-mal in {1} Sekunden.", CRISIS_CLICKS, CRISIS_MS / 1000),
                 FontAwesome.Solid.ExclamationTriangle, colours.Yellow)
             {
-                Auto = (_, b) =>
+                Crisis = (_, b, severity) =>
                 {
-                    b.SetDonation(0.5, 45);
-                    return t("Donations halved for 45 seconds", "Spenden halbiert für 45 Sekunden");
+                    b.SetDonation(severity < 1 ? 0.75 : 0.5, 45);
+                    return severity < 1
+                        ? t("Rolled back by hand: donations x0.75 for 45 seconds", "Von Hand zurückgerollt: Spenden x0,75 für 45 Sekunden")
+                        : t("Donations halved for 45 seconds", "Spenden halbiert für 45 Sekunden");
                 },
             };
         }
@@ -282,14 +296,17 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             }
 
             return new TycoonEvent("medal", t("New medal crashes score submission", "Neue Medaille crasht die Score-Einreichung"),
-                t("Every finished play ends in an error for a whole day.", "Jeder gespielte Score endet einen ganzen Tag lang in einem Fehler."),
+                t("Every finished play ends in an error. Hotfix: click the servers {0} times within {1} seconds for half the damage.",
+                    "Jeder gespielte Score endet in einem Fehler. Hotfix: Klick die Server {0}-mal in {1} Sekunden für halben Schaden.", CRISIS_CLICKS, CRISIS_MS / 1000),
                 FontAwesome.Solid.Medal, colours.Red)
             {
-                Auto = (s, _) =>
+                Crisis = (s, _, severity) =>
                 {
-                    s.Players *= 0.9;
-                    s.Ruf = Math.Max(0, s.Ruf - 4);
-                    return t("Players -10 %, reputation -4. Tests would have caught it.", "Spieler -10 %, Ruf -4. Tests hätten es gefangen.");
+                    s.Players *= 1 - 0.1 * severity;
+                    s.Ruf = Math.Max(0, s.Ruf - 4 * severity);
+                    return severity < 1
+                        ? t("Hotfix shipped: players -5 %, reputation -2", "Hotfix ausgeliefert: Spieler -5 %, Ruf -2")
+                        : t("Players -10 %, reputation -4. Tests would have caught it.", "Spieler -10 %, Ruf -4. Tests hätten es gefangen.");
                 },
             };
         }

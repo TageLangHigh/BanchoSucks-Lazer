@@ -58,7 +58,18 @@ namespace osu.Game.Tests.NonVisual
 
                 Assert.That(ev.Title.ToString(), Is.Not.Empty, ev.Key);
                 Assert.That(ev.Text.ToString(), Is.Not.Empty, ev.Key);
-                Assert.That(ev.Choices.Count > 0 || ev.Auto != null, Is.True, $"{ev.Key} has neither choices nor an automatic effect");
+                Assert.That(ev.Choices.Count > 0 || ev.Auto != null || ev.Crisis != null, Is.True, $"{ev.Key} has neither choices nor an effect");
+
+                if (ev.Crisis != null)
+                {
+                    foreach (double severity in new[] { 1.0, 0.5 })
+                    {
+                        var state = make(protectedServer);
+                        var boosts = new TycoonBoosts();
+                        Assert.That(ev.Crisis(state, boosts, severity).ToString(), Is.Not.Empty, ev.Key);
+                        assertSane(state, $"{ev.Key} crisis {severity}");
+                    }
+                }
 
                 if (ev.Auto != null)
                 {

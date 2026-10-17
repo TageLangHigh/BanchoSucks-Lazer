@@ -106,6 +106,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         public const double CLICK_PER_BUILDING = 0.05;
         public const double COST_GROWTH = 1.15;
         public const double EVENT_BOOST = 2.0;
+        public const double AUTOPOST_RATE = 0.5;
 
         public const int OFFICE_WIDTH = 20;
         public const int OFFICE_HEIGHT = 13;
@@ -189,6 +190,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             new TycoonFeature("leaderboards", 2_000, 1.0, 1.25, 1.0, "Leaderboards", "Ranglisten", "Everyone wants to be number one. Player inflow +25 %.", "Jeder will die Nummer eins sein. Zulauf +25 %."),
             new TycoonFeature("medals", 8_000, 1.15, 1.0, 1.0, "Medals", "Medaillen", "Shiny things to collect. Donations +15 %.", "Glänzende Dinge zum Sammeln. Spenden +15 %."),
             new TycoonFeature("discord_bot", 15_000, 1.0, 1.0, 2.0, "Discord bot", "Discord-Bot", "Answers at 3 am. Reputation recovers twice as fast.", "Antwortet um drei Uhr nachts. Ruf erholt sich doppelt so schnell."),
+            new TycoonFeature("autopost", 30_000, 1.0, 1.0, 1.0, "Auto post", "Auto-Post", "The bot posts for you: half a post per second, players keep coming while you idle.", "Der Bot postet für dich: ein halber Post pro Sekunde, Spieler kommen auch ohne dich."),
             new TycoonFeature("anticheat", 40_000, 1.0, 1.0, 1.0, "Anticheat", "Anticheat", "Cheater waves become bans and reputation instead of damage.", "Cheater-Wellen werden zu Sperren und Ruf statt zu Schaden."),
             new TycoonFeature("backups", 60_000, 1.0, 1.0, 1.0, "Backups", "Backups", "Every night at 04:15 UTC. Database crashes cost nothing.", "Jede Nacht um 04:15 UTC. Datenbank-Crashs kosten nichts mehr."),
             new TycoonFeature("cloudflare", 120_000, 1.0, 1.0, 1.0, "Cloudflare", "Cloudflare", "DDoS attacks bounce off.", "DDoS-Angriffe prallen ab."),
@@ -286,8 +288,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             return total;
         }
 
+        /// <summary>The Discord bot posts for the player: half a post per second, in players (feature "autopost").</summary>
+        public static double AutopostRate(TycoonState state) => state.Has("autopost") ? ClickValue(state) * AUTOPOST_RATE : 0;
+
         public static double Inflow(TycoonState state, double boost = 1.0) =>
-            MarketingRate(state) * InflowMult(state.Features) * StaffInflowMult(state) * LegacyMult(state.Legacy) * RufFactor(state.Ruf) * boost;
+            (MarketingRate(state) + AutopostRate(state)) * InflowMult(state.Features) * StaffInflowMult(state) * LegacyMult(state.Legacy) * RufFactor(state.Ruf) * boost;
 
         public static double DonationRate(TycoonState state, double boost = 1.0) =>
             state.Players * DONATION_PER_PLAYER * RufFactor(state.Ruf) * DonationMult(state.Features) * StaffDonationMult(state) * LegacyMult(state.Legacy) * ComfortMult(state.Layout) * boost;

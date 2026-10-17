@@ -108,6 +108,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private TruncatingSpriteText keysText = null!;
         private Box prestigeBar = null!;
         private bool prestigePulsing;
+        private double displayCash;
+        private double displayPlayers;
         private TycoonLeaderboardPanel board = null!;
         private readonly Dictionary<Tab, ClickerTabButton> tabButtons = new Dictionary<Tab, ClickerTabButton>();
         private readonly Dictionary<Tab, Drawable> tabContents = new Dictionary<Tab, Drawable>();
@@ -216,7 +218,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             base.LoadComplete();
             ownerName = serverName();
             serverNameText.Text = ownerName;
-            plot.SetOwner(ownerName, 0);
+            plot.SetOwner(ownerName, 0, api.IsLoggedIn ? api.LocalUser.Value : null);
             keysText.Text = t("Space: post · C / Enter: collect · Shift + pad: ten at once · right click: sell decoration", "Leertaste: posten · C / Enter: einsammeln · Shift + Pad: zehn auf einmal · Rechtsklick: Deko verkaufen");
             beginLoading();
         }
@@ -449,6 +451,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             plot.Flow(TycoonRules.Inflow(state, boosts.Inflow), dt);
             dirty = true;
             tickSupply(dt);
+            tickVip(dt);
             sampleIncome();
             plot.Bulk = shiftHeld();
 
@@ -477,13 +480,19 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             bool lagging = load > TycoonRules.OVERLOAD_TOLERANCE;
             var tier = TycoonRules.HardwareAt(state.Hardware);
 
-            cashText.Text = n(state.Donations);
+            double smoothing = Math.Min(1, Clock.ElapsedFrameTime / 120);
+            displayCash += (state.Donations - displayCash) * smoothing;
+            displayPlayers += (state.Players - displayPlayers) * smoothing;
+            if (Math.Abs(displayCash - state.Donations) < 0.05) displayCash = state.Donations;
+            if (Math.Abs(displayPlayers - state.Players) < 0.05) displayPlayers = state.Players;
+
+            cashText.Text = n(displayCash);
             rateText.Text = ClickerStrings.Pick($"+{n(TycoonRules.DonationRate(state, boosts.Donation))}/s · {n(state.RunTotal)} this season", $"+{n(TycoonRules.DonationRate(state, boosts.Donation))}/s · {n(state.RunTotal)} diese Saison");
             rateText.TooltipText = incomeBreakdown();
             boxText.Text = state.Has("autocollect")
                 ? t("Auto collector: donations go straight to the cash", "Auto-Kasse: Spenden landen direkt in der Kasse")
                 : ClickerStrings.Pick($"{n(state.Pending)} waiting in the collector box, click it", $"{n(state.Pending)} warten in der Spendenbox, klick sie an");
-            playersText.Text = n(state.Players);
+            playersText.Text = n(displayPlayers);
             playersText.Colour = lagging ? colours.Red : colours.Blue;
             capacityText.Text = ClickerStrings.Pick($"of {ClickerFormat.Count(cap)} · {ClickerStrings.Pick(tier.NameEn, tier.NameDe)} · +{n(TycoonRules.Inflow(state, boosts.Inflow))}/s",
                 $"von {ClickerFormat.Count(cap)} · {ClickerStrings.Pick(tier.NameEn, tier.NameDe)} · +{n(TycoonRules.Inflow(state, boosts.Inflow))}/s");
@@ -511,7 +520,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 : ClickerStrings.Pick($"New season from {n(TycoonRules.PRESTIGE_MIN_TOTAL)} donations in a season ({n(state.RunTotal)} so far).", $"Neue Saison ab {n(TycoonRules.PRESTIGE_MIN_TOTAL)} Spenden in einer Saison (bisher {n(state.RunTotal)}).");
             prestigeBar.Width = (float)prestigeProgress(gain);
             pulsePrestige(gain > 0);
-            plot.SetOwner(ownerName, state.Prestige);
+            plot.SetOwner(ownerName, state.Prestige, api.IsLoggedIn ? api.LocalUser.Value : null);
 
             plot.Refresh(state, load, ready, TycoonRules.DonationRate(state, boosts.Donation));
             questCard.Set(TycoonQuests.Current(state), state.Quest, TycoonQuests.All.Length, state);
@@ -547,6 +556,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             if (!ready || !purchase()) return false;
 
             dirty = true;
+            plot.NotePurchase();
             if (logLine != null) log(logLine.Value, colours.Green);
             refreshTexts();
             return true;
@@ -612,6 +622,23 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             state.Events++;
             plot.PlayEvent(ev.Key, ev.Colour == colours.Red || ev.Colour == colours.Yellow);
             nextEventIn = rng.Next((int)TycoonEvents.MIN_INTERVAL, (int)TycoonEvents.MAX_INTERVAL);
+
+            if (ev.Crisis != null)
+            {
+                var crisis = ev.Crisis;
+                pending = ev;
+                eventCard.Show(ev, null);
+                log(ev.Title, ev.Colour);
+                plot.StartCrisis(TycoonEvents.CRISIS_CLICKS, TycoonEvents.CRISIS_MS, success =>
+                {
+                    pending = null;
+                    log(crisis(state, boosts, success ? 0.5 : 1.0), success ? colours.Green : colours.Gray9);
+                    if (success) popSample?.Play();
+                    eventCard.Dismiss();
+                    dirty = true;
+                });
+                return;
+            }
 
             if (ev.Choices.Count == 0)
             {
@@ -763,6 +790,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             row(t("Team", "Team"), ClickerFormat.Count(TycoonRules.StaffTotal(state)));
             row(t("Quests done", "Aufträge erledigt"), $"{Math.Min(state.Quest, TycoonQuests.All.Length)}/{TycoonQuests.All.Length}");
             row(t("Supply drops caught", "Lieferungen gefangen"), ClickerFormat.Count(supplies));
+            row(t("Autographs", "Autogramme"), ClickerFormat.Count(vips));
             row(t("Play time", "Spielzeit"), ClickerFormat.Duration(state.PlaySeconds));
 
             statsFlow.Add(new OsuSpriteText
@@ -1177,6 +1205,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
                 if (state.Hardware != lastHardware)
                 {
+                    if (lastHardware >= 0 && state.Hardware > lastHardware) dust(cell(18, 5.5f), 12);
                     lastHardware = state.Hardware;
                     servers.SetTier(state.Hardware);
                 }
@@ -1204,20 +1233,29 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         ClickerStrings.Pick($"{kind.NameEn}, +{ClickerFormat.Number(kind.Rate)} players/s each; Shift buys ten", $"{kind.NameDe}, +{ClickerFormat.Number(kind.Rate)} Spieler/s je Stück; Shift kauft zehn"),
                         cost, ready && hardwareOk && TycoonRules.CanAfford(state, cost), unlocked && count < TycoonRules.MAX_COUNT, locked);
 
-                    if (!lastMarketing.TryGetValue(key, out int shown) || shown != count)
+                    bool known = lastMarketing.TryGetValue(key, out int shown);
+
+                    if (!known || shown != count)
                     {
                         lastMarketing[key] = count;
                         droppers[key].SetLevel(count);
+                        if (known && count > shown) dust(cell(dropper_slots[i].x + 1, dropper_slots[i].y + 1));
                     }
                 }
 
                 // features: kiosks in order
                 if (state.Features.Count != lastFeatureCount)
                 {
+                    bool grew = lastFeatureCount >= 0 && state.Features.Count > lastFeatureCount;
                     lastFeatureCount = state.Features.Count;
 
-                    foreach (var feature in TycoonRules.Features)
-                        kiosks[feature.Key].FadeTo(state.Has(feature.Key) ? 1 : 0, 300);
+                    for (int i = 0; i < TycoonRules.Features.Length; i++)
+                    {
+                        string key = TycoonRules.Features[i].Key;
+                        bool owned = state.Has(key);
+                        if (grew && owned && kiosks[key].Alpha < 0.5f) dust(cell((i % 8) * 2 + 1, 11 + i / 8 + 0.5f), 5);
+                        kiosks[key].FadeTo(owned ? 1 : 0, 300);
+                    }
                 }
 
                 for (int i = 0; i < TycoonRules.Features.Length; i++)
@@ -1360,6 +1398,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 "website" => FontAwesome.Solid.Globe,
                 "autocollect" => FontAwesome.Solid.Magnet,
+                "autopost" => FontAwesome.Solid.PaperPlane,
                 "leaderboards" => FontAwesome.Solid.ListOl,
                 "medals" => FontAwesome.Solid.Medal,
                 "discord_bot" => FontAwesome.Solid.Robot,
@@ -1389,6 +1428,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 private bool shown = true;
                 private string? lockedText;
                 private long lastCost;
+
+                public bool Affordable => shown && affordable && lockedText == null;
+
+                public long LastCost => lastCost;
 
                 public BuyPad(IconUsage iconUsage, Color4 accent, Action action)
                 {

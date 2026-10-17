@@ -15,7 +15,9 @@ using osu.Framework.Utils;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Screens.Banchosucks.Clicker;
+using osu.Game.Users.Drawables;
 using osuTK;
 using osuTK.Graphics;
 
@@ -227,6 +229,11 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             /// <summary>Shift is held: marketing pads offer ten at once.</summary>
             public bool Bulk;
 
+            private double lastPurchase;
+            private SpriteIcon hintArrow = null!;
+            private VipFigure? vip;
+            private CrisisOverlay? crisis;
+
             private void buildExtras()
             {
                 // the season restart scales the buildings down around the middle of the plot
@@ -292,6 +299,15 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 ChangeInternalChildDepth(coins, -3);
                 AddInternal(lagSign = new LagSign { Position = cell(18, 2.7f), Depth = -3 });
                 AddInternal(effects = new Container { RelativeSizeAxes = Axes.Both, Depth = -4 });
+                AddInternal(hintArrow = new SpriteIcon
+                {
+                    Origin = Anchor.BottomCentre,
+                    Size = new Vector2(18),
+                    Icon = FontAwesome.Solid.ArrowDown,
+                    Colour = Color4Extensions.FromHex("F5CD30"),
+                    Alpha = 0,
+                    Depth = -5,
+                });
                 AddInternal(banner = new PlotBanner { Depth = -5 });
             }
 
@@ -302,6 +318,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 lastTheme = -1;
                 supply?.Expire();
                 supply = null;
+                lastPurchase = Time.Current;
             }
 
             private void refreshExtras(TycoonState state, double load, bool ready)
@@ -369,7 +386,22 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         puff();
                     }
                 }
+
+                // nothing bought for a while: a bouncing arrow points at the cheapest pad the cash is good for
+                var candidate = ready && Time.Current - lastPurchase > 40_000
+                    ? allPads().Where(p => p.Affordable).OrderBy(p => p.LastCost).FirstOrDefault()
+                    : null;
+
+                if (candidate != null)
+                {
+                    hintArrow.Alpha = 1;
+                    hintArrow.Position = candidate.Position + new Vector2(candidate.Width / 2, -4 + (float)Math.Sin(Time.Current / 200) * 4);
+                }
+                else
+                    hintArrow.Alpha = 0;
             }
+
+            private IEnumerable<BuyPad> allPads() => marketingPads.Values.Concat(featurePads.Values).Concat(decoPads.Values).Concat(staffPads.Values).Append(hardwarePad);
 
             private void rebuildTeam(TycoonState state)
             {
@@ -412,9 +444,34 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             public void Announce(IconUsage icon, LocalisableString text, Color4 colour) => banner.Show(icon, text, colour);
 
-            public void SetOwner(string name, int prestige) => ownerSign.Set(name, prestige);
+            public void SetOwner(string name, int prestige, APIUser? user) => ownerSign.Set(name, prestige, user);
 
             public void PopupAtCollector(string text, Color4 colour) => popup(cell(18, 10.2f), text, colour);
+
+            public void NotePurchase() => lastPurchase = Time.Current;
+
+            /// <summary>A crisis: the server block wants clicks; <paramref name="done"/> gets whether the player made it in time.</summary>
+            public void StartCrisis(int clicks, double ms, Action<bool> done)
+            {
+                if (crisis?.IsAlive == true)
+                {
+                    done(false);
+                    return;
+                }
+
+                effects.Add(crisis = new CrisisOverlay(clicks, ms, done) { Position = cell(16, 2), Size = new Vector2(CELL * 4, CELL * 7) });
+            }
+
+            /// <summary>A well-known player walks the conveyor slowly; a click gets an autograph.</summary>
+            public void SpawnVip(Action<Vector2> autograph)
+            {
+                if (vip?.IsAlive == true) return;
+
+                vip = new VipFigure(autograph) { Position = cell(2, 6.5f) };
+                figures.Add(vip);
+                vip.MoveToX(walk_end_x * CELL, 14_000).Then().MoveTo(cell(17.5f, 6.5f), 600, Easing.InQuad).FadeOut(600).Expire();
+                Announce(FontAwesome.Solid.Crown, ClickerStrings.Text("A well-known player visits your server", "Ein bekannter Spieler schaut auf deinem Server vorbei"), Color4Extensions.FromHex("F5CD30"));
+            }
 
             /// <summary>The old season goes down, the new one rises: buildings shrink away and come back, confetti, a banner.</summary>
             public void PlaySeasonReset(int season)
@@ -433,8 +490,13 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 if (supply?.IsAlive == true) return;
 
+                // a drone flies in from the left, lets the crate go above the spot and leaves to the right
                 var target = cell(supply_columns[rng.Next(supply_columns.Length)], rng.Next(2) == 0 ? 5.45f : 7.6f);
-                effects.Add(supply = new SupplyCrate(target, claim));
+                var drone = new Drone { Position = new Vector2(-60, target.Y - 140) };
+                effects.Add(drone);
+                double flight = (target.X + 60) * 6;
+                drone.MoveToX(target.X, flight, Easing.InOutSine).Then().MoveToX(WIDTH + 80, (WIDTH + 80 - target.X) * 5, Easing.InSine).Expire();
+                Scheduler.AddDelayed(() => effects.Add(supply = new SupplyCrate(target, claim)), flight + 100);
             }
 
             /// <summary>What an event looks like on the plot.</summary>
@@ -608,6 +670,25 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 label.MoveToOffset(new Vector2(0, -30), 800, Easing.OutQuint).FadeOut(800, Easing.In).Expire();
             }
 
+            /// <summary>Dust flying when something gets built.</summary>
+            private void dust(Vector2 centre, int count = 6)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    var grain = new Circle
+                    {
+                        Origin = Anchor.Centre,
+                        Position = centre,
+                        Size = new Vector2(8),
+                        Colour = Color4.LightGray.Opacity(0.5f),
+                    };
+                    effects.Add(grain);
+                    double angle = rng.NextDouble() * Math.PI * 2;
+                    var target = centre + new Vector2((float)Math.Cos(angle), (float)Math.Sin(angle)) * (30 + (float)rng.NextDouble() * 20);
+                    grain.MoveTo(target, 500, Easing.OutQuad).ScaleTo(2.5f, 500).FadeOut(500).Expire();
+                }
+            }
+
             /// <summary>A puff of smoke from the servers while they lag.</summary>
             private void puff()
             {
@@ -716,8 +797,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             {
                 private readonly OsuSpriteText nameText;
                 private readonly FillFlowContainer stars;
+                private readonly UpdateableAvatar avatar;
                 private string shownName = string.Empty;
                 private int shownStars = -1;
+                private int shownUser = -1;
 
                 public OwnerSign()
                 {
@@ -733,17 +816,25 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         {
                             new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("1B2A35") },
                             new Box { RelativeSizeAxes = Axes.X, Height = 6, Colour = Color4Extensions.FromHex("34475c") },
-                            new SpriteIcon { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 8, Y = 2, Size = new Vector2(12), Icon = FontAwesome.Solid.Home, Colour = Color4Extensions.FromHex("F5CD30") },
-                            nameText = new OsuSpriteText { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 26, Y = 2, Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold), Shadow = true },
+                            avatar = new UpdateableAvatar(isInteractive: false) { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 6, Y = 2, Size = new Vector2(24), Masking = true, CornerRadius = 5 },
+                            nameText = new OsuSpriteText { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, X = 36, Y = 2, Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold), Shadow = true },
                             stars = new FillFlowContainer { Anchor = Anchor.CentreRight, Origin = Anchor.CentreRight, X = -46, Y = 2, AutoSizeAxes = Axes.Both, Direction = FillDirection.Horizontal, Spacing = new Vector2(1, 0) },
                             new OsuSpriteText { Anchor = Anchor.CentreRight, Origin = Anchor.CentreRight, X = -8, Y = 2, Text = "TYCOON", Font = OsuFont.GetFont(size: 8, weight: FontWeight.Bold), Colour = Color4Extensions.FromHex("F5CD30") },
                         },
                     };
                 }
 
-                /// <summary>The name and one star per season played, up to five.</summary>
-                public void Set(string name, int prestige)
+                /// <summary>The name, the player's avatar and one star per season played, up to five.</summary>
+                public void Set(string name, int prestige, APIUser? user)
                 {
+                    int userId = user?.Id ?? 0;
+
+                    if (userId != shownUser)
+                    {
+                        shownUser = userId;
+                        avatar.User = user;
+                    }
+
                     if (name != shownName)
                     {
                         shownName = name;
@@ -763,7 +854,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 protected override void Update()
                 {
                     base.Update();
-                    nameText.Scale = new Vector2(Math.Min(1, (DrawWidth - 86 - shownStars * 8) / Math.Max(1, nameText.DrawWidth)));
+                    nameText.Scale = new Vector2(Math.Min(1, (DrawWidth - 96 - Math.Max(0, shownStars) * 8) / Math.Max(1, nameText.DrawWidth)));
                 }
             }
 
@@ -798,6 +889,173 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                         X = -100;
                         Y = (float)(RNG.NextDouble() * HEIGHT);
                     }
+                }
+            }
+
+            /// <summary>The delivery drone: a dark body with two spinning rotors.</summary>
+            private partial class Drone : CompositeDrawable
+            {
+                private readonly Box left;
+                private readonly Box right;
+
+                public Drone()
+                {
+                    Origin = Anchor.Centre;
+                    Size = new Vector2(30, 12);
+
+                    InternalChildren = new Drawable[]
+                    {
+                        new Box { Anchor = Anchor.Centre, Origin = Anchor.Centre, Size = new Vector2(14, 7), Colour = Color4Extensions.FromHex("37474f") },
+                        new Box { Anchor = Anchor.Centre, Origin = Anchor.Centre, Y = 1, Size = new Vector2(4, 3), Colour = Color4Extensions.FromHex("ff5252") },
+                        left = new Box { Anchor = Anchor.CentreLeft, Origin = Anchor.Centre, X = 5, Size = new Vector2(12, 2), Colour = Color4Extensions.FromHex("b0bec5") },
+                        right = new Box { Anchor = Anchor.CentreRight, Origin = Anchor.Centre, X = -5, Size = new Vector2(12, 2), Colour = Color4Extensions.FromHex("b0bec5") },
+                    };
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    float spin = (float)(Clock.ElapsedFrameTime * 1.5);
+                    left.Rotation += spin;
+                    right.Rotation -= spin;
+                }
+            }
+
+            /// <summary>A crisis over the server block: click it often enough before the bar runs out.</summary>
+            private partial class CrisisOverlay : OsuClickableContainer
+            {
+                private readonly int needed;
+                private readonly double duration;
+                private readonly Action<bool> done;
+                private readonly Container frame;
+                private readonly OsuSpriteText counter;
+                private readonly Box timer;
+                private int clicks;
+                private double started;
+                private bool finished;
+
+                public CrisisOverlay(int needed, double duration, Action<bool> done)
+                {
+                    this.needed = needed;
+                    this.duration = duration;
+                    this.done = done;
+                    TooltipText = ClickerStrings.Text("Emergency reboot: click!", "Notfall-Reboot: klicken!");
+
+                    Action = () =>
+                    {
+                        if (finished) return;
+
+                        clicks++;
+                        counter.Text = $"REBOOT {clicks}/{needed}";
+                        frame.FlashColour(Color4.White, 150);
+                        counter.ScaleTo(1.25f, 60).Then().ScaleTo(1, 200, Easing.OutQuint);
+                        if (clicks >= needed) finish(true);
+                    };
+
+                    Children = new Drawable[]
+                    {
+                        frame = new Container
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Masking = true,
+                            CornerRadius = 10,
+                            BorderThickness = 4,
+                            BorderColour = Color4Extensions.FromHex("ff5252"),
+                            Child = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("ff5252").Opacity(0.15f) },
+                        },
+                        counter = new OsuSpriteText
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Text = $"REBOOT 0/{needed}",
+                            Font = OsuFont.GetFont(size: 16, weight: FontWeight.Bold),
+                            Shadow = true,
+                        },
+                        new Container
+                        {
+                            Anchor = Anchor.BottomCentre,
+                            Origin = Anchor.BottomCentre,
+                            Y = -10,
+                            RelativeSizeAxes = Axes.X,
+                            Height = 6,
+                            Padding = new MarginPadding { Horizontal = 12 },
+                            Child = new CircularContainer
+                            {
+                                RelativeSizeAxes = Axes.Both,
+                                Masking = true,
+                                Children = new Drawable[]
+                                {
+                                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Black.Opacity(0.5f) },
+                                    timer = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4Extensions.FromHex("ff5252") },
+                                },
+                            },
+                        },
+                    };
+                }
+
+                protected override void LoadComplete()
+                {
+                    base.LoadComplete();
+                    started = Time.Current;
+                    this.FadeInFromZero(200);
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    if (finished) return;
+
+                    double progress = (Time.Current - started) / duration;
+                    timer.Width = (float)Math.Clamp(1 - progress, 0, 1);
+                    frame.Alpha = 0.75f + 0.25f * (float)Math.Sin(Time.Current / 120);
+                    if (progress >= 1) finish(false);
+                }
+
+                private void finish(bool success)
+                {
+                    finished = true;
+                    frame.Alpha = 1;
+                    frame.BorderColour = success ? Color4Extensions.FromHex("66bb6a") : Color4Extensions.FromHex("ff5252");
+                    counter.Text = success ? ClickerStrings.Pick("REBOOTED", "NEU GESTARTET") : ClickerStrings.Pick("TOO LATE", "ZU SPÄT");
+                    done(success);
+                    this.Delay(700).FadeOut(300).Expire();
+                }
+            }
+
+            /// <summary>A well-known player: a golden avatar with a crown, bigger than the rest, worth a click.</summary>
+            private partial class VipFigure : OsuClickableContainer
+            {
+                private static readonly Color4 gold = Color4Extensions.FromHex("F5CD30");
+                private readonly SpriteIcon crown;
+                private bool signed;
+
+                public VipFigure(Action<Vector2> autograph)
+                {
+                    Origin = Anchor.Centre;
+                    Size = new Vector2(22, 28);
+                    TooltipText = ClickerStrings.Text("A well-known player: click for an autograph", "Ein bekannter Spieler: anklicken für ein Autogramm");
+
+                    Action = () =>
+                    {
+                        if (signed) return;
+
+                        signed = true;
+                        autograph(ScreenSpaceDrawQuad.Centre);
+                        this.ScaleTo(1.4f, 120).Then().ScaleTo(1, 300, Easing.OutBack);
+                    };
+
+                    Children = new Drawable[]
+                    {
+                        new Circle { Anchor = Anchor.BottomCentre, Origin = Anchor.Centre, Size = new Vector2(30), Colour = gold.Opacity(0.25f), Blending = BlendingParameters.Additive },
+                        new Figure(gold) { Anchor = Anchor.BottomCentre, Origin = Anchor.BottomCentre, Scale = new Vector2(1.3f) },
+                        crown = new SpriteIcon { Anchor = Anchor.TopCentre, Origin = Anchor.BottomCentre, Y = 4, Size = new Vector2(11), Icon = FontAwesome.Solid.Crown, Colour = gold },
+                    };
+                }
+
+                protected override void Update()
+                {
+                    base.Update();
+                    crown.Y = 4 + (float)Math.Sin(Time.Current / 250) * 1.5f;
                 }
             }
 

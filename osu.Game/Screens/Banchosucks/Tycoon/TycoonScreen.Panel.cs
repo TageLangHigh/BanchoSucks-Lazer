@@ -42,6 +42,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private readonly List<double> incomeHistory = new List<double>();
         private double lastIncomeSample;
         private string ownerName = string.Empty;
+        private double vipIn = 200;
+        private int vips;
         private Sample? popSampleCache;
         private Sample? collectSampleCache;
 
@@ -128,6 +130,47 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         }
 
         private void toggleHelp() => helpOverlay.Toggle();
+
+        private void tickVip(double dt)
+        {
+            vipIn -= dt;
+            if (vipIn > 0) return;
+
+            vipIn = rng.Next(180, 300);
+            plot.SpawnVip(autograph);
+        }
+
+        /// <summary>The well-known player was clicked: an autograph and one of three rewards.</summary>
+        private void autograph(Vector2 screenPosition)
+        {
+            if (!ready) return;
+
+            vips++;
+            LocalisableString line;
+
+            switch (rng.Next(3))
+            {
+                case 0:
+                    line = TycoonQuests.GrantCash(state, 30);
+                    flyCoins(screenPosition, cashText.ScreenSpaceDrawQuad.Centre, 10);
+                    break;
+
+                case 1:
+                    state.Ruf = Math.Min(100, state.Ruf + 5);
+                    line = t("Reputation +5", "Ruf +5");
+                    break;
+
+                default:
+                    boosts.SetInflow(2.0, 20);
+                    line = t("Player inflow x2 for 20 seconds", "Zulauf x2 für 20 Sekunden");
+                    break;
+            }
+
+            dirty = true;
+            popSample?.Play();
+            log(t("Autograph: {0}", "Autogramm: {0}", line), colours.Yellow);
+            plot.Announce(FontAwesome.Solid.Crown, line, colours.Yellow);
+        }
 
         /// <summary>A sprite text with a tooltip, for the income line.</summary>
         private partial class TooltipSpriteText : OsuSpriteText, IHasTooltip

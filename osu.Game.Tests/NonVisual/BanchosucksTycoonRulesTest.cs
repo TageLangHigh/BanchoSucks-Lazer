@@ -169,6 +169,18 @@ namespace osu.Game.Tests.NonVisual
         }
 
         [Test]
+        public void TestAutopost()
+        {
+            var state = new TycoonState();
+            state.Marketing["discord"] = 1;
+            Assert.That(TycoonRules.Inflow(state), Is.EqualTo(0.15).Within(1e-9));
+            state.Features.Add("autopost");
+            Assert.That(TycoonRules.AutopostRate(state), Is.EqualTo(0.525).Within(1e-9), "half a click value per second");
+            Assert.That(TycoonRules.Inflow(state), Is.EqualTo((0.1 + 0.525) * 1.5).Within(1e-9));
+            Assert.That(TycoonRules.FeatureCost("autopost"), Is.EqualTo(30_000));
+        }
+
+        [Test]
         public void TestPerks()
         {
             Assert.That(TycoonRules.HasPerk(1, "quickstart"), Is.True);
