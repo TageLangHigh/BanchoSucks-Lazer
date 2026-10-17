@@ -189,8 +189,11 @@ and restart the app container.
   start of a season, 12 hours of offline progress; seasons carry titles and stars on the owner sign,
   the restart plays an animation. Side panel: a help overlay ("How to play"), Shift buys ten marketing
   buildings at once, the income line has a tooltip with every factor, the stats tab starts with an
-  income graph (last five minutes) and lists the perks, a bar shows the progress to the next legacy
-  point, and an Audio tab binds the osu! master, music and effect volumes with music controls. Two
+  income graph (last five minutes), a Season tab holds the season title, legacy, the progress to the
+  next legacy point, the restart button and the perks (a one-line summary with a bar stays at the
+  bottom of the panel; hidden event cards take no room, so the panel fits 720p), and an Audio tab
+  binds the osu! master, music and effect volumes with music controls. The plot keeps a margin above
+  and below the grid so the top row's labels are not under the border. Two
   sounds (`UI/notification-pop`, `UI/check-on`). The "autopost" feature lets the bot post half a click
   per second (part of the inflow, mirrored). Three bad events (DDoS, broken deploy, medal crash) are
   crises: the server block wants eight clicks within ten seconds for an emergency reboot, which halves

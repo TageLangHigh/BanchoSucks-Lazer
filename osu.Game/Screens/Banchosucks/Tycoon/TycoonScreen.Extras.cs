@@ -724,6 +724,19 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 _ => ClickerStrings.Pick(feature.NameEn, feature.NameDe),
             };
 
+            private static string decoShort(string key) => key switch
+            {
+                "carpet" => ClickerStrings.Pick("Carpet", "Teppich"),
+                "plant" => ClickerStrings.Pick("Plant", "Pflanze"),
+                "desk" => ClickerStrings.Pick("Desk", "Tisch"),
+                "poster" => "Poster",
+                "coffee" => ClickerStrings.Pick("Coffee", "Kaffee"),
+                "sofa" => "Sofa",
+                "fridge" => ClickerStrings.Pick("Fridge", "Kühlschrank"),
+                "aircon" => ClickerStrings.Pick("Aircon", "Klima"),
+                _ => "Arcade",
+            };
+
             private static string staffShort(string key) => key switch
             {
                 "moderator" => "Moderator",
@@ -1056,6 +1069,18 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 {
                     base.Update();
                     crown.Y = 4 + (float)Math.Sin(Time.Current / 250) * 1.5f;
+                }
+            }
+
+            /// <summary>A label that shrinks to <see cref="MaxWidth"/> instead of being cut off.</summary>
+            private partial class FitText : OsuSpriteText
+            {
+                public float MaxWidth = 50;
+
+                protected override void Update()
+                {
+                    base.Update();
+                    Scale = new Vector2(Math.Min(1, MaxWidth / Math.Max(1, DrawWidth)));
                 }
             }
 

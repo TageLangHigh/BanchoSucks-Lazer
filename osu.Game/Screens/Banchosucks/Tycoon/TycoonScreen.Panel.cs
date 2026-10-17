@@ -102,11 +102,25 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             prestigePulsing = available;
             prestigeButton.ClearTransforms();
+            var tabButton = tabButtons[Tab.Season];
+            tabButton.ClearTransforms();
 
             if (available)
+            {
                 prestigeButton.ScaleTo(1.03f, 700, Easing.InOutSine).Then().ScaleTo(1, 700, Easing.InOutSine).Loop();
+                tabButton.ScaleTo(1.06f, 700, Easing.InOutSine).Then().ScaleTo(1, 700, Easing.InOutSine).Loop();
+            }
             else
+            {
                 prestigeButton.ScaleTo(1, 200);
+                tabButton.ScaleTo(1, 200);
+            }
+        }
+
+        private void refreshSeason()
+        {
+            int gain = TycoonRules.LegacyGain(state.RunTotal);
+            seasonPanel.Refresh(state, gain, prestigeProgress(gain), seasonTitle(state.Prestige), prestigeSummary(gain), colours);
         }
 
         /// <summary>The confirm text of a season restart: what you keep, which perks come with it.</summary>
@@ -170,6 +184,147 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             popSample?.Play();
             log(t("Autograph: {0}", "Autogramm: {0}", line), colours.Yellow);
             plot.Announce(FontAwesome.Solid.Crown, line, colours.Yellow);
+        }
+
+        /// <summary>The season tab: title, legacy, the progress to the next legacy point, the restart button and the perks.</summary>
+        private partial class SeasonPanel : CompositeDrawable
+        {
+            private static readonly Color4 purple = Color4Extensions.FromHex("9c7cf5");
+
+            public readonly ClickerPillButton Button;
+
+            private readonly OsuSpriteText title;
+            private readonly OsuSpriteText legacyText;
+            private readonly OsuSpriteText progressText;
+            private readonly Box bar;
+            private readonly OsuTextFlowContainer explanation;
+            private readonly FillFlowContainer perks;
+
+            public SeasonPanel(Action prestige)
+            {
+                RelativeSizeAxes = Axes.Both;
+
+                InternalChild = new OsuScrollContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    ScrollbarVisible = true,
+                    Child = new FillFlowContainer
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        Direction = FillDirection.Vertical,
+                        Spacing = new Vector2(0, 8),
+                        Padding = new MarginPadding { Right = 6, Top = 2 },
+                        Children = new Drawable[]
+                        {
+                            title = new OsuSpriteText { Font = OsuFont.GetFont(size: 20, weight: FontWeight.Bold) },
+                            legacyText = new OsuSpriteText { Font = OsuFont.GetFont(size: 12), Colour = Color4.White.Opacity(0.75f) },
+                            progressText = new OsuSpriteText { Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold), Colour = Color4.White.Opacity(0.75f), Margin = new MarginPadding { Top = 4 } },
+                            new CircularContainer
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                Height = 8,
+                                Masking = true,
+                                Children = new Drawable[]
+                                {
+                                    new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.1f) },
+                                    bar = new Box { RelativeSizeAxes = Axes.Both, Width = 0, Colour = purple },
+                                },
+                            },
+                            Button = new ClickerPillButton(ClickerStrings.Text("Start a new season", "Neue Saison starten"), purple, prestige, FontAwesome.Solid.Redo),
+                            explanation = new OsuTextFlowContainer(s => s.Font = OsuFont.GetFont(size: 11))
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                AutoSizeAxes = Axes.Y,
+                                Colour = Color4.White.Opacity(0.75f),
+                            },
+                            new OsuSpriteText
+                            {
+                                Text = ClickerStrings.Text("Legacy perks", "Legacy-Perks"),
+                                Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
+                                Colour = purple,
+                                Margin = new MarginPadding { Top = 6 },
+                            },
+                            perks = new FillFlowContainer
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                AutoSizeAxes = Axes.Y,
+                                Direction = FillDirection.Vertical,
+                                Spacing = new Vector2(0, 4),
+                            },
+                        },
+                    },
+                };
+            }
+
+            public void Refresh(TycoonState state, int gain, double progress, string seasonTitle, LocalisableString summary, OsuColour colours)
+            {
+                title.Text = ClickerStrings.Pick($"Season {state.Prestige + 1} · {seasonTitle}", $"Saison {state.Prestige + 1} · {seasonTitle}");
+                legacyText.Text = ClickerStrings.Pick($"{state.Legacy} legacy · {ClickerFormat.Multiplier(TycoonRules.LegacyMult(state.Legacy))} on donations and players, for ever",
+                    $"{state.Legacy} Legacy · {ClickerFormat.Multiplier(TycoonRules.LegacyMult(state.Legacy))} auf Spenden und Zulauf, dauerhaft");
+
+                double nextAt = (double)(gain + 1) * (gain + 1) * TycoonRules.PRESTIGE_MIN_TOTAL;
+                progressText.Text = gain > 0
+                    ? ClickerStrings.Pick($"A new season gives +{gain} legacy now; +{gain + 1} at {ClickerFormat.Number(nextAt)} donations this season", $"Eine neue Saison bringt jetzt +{gain} Legacy; +{gain + 1} ab {ClickerFormat.Number(nextAt)} Spenden in dieser Saison")
+                    : ClickerStrings.Pick($"{ClickerFormat.Number(state.RunTotal)} / {ClickerFormat.Number(nextAt)} donations this season for the first legacy point", $"{ClickerFormat.Number(state.RunTotal)} / {ClickerFormat.Number(nextAt)} Spenden in dieser Saison für den ersten Legacy-Punkt");
+                bar.Width = (float)progress;
+                explanation.Text = summary;
+
+                perks.Clear();
+
+                foreach (var perk in TycoonRules.LegacyPerks)
+                    perks.Add(new PerkRow(perk, TycoonRules.HasPerk(state.Legacy, perk.Key), colours));
+            }
+
+            private partial class PerkRow : CompositeDrawable
+            {
+                public PerkRow(TycoonPerk perk, bool reached, OsuColour colours)
+                {
+                    RelativeSizeAxes = Axes.X;
+                    Height = 38;
+                    Masking = true;
+                    CornerRadius = 6;
+                    Alpha = reached ? 1 : 0.6f;
+
+                    InternalChildren = new Drawable[]
+                    {
+                        new Box { RelativeSizeAxes = Axes.Both, Colour = reached ? purple.Opacity(0.18f) : Color4.White.Opacity(0.05f) },
+                        new SpriteIcon
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                            X = 10,
+                            Size = new Vector2(14),
+                            Icon = reached ? FontAwesome.Solid.CheckCircle : FontAwesome.Solid.Lock,
+                            Colour = reached ? colours.Green : colours.Gray9,
+                        },
+                        new OsuSpriteText
+                        {
+                            Position = new Vector2(32, 5),
+                            Text = ClickerStrings.Pick(perk.NameEn, perk.NameDe),
+                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
+                        },
+                        new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopRight,
+                            Origin = Anchor.TopRight,
+                            Position = new Vector2(-10, 6),
+                            Text = ClickerStrings.Pick($"legacy {perk.Legacy}", $"Legacy {perk.Legacy}"),
+                            Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
+                            Colour = reached ? colours.Green : colours.Gray9,
+                        },
+                        new TruncatingSpriteText
+                        {
+                            Position = new Vector2(32, 20),
+                            RelativeSizeAxes = Axes.X,
+                            Padding = new MarginPadding { Right = 42 },
+                            Text = ClickerStrings.Pick(perk.DescriptionEn, perk.DescriptionDe),
+                            Font = OsuFont.GetFont(size: 10),
+                            Colour = Color4.White.Opacity(0.7f),
+                        },
+                    };
+                }
+            }
         }
 
         /// <summary>A sprite text with a tooltip, for the income line.</summary>

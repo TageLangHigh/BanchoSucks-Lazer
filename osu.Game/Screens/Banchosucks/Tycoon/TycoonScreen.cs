@@ -50,7 +50,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private const double local_save_interval = 10_000;
         private const string local_file = "banchosucks-tycoon.json";
         private const float side_width = 440;
-        private const int log_lines = 6;
+        private const int log_lines = 4;
 
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
@@ -105,7 +105,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private FillFlowContainer statsFlow = null!;
         private QuestCard questCard = null!;
         private HelpOverlay helpOverlay = null!;
-        private TruncatingSpriteText keysText = null!;
+        private SeasonPanel seasonPanel = null!;
         private Box prestigeBar = null!;
         private bool prestigePulsing;
         private double displayCash;
@@ -118,6 +118,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private enum Tab
         {
             Stats,
+            Season,
             Board,
             Audio,
         }
@@ -219,7 +220,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             ownerName = serverName();
             serverNameText.Text = ownerName;
             plot.SetOwner(ownerName, 0, api.IsLoggedIn ? api.LocalUser.Value : null);
-            keysText.Text = t("Space: post · C / Enter: collect · Shift + pad: ten at once · right click: sell decoration", "Leertaste: posten · C / Enter: einsammeln · Shift + Pad: zehn auf einmal · Rechtsklick: Deko verkaufen");
             beginLoading();
         }
 
@@ -256,6 +256,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             foreach (var (value, text, icon) in new[]
                      {
                          (Tab.Stats, t("Stats", "Statistik"), FontAwesome.Solid.ChartBar),
+                         (Tab.Season, t("Season", "Saison"), FontAwesome.Solid.Star),
                          (Tab.Board, t("Ranking", "Rangliste"), FontAwesome.Solid.Trophy),
                          (Tab.Audio, t("Audio", "Audio"), FontAwesome.Solid.Music),
                      })
@@ -279,6 +280,8 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             };
             tabContents[Tab.Board] = board = new TycoonLeaderboardPanel();
             tabContents[Tab.Audio] = new AudioPanel();
+            tabContents[Tab.Season] = seasonPanel = new SeasonPanel(askPrestige);
+            prestigeButton = seasonPanel.Button;
 
             return new Container
             {
@@ -298,7 +301,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             new Dimension(GridSizeMode.Absolute, 10),
                             new Dimension(GridSizeMode.AutoSize),
                             new Dimension(GridSizeMode.Absolute, 10),
-                            new Dimension(),
+                            new Dimension(minSize: 180),
                             new Dimension(GridSizeMode.Absolute, 10),
                             new Dimension(GridSizeMode.AutoSize),
                         },
@@ -371,12 +374,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                                 },
                                             },
                                         },
-                                        keysText = new TruncatingSpriteText
-                                        {
-                                            RelativeSizeAxes = Axes.X,
-                                            Font = OsuFont.GetFont(size: 11),
-                                            Colour = colours.Gray9,
-                                        },
                                     },
                                 },
                             },
@@ -408,7 +405,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                                     {
                                         prestigeText = small(),
                                         bar(out prestigeBar, colours.Purple),
-                                        prestigeButton = new ClickerPillButton(t("Start a new season", "Neue Saison starten"), colours.Purple, askPrestige, FontAwesome.Solid.Redo),
                                         statusText = small(),
                                     },
                                 },
@@ -427,6 +423,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
 
             if (IsLoaded && value == Tab.Board) board.Refresh();
             if (IsLoaded && value == Tab.Stats) refreshStats();
+            if (IsLoaded && value == Tab.Season) refreshSeason();
         }
 
         // ---------------------------------------------------------------- game loop
@@ -467,8 +464,12 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             if (Time.Current - lastCloudSave > autosave_interval)
                 saveCloud();
 
-            if (tab == Tab.Stats && Time.Current - statsRefresh > 1000)
-                refreshStats();
+            if ((tab == Tab.Stats || tab == Tab.Season) && Time.Current - statsRefresh > 1000)
+            {
+                statsRefresh = Time.Current;
+                if (tab == Tab.Stats) refreshStats();
+                else refreshSeason();
+            }
 
             refreshTexts();
         }
@@ -516,8 +517,9 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             int gain = TycoonRules.LegacyGain(state.RunTotal);
             prestigeButton.SetEnabled(gain > 0);
             prestigeText.Text = gain > 0
-                ? ClickerStrings.Pick($"A new season gives +{gain} legacy (everything else starts over).", $"Eine neue Saison bringt +{gain} Legacy (alles andere beginnt von vorn).")
-                : ClickerStrings.Pick($"New season from {n(TycoonRules.PRESTIGE_MIN_TOTAL)} donations in a season ({n(state.RunTotal)} so far).", $"Neue Saison ab {n(TycoonRules.PRESTIGE_MIN_TOTAL)} Spenden in einer Saison (bisher {n(state.RunTotal)}).");
+                ? ClickerStrings.Pick($"New season available: +{gain} legacy (Season tab)", $"Neue Saison möglich: +{gain} Legacy (Tab Saison)")
+                : ClickerStrings.Pick($"Season {state.Prestige + 1} · legacy {state.Legacy} · {prestigeProgress(gain) * 100:0} % to the next season", $"Saison {state.Prestige + 1} · Legacy {state.Legacy} · {prestigeProgress(gain) * 100:0} % zur nächsten Saison");
+            prestigeText.Colour = gain > 0 ? colours.Purple : colours.Gray9;
             prestigeBar.Width = (float)prestigeProgress(gain);
             pulsePrestige(gain > 0);
             plot.SetOwner(ownerName, state.Prestige, api.IsLoggedIn ? api.LocalUser.Value : null);
@@ -804,19 +806,6 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             foreach (var (_, en, de, reached) in milestones)
                 statsFlow.Add(new MilestoneRow(t(en, de), reached(state), colours));
 
-            statsFlow.Add(new OsuSpriteText
-            {
-                Text = t("Legacy perks", "Legacy-Perks"),
-                Font = OsuFont.GetFont(size: 14, weight: FontWeight.Bold),
-                Colour = colours.Purple,
-                Margin = new MarginPadding { Top = 8 },
-            });
-
-            foreach (var perk in TycoonRules.LegacyPerks)
-            {
-                statsFlow.Add(new MilestoneRow(ClickerStrings.Text("{0} (legacy {1}): {2}", "{0} (Legacy {1}): {2}", ClickerStrings.Pick(perk.NameEn, perk.NameDe), perk.Legacy, ClickerStrings.Pick(perk.DescriptionEn, perk.DescriptionDe)),
-                    TycoonRules.HasPerk(state.Legacy, perk.Key), colours));
-            }
         }
 
         // ---------------------------------------------------------------- saving and loading
@@ -1053,8 +1042,10 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
         private partial class TycoonPlot : CompositeDrawable
         {
             public const float CELL = 40;
+            public const float TOP = 14;
+            public const float BOTTOM = 8;
             public const float WIDTH = CELL * TycoonRules.OFFICE_WIDTH;
-            public const float HEIGHT = CELL * TycoonRules.OFFICE_HEIGHT;
+            public const float HEIGHT = CELL * TycoonRules.OFFICE_HEIGHT + TOP + BOTTOM;
 
             private const float walk_y = 6.5f;
             private const float walk_end_x = 15.6f;
@@ -1174,7 +1165,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 buildExtras();
             }
 
-            private static Vector2 cell(float x, float y) => new Vector2(x * CELL, y * CELL);
+            private static Vector2 cell(float x, float y) => new Vector2(x * CELL, y * CELL + TOP);
 
             /// <summary>Forgets figures and coins and redraws every building from the state on the next refresh (a new season, a loaded save).</summary>
             public void Reset()
@@ -1271,7 +1262,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 {
                     var placed = state.Layout.FirstOrDefault(p => p.X == x && p.Y == y);
                     var deco = TycoonRules.Decorations[x / 2];
-                    pad.Set(ClickerStrings.Pick(deco.NameEn, deco.NameDe), ClickerStrings.Pick($"comfort +{deco.Comfort}", $"Gemütlichkeit +{deco.Comfort}"), deco.Cost, ready && TycoonRules.CanAfford(state, deco.Cost), placed == null && state.Hardware >= 1);
+                    pad.Set(decoShort(deco.Key), ClickerStrings.Pick($"{deco.NameEn}: comfort +{deco.Comfort}. {deco.DescriptionEn}", $"{deco.NameDe}: Gemütlichkeit +{deco.Comfort}. {deco.DescriptionDe}"), deco.Cost, ready && TycoonRules.CanAfford(state, deco.Cost), placed == null && state.Hardware >= 1);
 
                     bool hasItem = decoItems.ContainsKey((x, y));
 
@@ -1376,7 +1367,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 figures.Add(figure);
                 if (rng.Next(14) == 0) figure.Say(chatter());
 
-                var onWalkway = new Vector2(start.X, walk_y * CELL + (float)(rng.NextDouble() - 0.5) * 16);
+                var onWalkway = new Vector2(start.X, cell(0, walk_y).Y + (float)(rng.NextDouble() - 0.5) * 16);
                 double walk = Math.Max(300, (walk_end_x * CELL - start.X) * 9);
                 figure.MoveTo(onWalkway, 350, Easing.OutQuad)
                       .Then().MoveToX(walk_end_x * CELL, walk)
@@ -2009,21 +2000,22 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                X = 8,
+                                X = 6,
                                 Y = 2,
-                                Size = new Vector2(14),
+                                Size = new Vector2(13),
                                 Icon = featureIcon(key),
                                 Colour = Color4.White,
                             },
-                            new TruncatingSpriteText
+                            new FitText
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                X = 28,
+                                X = 23,
                                 Y = 2,
-                                Text = feature == null ? key : ClickerStrings.Text(feature.Value.NameEn, feature.Value.NameDe),
+                                Text = feature == null ? key : featureShort(feature.Value),
                                 Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
-                                MaxWidth = 48,
+                                Shadow = true,
+                                MaxWidth = 52,
                             },
                         },
                     };
@@ -2083,19 +2075,20 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                X = 8,
-                                Size = new Vector2(16),
+                                X = 6,
+                                Size = new Vector2(14),
                                 Icon = IconOf(key),
                                 Colour = Color4.White.Opacity(key == "carpet" ? 0.35f : 0.95f),
                             },
-                            new TruncatingSpriteText
+                            new FitText
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                X = 30,
-                                Text = deco == null ? key : ClickerStrings.Text(deco.Value.NameEn, deco.Value.NameDe),
+                                X = 24,
+                                Text = deco == null ? key : decoShort(key),
                                 Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
-                                MaxWidth = 44,
+                                Shadow = true,
+                                MaxWidth = 52,
                             },
                         },
                     };
@@ -2276,7 +2269,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
             public EventCard()
             {
                 RelativeSizeAxes = Axes.X;
-                AutoSizeAxes = Axes.Y;
+                Height = 0;
                 Masking = true;
                 CornerRadius = 10;
                 Alpha = 0;
@@ -2340,16 +2333,24 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                 }
 
                 ClearTransforms();
+                AutoSizeAxes = Axes.Y;
                 this.FadeIn(200);
 
                 if (onChoice == null)
-                    this.Delay(9000).FadeOut(600);
+                    this.Delay(9000).FadeOut(600).OnComplete(_ => collapse());
             }
 
             public void Dismiss()
             {
                 ClearTransforms();
-                this.FadeOut(300);
+                this.FadeOut(300).OnComplete(_ => collapse());
+            }
+
+            /// <summary>A hidden card takes no room in the panel.</summary>
+            private void collapse()
+            {
+                AutoSizeAxes = Axes.None;
+                Height = 0;
             }
         }
 
