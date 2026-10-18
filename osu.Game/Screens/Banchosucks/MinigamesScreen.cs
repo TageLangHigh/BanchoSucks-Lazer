@@ -14,7 +14,6 @@ using osu.Framework.Screens;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
-using osu.Game.Screens.Banchosucks.CircleRush;
 using osu.Game.Screens.Banchosucks.Guess;
 using osu.Game.Screens.Banchosucks.Tycoon;
 using osu.Game.Screens.Banchosucks.Clicker;
@@ -83,10 +82,6 @@ namespace osu.Game.Screens.Banchosucks
                                 ClickerStrings.Text("Click the circle, collect PP, buy taiko drums and mappers. With prestige tree, medals and leaderboards.",
                                     "Klick den Kreis, sammle PP, kauf dir Taiko-Trommeln und Mapper. Mit Prestige-Baum, Medaillen und Ranglisten."),
                                 FontAwesome.Solid.MousePointer, colours.Pink, () => this.Push(new OsuClickerScreen())),
-                            new GameTile("Circle Rush",
-                                ClickerStrings.Text("Click circles before they vanish: singles, bursts and streams, faster and faster. One minute or five lives, four difficulties, EZ/HD/HR/FL, leaderboards.",
-                                    "Klick Kreise, bevor sie verschwinden: einzeln, als Burst und als Stream, immer schneller. Eine Minute oder fünf Leben, vier Schwierigkeiten, EZ/HD/HR/FL, Ranglisten."),
-                                FontAwesome.Solid.Bullseye, colours.Blue, () => this.Push(new CircleRushScreen())),
                             new GameTile(ClickerStrings.Text("Server Tycoon", "Server-Tycoon"),
                                 ClickerStrings.Text("Run your own osu! server: attract players, buy hardware before it lags, survive cheater waves and broken deploys. Idle game with seasons and leaderboards.",
                                     "Betreib deinen eigenen osu!-Server: Lock Spieler an, kauf Hardware, bevor es laggt, überstehe Cheater-Wellen und kaputte Deploys. Idle-Spiel mit Saisons und Ranglisten."),

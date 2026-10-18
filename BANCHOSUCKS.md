@@ -121,29 +121,7 @@ and restart the app container.
   save, awards five real profile medals and rejects saves from an older season
   (`old_season`); the season 2 reset (2026-09-27) and the season 3 rebalance reset (2026-09-29) each wiped
   every save and record once.
-- **Circle Rush** (main menu > Play > minigames, second tile, since 2026.913.15):
-  `osu.Game/Screens/Banchosucks/CircleRush/`, an aim and reaction game. Circles appear on an
-  800x600 field in patterns drawn from the run's seed (xorshift32, identical on the server): 55 %
-  singles, 30 % bursts of two (gap 60 % of the base interval) and 15 % streams of three to five
-  along a gently bent line (gap 45 %), drawn with the current skin (hitcircle, hitcircleoverlay, hit circle font, combo colours, hitsounds; the skin cursor with trail replaces the menu cursor during a run and grows while a button is held) and numbered per group. The menu shows the actual osu! bindings, the HUD how far the personal best is. They must
-  be clicked before they expire, with the osu! ruleset's own left / right button bindings (Z/X by default, mouse buttons, honouring "disable mouse buttons during gameplay") or touch; there is no approach ring, the faster the hit the more it scores; base interval and lifetime
-  shrink over the run (the ramp, 40 s in minute mode, 75 s in endless mode, where they keep
-  shrinking slowly afterwards and the circles get smaller, so every run ends). Modes: one minute,
-  or endless with five lives (an expired circle or a click into nothing is a miss). Difficulties
-  Easy/Medium/Hard/Extreme start at 850/700/550/400 ms per circle (osu! AR 8 to 11 plus 100 ms of grace; a circle dims in its last quarter, a press on a circle that has just vanished is ignored rather than counted as a second miss, and the hit area is 10 % wider than the circle) with a base
-  interval of 800/650/520/400 ms (floors 380/300/240/180) and radii 50/42/34/28 px. Mods: EZ
-  (bigger, slower, x1.20), HD (circle fades early, x1.06), HR (smaller, faster, x1.06),
-  FL (only a disc around the cursor is lit, x1.12); EZ and HR exclude each other. A hit gives 100
-  to 200 points by reaction time, times a combo multiplier up to x3 after 100 hits in a row, and
-  is judged perfect / good / late (within 35 % / 70 % of the lifetime). `CircleRushRules.cs` holds
-  every formula in integer arithmetic and is mirrored by the plugin
-  `banchosucks_circlerush/rules.py`; the client sends seed and event log (hit / expiry / empty
-  click with run times), the server rebuilds the schedule and replays it, refusing impossible
-  reactions, skipped expiries or a wrong duration. Eight leaderboards (mode x difficulty), best run
-  per player, shown in the screen and on banchosucks.cc/lazer/circle-rush. Tests:
-  `osu.Game.Tests/NonVisual/BanchosucksCircleRushRulesTest.cs` (same numbers as the plugin tests)
-  and `TestSceneBanchosucksMinigames`.
-- **Private Server Tycoon** (main menu > Play > minigames, third tile, since 2026.913.15):
+- **Private Server Tycoon** (main menu > Play > minigames, second tile, since 2026.913.15):
   `osu.Game/Screens/Banchosucks/Tycoon/`, an idle game built like a tycoon game: the plot is the game.
   Buy pads on the floor show the next building and its price, green when affordable, red when not
   (long names shrink to fit, the full text is in the tooltip); buying turns the pad into the building
@@ -212,11 +190,11 @@ and restart the app container.
   by lifetime donations, player record and seasons in the screen and on banchosucks.cc/lazer/tycoon.
   Tests: `osu.Game.Tests/NonVisual/BanchosucksTycoonRulesTest.cs` (same numbers as the plugin
   tests) and `TestSceneBanchosucksMinigames`.
-- **Background Guesser** (minigames, fifth tile, since 2026.913.15): `osu.Game/Screens/Banchosucks/Guess/BackgroundGuessScreen.cs`,
+- **Background Guesser** (minigames, fourth tile, since 2026.913.15): `osu.Game/Screens/Banchosucks/Guess/BackgroundGuessScreen.cs`,
   the second game on the shared `GuessScreen`: the set's background is shown close up and zooms out over twelve
   seconds, four titles are offered; library mode uses `WorkingBeatmap.GetBackground()`, popular mode the official
   `cover@2x.jpg` of the pool's sets. Same rules, points and plugin, boards `background` and `background_endless`.
-- **Song Guesser** (minigames, fourth tile, since 2026.913.15): `osu.Game/Screens/Banchosucks/Guess/`.
+- **Song Guesser** (minigames, third tile, since 2026.913.15): `osu.Game/Screens/Banchosucks/Guess/`.
   Four answers each round, 15 s per round; a correct answer gives 100 points plus 10 per second left,
   streaks add up to 50. Library mode (board `song`, ten rounds) plays the preview point of one of the
   player's own beatmap sets (the global music pauses, the cover and title appear once answered) and

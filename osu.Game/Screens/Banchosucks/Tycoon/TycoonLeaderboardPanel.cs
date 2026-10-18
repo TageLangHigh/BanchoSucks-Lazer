@@ -69,7 +69,7 @@ namespace osu.Game.Screens.Banchosucks.Tycoon
                             {
                                 new SortButton(ClickerStrings.Text("Donations", "Spenden"), "total", this),
                                 new SortButton(ClickerStrings.Text("Player record", "Spieler-Rekord"), "players", this),
-                                new SortButton(ClickerStrings.Text("Seasons", "Saisons"), "prestige", this),
+                                new SortButton(ClickerStrings.Text("Prestige", "Prestige"), "prestige", this),
                             },
                         },
                         ownText = new OsuSpriteText
