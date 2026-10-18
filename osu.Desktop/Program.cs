@@ -30,6 +30,9 @@ namespace osu.Desktop
 
         private static bool isFirstRun;
 
+        // Banchosucks: starts with arguments (imports, tournament client) do not update before the intro
+        private static bool startedWithArguments;
+
         [STAThread]
         public static void Main(string[] args)
         {
@@ -144,6 +147,7 @@ namespace osu.Desktop
                     host.Run(new OsuGameDesktop(args)
                     {
                         IsFirstRun = isFirstRun,
+                        StartedWithArguments = startedWithArguments,
                         EnableWebSocketServer = Environment.GetEnvironmentVariable("OSU_WEBSOCKET_SERVER") == "1",
                     });
                 }
@@ -190,6 +194,7 @@ namespace osu.Desktop
             if (args.Length > 0 && !args[0].StartsWith("--velo", StringComparison.Ordinal))
             {
                 Logger.Log("Handling arguments, skipping velopack setup.");
+                startedWithArguments = true;
                 return;
             }
 

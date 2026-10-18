@@ -37,6 +37,12 @@ namespace osu.Game.Updater
 
         public virtual ReleaseStream? FixedReleaseStream => null;
 
+        /// <summary>
+        /// Banchosucks: the update step that runs while the game starts, or null when this manager has none (local builds,
+        /// package-managed installs, starts with arguments). The <see cref="Screens.Loader"/> waits for it before the intro.
+        /// </summary>
+        public virtual StartupUpdate? StartupUpdate => null;
+
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
 
