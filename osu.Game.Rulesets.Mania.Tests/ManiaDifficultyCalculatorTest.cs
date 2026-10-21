@@ -14,11 +14,12 @@ namespace osu.Game.Rulesets.Mania.Tests
     {
         protected override string ResourceAssembly => "osu.Game.Rulesets.Mania.Tests";
 
-        [TestCase(2.3493769750220914d, 242, "diffcalc-test")]
+        // Banchosucks: the map is mania-specific, so the expected values are those of our rating (ManiaRating, reference from bancho.py app/maniadiff)
+        [TestCase(2.3521150834167313d, 242, "diffcalc-test")]
         public void Test(double expectedStarRating, int expectedMaxCombo, string name)
             => base.Test(expectedStarRating, expectedMaxCombo, name);
 
-        [TestCase(2.797245912537965d, 242, "diffcalc-test")]
+        [TestCase(2.825835215261265d, 242, "diffcalc-test")]
         public void TestClockRateAdjusted(double expectedStarRating, int expectedMaxCombo, string name)
             => Test(expectedStarRating, expectedMaxCombo, name, new ManiaModDoubleTime());
 

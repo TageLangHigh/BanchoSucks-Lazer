@@ -79,6 +79,16 @@ and restart the app container.
 
 ## Banchosucks features
 
+- **Mania star rating and pp** (`osu.Game.Rulesets.Mania/Difficulty/Banchosucks/`): `ManiaRating` is a
+  line-by-line port of the server's Python package (bancho.py `app/maniadiff`, sunnyxxy's Star Rating
+  Rebirth, 1-10 keys); `ManiaDifficultyCalculator` uses it for mania-specific maps (converts keep the
+  official calculation) with the map's own OD and the clock rate rounded to two decimals, and
+  `ManiaRatingProgress` serves the timed attributes of the in-game pp counter from one full run.
+  `ManiaPerformance` is the server's pp formula (8.68 multiplier, quadratic accuracy term from 80 %,
+  NF 0.75, EZ 0.5, neutral mod list, everything else and converts 0 pp). Server and client must stay
+  identical: change both, bump `ManiaRating.ALGORITHM_VERSION` / `ManiaDifficultyCalculator.Version`
+  (the client then recalculates every stored mania star rating once). Reference values from the
+  Python package: `osu.Game.Rulesets.Mania.Tests/BanchosucksManiaRatingTest.cs`.
 - **Input / audio rate** (Graphics > Renderer): 1000 to 8000 Hz for the input and audio threads,
   kept applied by `osu.Game/Graphics/BanchosucksThreadRateManager.cs`.
 - **Menu opacity** (User Interface > General): alpha of menu screens; gameplay and the editor
