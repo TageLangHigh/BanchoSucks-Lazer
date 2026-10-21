@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mania.Difficulty.Banchosucks;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
@@ -38,30 +39,23 @@ namespace osu.Game.Rulesets.Mania.Difficulty
             countMiss = Math.Max(0, score.Statistics.GetValueOrDefault(HitResult.Miss));
             scoreAccuracy = Math.Clamp(calculateCustomAccuracy(), 0, 1);
 
-            double multiplier = 1.0;
+            // Banchosucks: the server's formula (ManiaPerformance). Converts from other rulesets and plays with mods
+            // outside the neutral list get no pp, exactly like the server.
+            bool maniaSpecific = score.BeatmapInfo == null || score.BeatmapInfo.Ruleset.OnlineID == 3;
 
-            if (score.Mods.Any(m => m is ModNoFail))
-                multiplier *= 0.75;
-            if (score.Mods.Any(m => m is ModEasy))
-                multiplier *= 0.5;
+            if (!maniaSpecific || !ManiaPerformance.ModsGivePerformance(score.Mods))
+                return new ManiaPerformanceAttributes { Difficulty = 0, Total = 0 };
 
-            double difficultyValue = computeDifficultyValue(maniaAttributes);
-            double totalValue = difficultyValue * multiplier;
+            // the map's note count (a long note once) when the difficulty calculation knew it, else the judgement count
+            double notes = maniaAttributes.NoteCount > 0 ? maniaAttributes.NoteCount : totalHits;
+            double difficultyValue = ManiaPerformance.DifficultyValue(maniaAttributes.StarRating, notes);
+            double totalValue = difficultyValue * ManiaPerformance.AccuracyTerm(scoreAccuracy) * ManiaPerformance.ModMultiplier(score.Mods);
 
             return new ManiaPerformanceAttributes
             {
                 Difficulty = difficultyValue,
                 Total = totalValue
             };
-        }
-
-        private double computeDifficultyValue(ManiaDifficultyAttributes attributes)
-        {
-            double difficultyValue = 8.0 * Math.Pow(Math.Max(attributes.StarRating - 0.15, 0.05), 2.2) // Star rating to pp curve
-                                         * Math.Max(0, 5 * scoreAccuracy - 4) // From 80% accuracy, 1/20th of total pp is awarded per additional 1% accuracy
-                                         * (1 + 0.1 * Math.Min(1, totalHits / 1500)); // Length bonus, capped at 1500 notes
-
-            return difficultyValue;
         }
 
         private double totalHits => countPerfect + countOk + countGreat + countGood + countMeh + countMiss;

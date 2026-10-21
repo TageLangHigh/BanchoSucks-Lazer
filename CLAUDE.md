@@ -77,6 +77,9 @@ Für den Client heißt das zusätzlich:
 - Replay-Renderer (danser-go): `osu.Game/Scoring/BanchosucksReplayRenderer.cs`.
 - Eingabe- und Audio-Rate: `osu.Game/Graphics/BanchosucksThreadRateManager.cs`.
 - Server-Adressen: `osu.Game/Online/ProductionEndpointConfiguration.cs`.
+- Mania-Sterne und pp: `osu.Game.Rulesets.Mania/Difficulty/Banchosucks/` (Port des Server-Pakets
+  `app/maniadiff` aus bancho.py; Server und Client müssen identisch bleiben, Tests mit Referenzwerten in
+  `osu.Game.Rulesets.Mania.Tests/BanchosucksManiaRatingTest.cs`).
 
 ## 4. Release bauen
 

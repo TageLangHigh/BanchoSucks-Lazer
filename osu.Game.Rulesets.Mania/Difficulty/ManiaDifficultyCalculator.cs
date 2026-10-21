@@ -10,6 +10,7 @@ using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
 using osu.Game.Rulesets.Difficulty.Skills;
 using osu.Game.Rulesets.Mania.Beatmaps;
+using osu.Game.Rulesets.Mania.Difficulty.Banchosucks;
 using osu.Game.Rulesets.Mania.Difficulty.Preprocessing;
 using osu.Game.Rulesets.Mania.Difficulty.Skills;
 using osu.Game.Rulesets.Mania.MathUtils;
@@ -29,7 +30,12 @@ namespace osu.Game.Rulesets.Mania.Difficulty
 
         private readonly bool isForCurrentRuleset;
 
-        public override int Version => 20241007;
+        // Banchosucks: bumped for our own rating (ManiaRating); the client recalculates every stored mania star rating once.
+        public override int Version => 20261021;
+
+        private ManiaRating.Result? banchosucksResult;
+        private ManiaRatingProgress? banchosucksProgress;
+        private double banchosucksRate;
 
         public ManiaDifficultyCalculator(IRulesetInfo ruleset, IWorkingBeatmap beatmap)
             : base(ruleset, beatmap)
@@ -42,17 +48,67 @@ namespace osu.Game.Rulesets.Mania.Difficulty
             if (beatmap.HitObjects.Count == 0)
                 return new ManiaDifficultyAttributes { Mods = mods };
 
-            HitWindows hitWindows = new ManiaHitWindows();
-            hitWindows.SetDifficulty(beatmap.Difficulty.OverallDifficulty);
+            // the full playable beatmap: a timed calculation passes a wrapper here that is no ManiaBeatmap
+            int totalColumns = ((ManiaBeatmap)Beatmap).TotalColumns;
+            double starRating;
+            int noteCount = 0;
+
+            if (isForCurrentRuleset && totalColumns <= ManiaRating.MAX_KEYS)
+            {
+                // Banchosucks: mania-specific maps get the server's rating (ManiaRating). The map's own OD is used, not the
+                // mod-adjusted one, and the rate is rounded like the server rounds it. A timed calculation hands partial
+                // beatmaps in here thousands of times; those are served from the progressive aggregation of one full run.
+                double rate = Math.Round(ModUtils.CalculateRateWithMods(mods), 2);
+
+                if (banchosucksResult == null || banchosucksRate != rate)
+                {
+                    banchosucksResult = ManiaRating.Calculate(banchosucksNotes(Beatmap), totalColumns, WorkingBeatmap.BeatmapInfo.Difficulty.OverallDifficulty, rate);
+                    banchosucksProgress = null;
+                    banchosucksRate = rate;
+                }
+
+                noteCount = banchosucksResult.NoteCount;
+
+                if (beatmap.HitObjects.Count >= Beatmap.HitObjects.Count)
+                    starRating = banchosucksResult.StarRating;
+                else
+                {
+                    banchosucksProgress ??= new ManiaRatingProgress(banchosucksResult);
+                    double lastHead = Math.Truncate(beatmap.HitObjects[^1].StartTime);
+                    banchosucksProgress.Advance(rate == 1.0 ? lastHead : Math.Floor(lastHead / rate));
+                    starRating = banchosucksProgress.StarRating();
+                }
+            }
+            else
+                starRating = skills.OfType<Strain>().Single().DifficultyValue() * difficulty_multiplier;
 
             ManiaDifficultyAttributes attributes = new ManiaDifficultyAttributes
             {
-                StarRating = skills.OfType<Strain>().Single().DifficultyValue() * difficulty_multiplier,
+                StarRating = starRating,
                 Mods = mods,
                 MaxCombo = beatmap.HitObjects.Sum(maxComboForObject),
+                NoteCount = noteCount,
             };
 
             return attributes;
+        }
+
+        /// <summary>
+        /// The notes of a converted mania beatmap for <see cref="ManiaRating"/>: times truncated to whole milliseconds like
+        /// the server's parser reads them from the file.
+        /// </summary>
+        private static List<ManiaRating.Note> banchosucksNotes(IBeatmap beatmap)
+        {
+            var notes = new List<ManiaRating.Note>(beatmap.HitObjects.Count);
+
+            foreach (var hitObject in beatmap.HitObjects.OfType<ManiaHitObject>())
+            {
+                int head = (int)Math.Truncate(hitObject.StartTime);
+                int tail = hitObject is HoldNote hold ? (int)Math.Truncate(hold.EndTime) : -1;
+                notes.Add(new ManiaRating.Note(hitObject.Column, head, tail));
+            }
+
+            return notes;
         }
 
         private static int maxComboForObject(HitObject hitObject)
