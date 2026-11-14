@@ -89,6 +89,14 @@ and restart the app container.
   identical: change both, bump `ManiaRating.ALGORITHM_VERSION` / `ManiaDifficultyCalculator.Version`
   (the client then recalculates every stored mania star rating once). Reference values from the
   Python package: `osu.Game.Rulesets.Mania.Tests/BanchosucksManiaRatingTest.cs`.
+- **Stored star ratings** (`osu.Game/Database/BackgroundDataStoreProcessor.cs`): song select sorts and
+  groups by the star rating stored in the local database, the panels show a freshly calculated one.
+  `verifyBanchosucksStarRatings` recalculates every stored mania rating once per
+  `BANCHOSUCKS_STAR_RATING_CHECK` and writes the ones that differ, in place and resumable (position in
+  `OsuSetting.BanchosucksStarRatingCheckPosition`); bump the constant to run it again on every client.
+  The background processing looks every second whether gameplay has ended (upstream: every 30 s), so
+  it gets through a large library between maps. Tests:
+  `osu.Game.Rulesets.Mania.Tests/BanchosucksStoredStarRatingTest.cs`.
 - **Input / audio rate** (Graphics > Renderer): 1000 to 8000 Hz for the input and audio threads,
   kept applied by `osu.Game/Graphics/BanchosucksThreadRateManager.cs`.
 - **Menu opacity** (User Interface > General): alpha of menu screens; gameplay and the editor

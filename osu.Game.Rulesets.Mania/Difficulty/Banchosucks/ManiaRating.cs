@@ -486,11 +486,17 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Banchosucks
             {
                 int i = upperBound(points, a) - 1;
                 int j = upperBound(points, b) - 1;
+
+                // A note head before 0 ms lies left of every point (i = -1). The server's Python reads index -1 there, which
+                // is the last value (0, after the end of all long notes); reading bodyValues[-1] here threw instead, the map
+                // kept no stored star rating and showed none. Reading the last value keeps both sides identical.
+                double first = bodyValues[i < 0 ? points.Length - 1 : i];
+
                 if (i == j)
-                    return (b - a) * bodyValues[i];
+                    return (b - a) * first;
 
                 int next = Math.Min(i + 1, points.Length - 1);
-                return (points[next] - a) * bodyValues[i] + (bodyCumulative[j] - bodyCumulative[next]) + (b - points[j]) * bodyValues[j];
+                return (points[next] - a) * first + (bodyCumulative[j] - bodyCumulative[next]) + (b - points[j]) * bodyValues[j];
             }
 
             var pStep = new double[nBase];

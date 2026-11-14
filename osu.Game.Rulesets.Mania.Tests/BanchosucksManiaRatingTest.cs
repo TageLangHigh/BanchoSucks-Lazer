@@ -56,6 +56,33 @@ namespace osu.Game.Rulesets.Mania.Tests
             Assert.That(expectedLongNotes, Is.GreaterThanOrEqualTo(0));
         }
 
+        /// <summary>
+        /// A map whose first notes lie before 0 ms. The server rates such maps; the client threw an
+        /// <see cref="IndexOutOfRangeException"/> on them until 2026.913.16. Expected values from bancho.py <c>app/maniadiff</c>
+        /// for the same notes: 240 notes, 90 ms apart, columns in turn, every fifth one a 200 ms long note.
+        /// </summary>
+        [TestCase(-9, 1.0, 3.44962297, 48)]
+        [TestCase(-9, 1.5, 4.32007671, 48)]
+        [TestCase(0, 1.0, 3.44966718, 48)]
+        [TestCase(-250, 1.0, 3.44455310, 47)]
+        [TestCase(-250, 1.5, 4.31609142, 47)]
+        public void TestNotesBeforeZeroMatchServer(int firstHead, double rate, double expectedStarRating, int expectedLongNotes)
+        {
+            var notes = new System.Collections.Generic.List<ManiaRating.Note>();
+
+            for (int i = 0; i < 240; i++)
+            {
+                int head = firstHead + i * 90;
+                notes.Add(new ManiaRating.Note(i % 4, head, i % 5 == 0 ? head + 200 : -1));
+            }
+
+            var result = ManiaRating.Calculate(notes, 4, 8.0, rate);
+
+            Assert.That(result.StarRating, Is.EqualTo(expectedStarRating).Within(star_precision));
+            Assert.That(result.NoteCount, Is.EqualTo(240));
+            Assert.That(result.LongNoteCount, Is.EqualTo(expectedLongNotes));
+        }
+
         [TestCase("banchosucks-2325444", 1.0, 311.008)]
         [TestCase("banchosucks-2325444", 1.5, 670.99)]
         [TestCase("banchosucks-2325444", 0.75, 210.832)]

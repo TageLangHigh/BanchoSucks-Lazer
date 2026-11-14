@@ -132,6 +132,8 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.BanchosucksMenuOpacity, 1.0f, 0.2f, 1.0f, 0.05f);
             SetDefault(OsuSetting.BanchosucksDiscordAppId, string.Empty);
             SetDefault(OsuSetting.BanchosucksPresetsHintShown, false);
+            SetDefault(OsuSetting.BanchosucksStarRatingCheck, 0);
+            SetDefault(OsuSetting.BanchosucksStarRatingCheckPosition, string.Empty);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -520,6 +522,17 @@ namespace osu.Game.Configuration
         /// <summary>
         /// Banchosucks: whether the one-time notification pointing at the presets (Settings > General) was shown.
         /// </summary>
-        BanchosucksPresetsHintShown
+        BanchosucksPresetsHintShown,
+
+        /// <summary>
+        /// Banchosucks: the last one-off check of the stored osu!mania star ratings this install has completed
+        /// (see <c>BackgroundDataStoreProcessor.BANCHOSUCKS_STAR_RATING_CHECK</c>).
+        /// </summary>
+        BanchosucksStarRatingCheck,
+
+        /// <summary>
+        /// Banchosucks: where an interrupted star rating check continues (the ID of the last beatmap it handled).
+        /// </summary>
+        BanchosucksStarRatingCheckPosition
     }
 }
