@@ -76,7 +76,15 @@ namespace osu.Game.Database
 
         private LocalCachedBeatmapMetadataSource localMetadataSource = null!;
 
-        protected virtual int TimeToSleepDuringGameplay => 30000;
+        /// <summary>
+        /// Banchosucks: bump to make every client check its stored osu!mania star ratings once more
+        /// (<see cref="verifyBanchosucksStarRatings"/>).
+        /// </summary>
+        public const int BANCHOSUCKS_STAR_RATING_CHECK = 20261114;
+
+        // Banchosucks: was 30000. With half a minute between looks, the processing mostly missed the few seconds a
+        // player spends in song select between two maps and a large library took days of play time to get through.
+        protected virtual int TimeToSleepDuringGameplay => 1000;
 
         protected virtual bool SkipProcessing => DebugUtils.IsNUnitRunning;
 
@@ -95,6 +103,7 @@ namespace osu.Game.Database
 
                 clearOutdatedStarRatings();
                 populateMissingStarRatings();
+                verifyBanchosucksStarRatings();
                 processOnlineBeatmapSetsWithNoUpdate();
                 // Note that the previous method will also update these on a fresh run.
                 processBeatmapsWithMissingObjectCounts();
@@ -229,6 +238,109 @@ namespace osu.Game.Database
                     ++failedCount;
                 }
             }
+
+            completeNotification(notification, processedCount, beatmapIds.Count, failedCount);
+        }
+
+        /// <summary>
+        /// Banchosucks: song select sorts and groups by the stored star rating, while the panels show a freshly
+        /// calculated one. Players reported osu!mania maps still sorted by the official stars after 2026.913.16 brought
+        /// our own rating. This recalculates every stored osu!mania rating once and writes the ones that differ.
+        /// Unlike <see cref="clearOutdatedStarRatings"/> it does not reset anything first (a reset map drops to the top
+        /// of the difficulty sort until it is recalculated) and does not depend on
+        /// <see cref="RulesetInfo.LastAppliedDifficultyVersion"/>. It may be interrupted: the position is kept in the config.
+        /// </summary>
+        private void verifyBanchosucksStarRatings()
+        {
+            const string ruleset_name = @"mania";
+            const double tolerance = 0.0005;
+
+            if (config.Get<int>(OsuSetting.BanchosucksStarRatingCheck) >= BANCHOSUCKS_STAR_RATING_CHECK)
+                return;
+
+            List<Guid> beatmapIds = new List<Guid>();
+
+            realmAccess.Run(r =>
+            {
+                // maps without a rating (-1) are left to populateMissingStarRatings()
+                foreach (var b in r.All<BeatmapInfo>().Where(b => b.StarRating >= 0 && b.BeatmapSet != null))
+                {
+                    if (b.Ruleset.ShortName == ruleset_name)
+                        beatmapIds.Add(b.ID);
+                }
+            });
+
+            beatmapIds.Sort();
+
+            if (Guid.TryParse(config.Get<string>(OsuSetting.BanchosucksStarRatingCheckPosition), out Guid position))
+                beatmapIds.RemoveAll(id => id.CompareTo(position) <= 0);
+
+            Logger.Log($"Banchosucks: checking the stored star rating of {beatmapIds.Count} osu!mania beatmaps.");
+
+            var notification = showProgressNotification(beatmapIds.Count, "Checking star ratings of osu!mania beatmaps", "osu!mania star ratings have been checked");
+
+            Ruleset? ruleset = null;
+
+            int processedCount = 0;
+            int correctedCount = 0;
+            int failedCount = 0;
+
+            foreach (Guid id in beatmapIds)
+            {
+                if (notification?.State == ProgressNotificationState.Cancelled)
+                    break;
+
+                updateNotificationProgress(notification, processedCount, beatmapIds.Count);
+
+                sleepIfRequired();
+
+                var beatmap = realmAccess.Run(r => r.Find<BeatmapInfo>(id)?.Detach());
+
+                if (beatmap != null)
+                {
+                    try
+                    {
+                        var working = beatmapManager.GetWorkingBeatmap(beatmap);
+
+                        ruleset ??= working.BeatmapInfo.Ruleset.CreateInstance();
+
+                        double starRating = ruleset.CreateDifficultyCalculator(working).Calculate().StarRating;
+
+                        if (Math.Abs(starRating - beatmap.StarRating) > tolerance)
+                        {
+                            realmAccess.Write(r =>
+                            {
+                                if (r.Find<BeatmapInfo>(id) is BeatmapInfo liveBeatmapInfo)
+                                    liveBeatmapInfo.StarRating = starRating;
+                            });
+
+                            ++correctedCount;
+                        }
+
+                        ((IWorkingBeatmapCache)beatmapManager).Invalidate(beatmap);
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.Log($"Banchosucks: star rating check failed on {beatmap}: {e}");
+                        ++failedCount;
+                    }
+                }
+
+                ++processedCount;
+
+                if (processedCount % 50 == 0)
+                    config.SetValue(OsuSetting.BanchosucksStarRatingCheckPosition, id.ToString());
+            }
+
+            bool finished = processedCount == beatmapIds.Count;
+
+            if (finished)
+            {
+                config.SetValue(OsuSetting.BanchosucksStarRatingCheck, BANCHOSUCKS_STAR_RATING_CHECK);
+                config.SetValue(OsuSetting.BanchosucksStarRatingCheckPosition, string.Empty);
+            }
+
+            Logger.Log($"Banchosucks: star rating check {(finished ? "finished" : "interrupted")}: {correctedCount} of {processedCount} stored osu!mania ratings corrected, {failedCount} failed.");
 
             completeNotification(notification, processedCount, beatmapIds.Count, failedCount);
         }
@@ -883,9 +995,17 @@ namespace osu.Game.Database
         {
             // Importantly, also sleep if high performance session is active.
             // If we don't do this, memory usage can become runaway due to GC running in a more lenient mode.
+            bool logged = false;
+
             while (localUserPlayInfo?.PlayingState.Value != LocalUserPlayingState.NotPlaying || highPerformanceSessionManager?.IsSessionActive == true)
             {
-                Logger.Log("Background processing sleeping due to active gameplay...");
+                // Banchosucks: once per pause, not once per look (see TimeToSleepDuringGameplay)
+                if (!logged)
+                {
+                    Logger.Log("Background processing sleeping due to active gameplay...");
+                    logged = true;
+                }
+
                 Thread.Sleep(TimeToSleepDuringGameplay);
             }
         }

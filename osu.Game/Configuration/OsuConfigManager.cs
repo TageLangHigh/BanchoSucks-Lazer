@@ -131,6 +131,8 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.BanchosucksAudioRate, BanchosucksThreadRate.Default);
             SetDefault(OsuSetting.BanchosucksMenuOpacity, 1.0f, 0.2f, 1.0f, 0.05f);
             SetDefault(OsuSetting.BanchosucksDiscordAppId, string.Empty);
+            SetDefault(OsuSetting.BanchosucksStarRatingCheck, 0);
+            SetDefault(OsuSetting.BanchosucksStarRatingCheckPosition, string.Empty);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -514,6 +516,17 @@ namespace osu.Game.Configuration
         /// <summary>
         /// Banchosucks: Discord application id last received from the server (banchosucks_client plugin), used for Rich Presence.
         /// </summary>
-        BanchosucksDiscordAppId
+        BanchosucksDiscordAppId,
+
+        /// <summary>
+        /// Banchosucks: the last one-off check of the stored osu!mania star ratings this install has completed
+        /// (see <c>BackgroundDataStoreProcessor.BANCHOSUCKS_STAR_RATING_CHECK</c>).
+        /// </summary>
+        BanchosucksStarRatingCheck,
+
+        /// <summary>
+        /// Banchosucks: where an interrupted star rating check continues (the ID of the last beatmap it handled).
+        /// </summary>
+        BanchosucksStarRatingCheckPosition
     }
 }
