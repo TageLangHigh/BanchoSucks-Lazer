@@ -32,6 +32,7 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.UI;
 using osu.Game.Rulesets.UI.Scrolling;
+using osu.Game.Screens.Banchosucks.Practice;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Game.Screens.Ranking;
@@ -138,6 +139,20 @@ namespace osu.Game.Screens.Play
 
         [Resolved]
         private OsuGameBase game { get; set; }
+
+        // Banchosucks: "retry from the miss" on the fail overlay goes back to song select and starts the practice player from there.
+        [Resolved(canBeNull: true)]
+        private IPerformFromScreenRunner banchosucksPerformer { get; set; }
+
+        /// <summary>
+        /// Banchosucks: whether the fail overlay offers "retry from the miss". Only solo play does.
+        /// </summary>
+        protected virtual bool BanchosucksAllowPracticeFromFail => false;
+
+        /// <summary>
+        /// Banchosucks: the map time at which the player failed, taken before the fail animation lets the clock run on.
+        /// </summary>
+        public double? BanchosucksFailTime { get; private set; }
 
         public GameplayState GameplayState { get; private set; }
 
@@ -325,6 +340,10 @@ namespace osu.Game.Screens.Play
                     SaveReplay = Configuration.AllowUserInteraction ? async () => await prepareAndImportScoreAsync(true).ConfigureAwait(false) : null,
                     OnRetry = Configuration.AllowUserInteraction ? () => Restart() : null,
                     OnQuit = () => PerformExitWithConfirmation(),
+                    // Banchosucks: practise from shortly before the fail point. The failed play is left like with Quit.
+                    BanchosucksPracticeFromFail = BanchosucksAllowPracticeFromFail && Configuration.AllowUserInteraction && banchosucksPerformer != null
+                        ? () => BanchosucksPracticeLauncher.StartFromFail(banchosucksPerformer, Beatmap.Value.BeatmapInfo, BanchosucksFailTime ?? GameplayClockContainer.CurrentTime)
+                        : null,
                 },
             });
 
@@ -979,6 +998,9 @@ namespace osu.Game.Screens.Play
             Debug.Assert(!GameplayState.HasQuit);
 
             GameplayState.HasFailed = true;
+
+            // Banchosucks: remembered for "retry from the miss".
+            BanchosucksFailTime = GameplayClockContainer.CurrentTime;
 
             updateGameplayState();
 

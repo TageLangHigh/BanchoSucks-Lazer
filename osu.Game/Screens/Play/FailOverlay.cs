@@ -13,12 +13,25 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Localisation;
 using osu.Game.Localisation;
+using osu.Game.Graphics;
+using osu.Game.Screens.Banchosucks.Clicker;
 
 namespace osu.Game.Screens.Play
 {
     public partial class FailOverlay : GameplayMenuOverlay
     {
         public Func<Task<ScoreInfo>>? SaveReplay { get; init; }
+
+        /// <summary>
+        /// Banchosucks: starts the practice player shortly before the fail point. No button without it.
+        /// </summary>
+        public Action? BanchosucksPracticeFromFail { get; init; }
+
+        protected override void AddBanchosucksButtons(OsuColour colours)
+        {
+            if (BanchosucksPracticeFromFail != null)
+                AddButton(ClickerStrings.Text("Retry from the miss", "Ab der Miss-Stelle nochmal"), colours.BlueDark, () => BanchosucksPracticeFromFail.Invoke());
+        }
 
         public override LocalisableString Header => GameplayMenuOverlayStrings.FailedHeader;
 

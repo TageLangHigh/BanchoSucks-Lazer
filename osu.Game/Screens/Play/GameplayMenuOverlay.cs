@@ -162,6 +162,9 @@ namespace osu.Game.Screens.Play
             if (OnRetry != null)
                 AddButton(GameplayMenuOverlayStrings.Retry, colours.YellowDark, () => OnRetry.Invoke());
 
+            // Banchosucks: the fail overlay puts "retry from the miss" here, so Quit stays the last button (Back clicks the last one).
+            AddBanchosucksButtons(colours);
+
             if (OnQuit != null)
                 AddButton(GameplayMenuOverlayStrings.Quit, new Color4(170, 27, 39, 255), () => OnQuit.Invoke());
 
@@ -171,6 +174,13 @@ namespace osu.Game.Screens.Play
 
             if (host != null)
                 windowActive.BindTo(host.IsActive);
+        }
+
+        /// <summary>
+        /// Banchosucks: extra buttons between Retry and Quit.
+        /// </summary>
+        protected virtual void AddBanchosucksButtons(OsuColour colours)
+        {
         }
 
         private int retries;
