@@ -149,6 +149,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.BanchosucksStreamerMode, false);
             SetDefault(OsuSetting.BanchosucksStutterReport, true);
             SetDefault(OsuSetting.BanchosucksWhatsNewShownVersion, string.Empty);
+            SetDefault(OsuSetting.BanchosucksOverlayDataSource, false);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -631,5 +632,11 @@ namespace osu.Game.Configuration
         /// Banchosucks: the version (without suffix) whose release notes the "what's new" dialog has last shown or skipped.
         /// </summary>
         BanchosucksWhatsNewShownVersion,
+
+        /// <summary>
+        /// Banchosucks: serve the game state to stream overlays on 127.0.0.1:24050 in the shape of tosu's v2 API
+        /// (see <c>BanchosucksOverlayDataSource</c>). Off by default.
+        /// </summary>
+        BanchosucksOverlayDataSource,
     }
 }

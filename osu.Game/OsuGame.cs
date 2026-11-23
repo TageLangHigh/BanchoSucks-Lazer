@@ -1342,6 +1342,8 @@ namespace osu.Game
             Add(banchosucksStreamerMode = new BanchosucksStreamerMode());
             // Banchosucks: stutter report after a map
             Add(new BanchosucksStutterMonitor(() => ScreenStack.CurrentScreen));
+            // Banchosucks: tosu-compatible data source for stream overlays (off unless enabled in the settings)
+            Add(new BanchosucksOverlayDataSource(() => ScreenStack.CurrentScreen));
 
             // side overlays which cancel each other.
             var singleDisplaySideOverlays = new OverlayContainer[] { Settings, Notifications, FirstRunOverlay, loginOverlay, nowPlayingOverlay };

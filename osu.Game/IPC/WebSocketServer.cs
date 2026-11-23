@@ -61,6 +61,25 @@ namespace osu.Game.IPC
         /// </summary>
         public event Action<int, string>? MessageReceived;
 
+        /// <summary>
+        /// Banchosucks: called for every incoming request before it is treated as a websocket connection.
+        /// Returning <c>true</c> means the filter has answered and closed the request itself (used by the overlay data
+        /// source for tosu's <c>GET /json/v2</c> and to refuse unknown paths and foreign origins).
+        /// Runs on the request loop, so it has to be quick. Without a filter nothing changes.
+        /// </summary>
+        public Func<HttpListenerContext, bool>? RequestFilter { get; init; }
+
+        /// <summary>
+        /// Banchosucks: whether every sent message is written to the log (the upstream behaviour).
+        /// The overlay data source sends several documents a second and switches this off.
+        /// </summary>
+        public bool LogMessages { get; init; } = true;
+
+        /// <summary>
+        /// Banchosucks: number of clients currently connected.
+        /// </summary>
+        public int ClientCount => channels.Count;
+
         private readonly Lock syncRoot = new Lock();
 
         private readonly int port;
@@ -137,6 +156,12 @@ namespace osu.Game.IPC
                     {
                         // occurs on Windows when the listener is stopped.
                     }
+                    catch (ObjectDisposedException)
+                    {
+                        // Banchosucks: the pending request is completed on an IO thread after the listener was stopped; when
+                        // Dispose() got there first, EndGetContext throws this instead of error 995. Unhandled, it takes the
+                        // whole process down (seen when the overlay data source is switched off while the game runs).
+                    }
                 }, listener);
                 WaitHandle.WaitAny([contextResetEvent.WaitHandle, runningTokenSource.Token.WaitHandle]);
 
@@ -149,6 +174,26 @@ namespace osu.Game.IPC
 
                 var request = context.Request;
                 var response = context.Response;
+
+                // Banchosucks: see RequestFilter
+                if (RequestFilter != null)
+                {
+                    bool handled;
+
+                    try
+                    {
+                        handled = RequestFilter(context);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Add($@"Request filter failed for {request.RawUrl}.", LogLevel.Error, ex);
+                        response.Abort();
+                        handled = true;
+                    }
+
+                    if (handled)
+                        continue;
+                }
 
                 if (!request.IsWebSocketRequest)
                 {
@@ -198,7 +243,8 @@ namespace osu.Game.IPC
             if (!channels.TryGetValue(clientId, out var channel))
                 throw new ArgumentException($@"Client {clientId} is not known.");
 
-            logger.Add($@"Sending to client {clientId}: {message}");
+            if (LogMessages) // Banchosucks: see LogMessages
+                logger.Add($@"Sending to client {clientId}: {message}");
             await channel.SendAsync(message).ConfigureAwait(false);
         }
 
@@ -207,7 +253,8 @@ namespace osu.Game.IPC
         /// </summary>
         public Task BroadcastAsync(string message)
         {
-            logger.Add($@"Broadcasting to all clients: {message}");
+            if (LogMessages) // Banchosucks: see LogMessages
+                logger.Add($@"Broadcasting to all clients: {message}");
             return Task.WhenAll(channels.Values.Select(ch => ch.SendAsync(message)).ToArray());
         }
 
