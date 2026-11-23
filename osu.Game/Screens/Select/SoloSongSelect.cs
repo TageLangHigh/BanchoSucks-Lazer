@@ -17,6 +17,8 @@ using osu.Game.Online.API;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Screens.Banchosucks.Clicker;
+using osu.Game.Screens.Banchosucks.Practice;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Footer;
 using osu.Game.Screens.Play;
@@ -67,6 +69,9 @@ namespace osu.Game.Screens.Select
         {
             yield return new OsuMenuItem(ButtonSystemStrings.Play.ToSentence(), MenuItemType.Highlighted, () => SelectAndRun(beatmap, OnStart)) { Icon = FontAwesome.Solid.Check };
             yield return new OsuMenuItem(ButtonSystemStrings.Edit.ToSentence(), MenuItemType.Standard, () => Edit(beatmap)) { Icon = FontAwesome.Solid.PencilAlt };
+            // Banchosucks: practise a section of this difficulty in a loop; start, end and speed are picked on the next screen.
+            yield return new OsuMenuItem(ClickerStrings.Text("Practise section", "Abschnitt üben"), MenuItemType.Standard,
+                () => SelectAndRun(beatmap, () => this.Push(new BanchosucksPracticeSetupScreen()))) { Icon = FontAwesome.Solid.Redo };
 
             yield return new OsuMenuItemSpacer();
 
