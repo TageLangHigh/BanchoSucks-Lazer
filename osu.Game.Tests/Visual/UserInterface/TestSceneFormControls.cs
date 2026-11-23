@@ -1,5 +1,5 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -7,6 +7,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
 using osu.Game.Beatmaps;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
@@ -288,6 +289,109 @@ namespace osu.Game.Tests.Visual.UserInterface
                                                 Colour4.Blue,
                                                 Colour4.Yellow,
                                             }
+                                        },
+                                                                                new FormToggleGroup<CountdownType>
+                                        {
+                                            Caption = "Toggle group (horizontal, icon and text)",
+                                            HintText = "All options are given the same width",
+                                            Items = new[]
+                                            {
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.None,
+                                                    Text = "None",
+                                                    Icon = FontAwesome.Solid.Ban,
+                                                },
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.Normal,
+                                                    Text = "Normal",
+                                                    Icon = FontAwesome.Solid.Clock,
+                                                },
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.HalfSpeed,
+                                                    Text = "Half speed",
+                                                    Icon = FontAwesome.Solid.Backward,
+                                                },
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.DoubleSpeed,
+                                                    Text = "Double speed",
+                                                    Icon = FontAwesome.Solid.Forward,
+                                                },
+                                            },
+                                        },
+                                        new FormToggleGroup<CountdownType>
+                                        {
+                                            Caption = "Toggle group (icons only, disabled)",
+                                            HintText = "Options may present an icon alone, in which case a tooltip is recommended",
+                                            Current = { Disabled = true },
+                                            Items = new[]
+                                            {
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.None,
+                                                    Icon = FontAwesome.Solid.Ban,
+                                                    TooltipText = "None",
+                                                },
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.Normal,
+                                                    Icon = FontAwesome.Solid.Clock,
+                                                    TooltipText = "Normal",
+                                                },
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.HalfSpeed,
+                                                    Icon = FontAwesome.Solid.Backward,
+                                                    TooltipText = "Half speed",
+                                                },
+                                            },
+                                        },
+                                        new FormToggleGroup<CountdownType>
+                                        {
+                                            Caption = "Toggle group (vertical)",
+                                            HintText = "Options can be stacked instead",
+                                            Direction = FillDirection.Vertical,
+                                            Items = new[]
+                                            {
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.None,
+                                                    Text = "None",
+                                                },
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.Normal,
+                                                    Text = "Normal",
+                                                    Icon = FontAwesome.Solid.Clock,
+                                                },
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.HalfSpeed,
+                                                    Text = "Half speed",
+                                                },
+                                            },
+                                        },
+                                        new FormToggleGroup<CountdownType>
+                                        {
+                                            Caption = "Toggle group (overflowing labels)",
+                                            HintText = "A label which is too long to fit is scrolled, with the icon pinned to the left",
+                                            Items = new[]
+                                            {
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.None,
+                                                    Text = "A label which is far too long to fit",
+                                                    Icon = FontAwesome.Solid.Ban,
+                                                },
+                                                new FormToggleGroupItem<CountdownType>
+                                                {
+                                                    Value = CountdownType.Normal,
+                                                    Text = "Another label which is far too long to fit",
+                                                },
+                                            },
                                         },
                                     },
                                 }

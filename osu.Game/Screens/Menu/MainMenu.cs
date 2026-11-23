@@ -110,6 +110,9 @@ namespace osu.Game.Screens.Menu
         private MenuTipDisplay menuTipDisplay;
         private FillFlowContainer bottomElementsFlow;
 
+        [Resolved]
+        private BackgroundEditorOverlay backgroundEditor { get; set; } = null!;
+
         private Sample reappearSampleSwoosh;
 
         [Resolved(canBeNull: true)]
@@ -136,6 +139,11 @@ namespace osu.Game.Screens.Menu
                     }
                 });
             }
+
+            AddInternal(new BackgroundEditorHoldTrigger
+            {
+                BeginEdit = () => backgroundEditor.Show(),
+            });
 
             AddRangeInternal(new[]
             {
@@ -248,6 +256,9 @@ namespace osu.Game.Screens.Menu
         public override void OnEntering(ScreenTransitionEvent e)
         {
             base.OnEntering(e);
+
+            ApplyToBackground(b => backgroundEditor.SetDefaultScreen(b as BackgroundScreenDefault));
+
             Buttons.FadeInFromZero(500);
 
             if (e.Last is IntroScreen && musicController.TrackLoaded)
@@ -357,6 +368,8 @@ namespace osu.Game.Screens.Menu
         {
             base.OnSuspending(e);
 
+            backgroundEditor.Hide();
+
             Buttons.State = ButtonSystemState.EnteringMode;
 
             this.FadeOut(FADE_OUT_DURATION, Easing.InSine);
@@ -374,6 +387,8 @@ namespace osu.Game.Screens.Menu
         public override void OnResuming(ScreenTransitionEvent e)
         {
             base.OnResuming(e);
+
+            ApplyToBackground(b => backgroundEditor.SetDefaultScreen(b as BackgroundScreenDefault));
 
             // Ensures any playing `ButtonSystem` samples are stopped when returning to MainMenu (as to not overlap with the 'back' sample)
             Buttons.StopSamplePlayback();

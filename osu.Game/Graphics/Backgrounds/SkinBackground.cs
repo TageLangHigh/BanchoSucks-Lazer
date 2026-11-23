@@ -9,8 +9,15 @@ namespace osu.Game.Graphics.Backgrounds
 {
     internal partial class SkinBackground : Background
     {
-        private readonly Skin skin;
-        private readonly string primaryLookupName;
+        /// <summary>
+        /// The skin the displayed image is taken from.
+        /// </summary>
+        internal Skin DisplayedSkin { get; }
+
+        /// <summary>
+        /// The skin-resource name which supplied the displayed image, if any.
+        /// </summary>
+        internal string PrimaryLookupName { get; }
 
         /// <summary>
         /// Create a background sprite that pulls its texture from <paramref name="skin"/>.
@@ -32,8 +39,8 @@ namespace osu.Game.Graphics.Backgrounds
         public SkinBackground(Skin skin, string fallbackTextureName, string primaryLookupName = "menu-background")
             : base(fallbackTextureName)
         {
-            this.skin = skin;
-            this.primaryLookupName = primaryLookupName;
+            DisplayedSkin = skin;
+            PrimaryLookupName = primaryLookupName;
         }
 
         [BackgroundDependencyLoader]
@@ -44,16 +51,18 @@ namespace osu.Game.Graphics.Backgrounds
             // sprite's texture at whatever the Background base loaded from the fallback path.
             // This makes the "different image for the dim layer" Mash asked for opt-in by
             // file presence alone — no skin.ini config required.
-            var primary = skin.GetTexture(primaryLookupName);
+            var primary = DisplayedSkin.GetTexture(PrimaryLookupName);
+
             if (primary != null)
             {
                 Sprite.Texture = primary;
                 return;
             }
 
-            if (primaryLookupName != "menu-background")
+            if (PrimaryLookupName != "menu-background")
             {
-                var legacy = skin.GetTexture("menu-background");
+                var legacy = DisplayedSkin.GetTexture("menu-background");
+
                 if (legacy != null)
                 {
                     Sprite.Texture = legacy;
@@ -70,14 +79,14 @@ namespace osu.Game.Graphics.Backgrounds
             if (ReferenceEquals(this, other)) return true;
 
             return other.GetType() == GetType()
-                   && ((SkinBackground)other).skin.SkinInfo.Equals(skin.SkinInfo)
+                   && ((SkinBackground)other).DisplayedSkin.SkinInfo.Equals(DisplayedSkin.SkinInfo)
                    // Torii: include the primary lookup name in equality so a layout-background
                    // SkinBackground and a menu-background SkinBackground for the same skin
                    // aren't treated as equivalent — otherwise the background-stack reuse
                    // optimisation in BackgroundScreenDefault.createBackground would render
                    // the layout one when the menu wanted a fresh menu-background load (or
                    // vice versa).
-                   && ((SkinBackground)other).primaryLookupName == primaryLookupName;
+                   && ((SkinBackground)other).PrimaryLookupName == PrimaryLookupName;
         }
     }
 }

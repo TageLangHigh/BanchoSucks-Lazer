@@ -1296,6 +1296,7 @@ namespace osu.Game
             loadComponentSingleFile(beatmapSetOverlay = new BeatmapSetOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(wikiOverlay = new WikiOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(skinEditor = new SkinEditorOverlay(ScreenContainer), overlayContent.Add, true);
+            loadComponentSingleFile(new BackgroundEditorOverlay(), overlayContent.Add, true);
 
             loadComponentSingleFile(loginOverlay = new LoginOverlay
             {

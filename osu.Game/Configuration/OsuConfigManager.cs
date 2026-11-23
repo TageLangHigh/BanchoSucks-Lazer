@@ -213,6 +213,8 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.MenuBackgroundSource, BackgroundSource.Skin);
             SetDefault(OsuSetting.SeasonalBackgroundMode, SeasonalBackgroundMode.Sometimes);
+            SetDefault(OsuSetting.PinnedSeasonalBackground, false);
+            SetDefault(OsuSetting.PinnedSeasonalBackgroundIndex, 0);
 
             SetDefault(OsuSetting.DiscordRichPresence, DiscordRichPresenceMode.Full);
 
@@ -561,6 +563,17 @@ namespace osu.Game.Configuration
         /// <summary>
         /// Banchosucks: where an interrupted star rating check continues (the ID of the last beatmap it handled).
         /// </summary>
-        BanchosucksStarRatingCheckPosition
+        BanchosucksStarRatingCheckPosition,
+
+        /// <summary>
+        /// Whether the seasonal background at <see cref="PinnedSeasonalBackgroundIndex"/> should be displayed in
+        /// place of the rotating ones. Only takes effect while seasonal backgrounds are enabled.
+        /// </summary>
+        PinnedSeasonalBackground,
+
+        /// <summary>
+        /// The index of the seasonal background pinned via <see cref="PinnedSeasonalBackground"/>.
+        /// </summary>
+        PinnedSeasonalBackgroundIndex,
     }
 }

@@ -19,11 +19,7 @@ namespace osu.Game.Online
 
         protected override string GetLookupUrl(string url)
         {
-            string? customApiUrl = configManager?.Get<string>(OsuSetting.CustomApiUrl);
-            if (!string.IsNullOrWhiteSpace(customApiUrl) || (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                                                             (uri.Host.Equals("banchosucks.cc", StringComparison.OrdinalIgnoreCase) ||
-                                                              uri.Host.EndsWith(".banchosucks.cc", StringComparison.OrdinalIgnoreCase) ||
-                                                              uri.Host.EndsWith(".ppy.sh", StringComparison.OrdinalIgnoreCase) || uri.Host.EndsWith(".g0v0.top", StringComparison.OrdinalIgnoreCase))))
+            if (IsAllowedUrl(url, configManager))
                 return url;
 
             Logger.Log(
@@ -33,6 +29,24 @@ namespace osu.Game.Online
             );
 
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="url"/> may be retrieved as an online asset.
+        /// </summary>
+        /// <param name="url">The absolute URL to check.</param>
+        /// <param name="configManager">Used to determine whether a custom API server is configured, which lifts the restriction.</param>
+        public static bool IsAllowedUrl(string? url, OsuConfigManager? configManager = null)
+        {
+            // TODO: Don't think this is appropriate. The check is skipped when a custom endpoint is set. Needs a rewrite.
+            string? customApiUrl = configManager?.Get<string>(OsuSetting.CustomApiUrl);
+            if (!string.IsNullOrWhiteSpace(customApiUrl))
+                return true;
+
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                   (uri.Host.Equals("banchosucks.cc", StringComparison.OrdinalIgnoreCase) ||
+                    uri.Host.EndsWith(".banchosucks.cc", StringComparison.OrdinalIgnoreCase) ||
+                    uri.Host.EndsWith(".ppy.sh", StringComparison.OrdinalIgnoreCase) || uri.Host.EndsWith(".g0v0.top", StringComparison.OrdinalIgnoreCase));
         }
     }
 }

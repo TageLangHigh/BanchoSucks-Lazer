@@ -22,13 +22,19 @@ namespace osu.Game.Graphics.Backgrounds
     {
         public readonly Sprite Sprite;
 
-        private readonly string textureName;
+        /// <summary>
+        /// The name of the bundled texture this background was created with, without a file extension.
+        /// </summary>
+        /// <remarks>
+        /// Empty when the image is not taken from the resource store (see <see cref="SeasonalBackground"/>).
+        /// </remarks>
+        public readonly string TextureName;
 
         private BufferedContainer bufferedContainer;
 
         public Background(string textureName = @"")
         {
-            this.textureName = textureName;
+            TextureName = textureName;
             RelativeSizeAxes = Axes.Both;
 
             AddInternal(Sprite = new Sprite
@@ -43,8 +49,8 @@ namespace osu.Game.Graphics.Backgrounds
         [BackgroundDependencyLoader]
         private void load(LargeTextureStore textures)
         {
-            if (!string.IsNullOrEmpty(textureName))
-                Sprite.Texture = textures.Get(textureName);
+            if (!string.IsNullOrEmpty(TextureName))
+                Sprite.Texture = textures.Get(TextureName);
         }
 
         public Vector2 BlurSigma => Vector2.Divide(bufferedContainer?.BlurSigma ?? Vector2.Zero, blurScale);
@@ -118,7 +124,7 @@ namespace osu.Game.Graphics.Backgrounds
             if (ReferenceEquals(this, other)) return true;
 
             return other.GetType() == GetType()
-                   && other.textureName == textureName;
+                   && other.TextureName == TextureName;
         }
     }
 }

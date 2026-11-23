@@ -1,9 +1,10 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 #nullable disable
 
 using System;
+using System.Globalization;
 using System.Linq;
 using NUnit.Framework;
 using osu.Framework.Allocation;
@@ -20,8 +21,6 @@ using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Sprites;
-using osu.Game.Online.API;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Screens;
 using osu.Game.Screens.Backgrounds;
 using osu.Game.Skinning;
@@ -36,6 +35,7 @@ namespace osu.Game.Tests.Visual.Background
     {
         private BackgroundScreenStack stack;
         private TestBackgroundScreenDefault screen;
+
         private Graphics.Backgrounds.Background getCurrentBackground() => screen.ChildrenOfType<Graphics.Backgrounds.Background>().FirstOrDefault();
 
         [Resolved]
@@ -58,7 +58,6 @@ namespace osu.Game.Tests.Visual.Background
         [Test]
         public void TestBeatmapBackgroundTracksBeatmap()
         {
-            setSupporter(true);
             setSourceMode(BackgroundSource.Beatmap);
 
             AddStep("change beatmap", () => Beatmap.Value = createTestWorkingBeatmapWithUniqueBackground());
@@ -85,7 +84,6 @@ namespace osu.Game.Tests.Visual.Background
         [Test]
         public void TestBeatmapBackgroundTracksBeatmapWhenSuspended()
         {
-            setSupporter(true);
             setSourceMode(BackgroundSource.Beatmap);
 
             AddStep("change beatmap", () => Beatmap.Value = createTestWorkingBeatmapWithUniqueBackground());
@@ -116,7 +114,6 @@ namespace osu.Game.Tests.Visual.Background
             BackgroundScreenBeatmap nestedScreen = null;
             WorkingBeatmap originalWorking = null;
 
-            setSupporter(true);
             setSourceMode(BackgroundSource.Beatmap);
 
             AddStep("change beatmap", () => originalWorking = Beatmap.Value = createTestWorkingBeatmapWithUniqueBackground());
@@ -147,7 +144,6 @@ namespace osu.Game.Tests.Visual.Background
             BackgroundScreenBeatmap nestedScreen = null;
             WorkingBeatmap originalWorking = null;
 
-            setSupporter(true);
             setSourceMode(BackgroundSource.BeatmapWithStoryboard);
 
             AddStep("change beatmap", () => originalWorking = Beatmap.Value = createTestWorkingBeatmapWithStoryboard());
@@ -186,7 +182,6 @@ namespace osu.Game.Tests.Visual.Background
         {
             BackgroundScreenBeatmap nestedScreen = null;
 
-            setSupporter(true);
             setSourceMode(BackgroundSource.BeatmapWithStoryboard);
 
             AddStep("change beatmap", () => Beatmap.Value = createTestWorkingBeatmapWithStoryboard());
@@ -210,7 +205,6 @@ namespace osu.Game.Tests.Visual.Background
         {
             BackgroundScreenBeatmap nestedScreen = null;
 
-            setSupporter(true);
             setSourceMode(BackgroundSource.BeatmapWithStoryboard);
 
             AddStep("change beatmap", () => Beatmap.Value = createTestWorkingBeatmapWithUniqueBackground());
@@ -232,8 +226,6 @@ namespace osu.Game.Tests.Visual.Background
         [Test]
         public void TestBackgroundTypeSwitch()
         {
-            setSupporter(true);
-
             setSourceMode(BackgroundSource.Beatmap);
             AddUntilStep("is beatmap background", () => getCurrentBackground() is BeatmapBackground);
 
@@ -247,28 +239,12 @@ namespace osu.Game.Tests.Visual.Background
             AddUntilStep("is skin background", () => getCurrentBackground() is SkinBackground);
         }
 
-        [Test]
-        public void TestTogglingSupporterTogglesBeatmapBackground()
-        {
-            setSourceMode(BackgroundSource.Beatmap);
-
-            setSupporter(true);
-            AddUntilStep("is beatmap background", () => getCurrentBackground() is BeatmapBackground);
-
-            setSupporter(false);
-            AddUntilStep("is default background", () => !(getCurrentBackground() is BeatmapBackground));
-
-            setSupporter(true);
-            AddUntilStep("is beatmap background", () => getCurrentBackground() is BeatmapBackground);
-        }
-
         [TestCase(BackgroundSource.Beatmap, typeof(BeatmapBackground))]
         [TestCase(BackgroundSource.BeatmapWithStoryboard, typeof(BeatmapBackgroundWithStoryboard))]
         [TestCase(BackgroundSource.Skin, typeof(SkinBackground))]
         public void TestBackgroundDoesntReloadOnNoChange(BackgroundSource source, Type backgroundType)
         {
             setSourceMode(source);
-            setSupporter(true);
             if (source == BackgroundSource.Skin)
                 setCustomSkin();
 
@@ -277,10 +253,9 @@ namespace osu.Game.Tests.Visual.Background
         }
 
         [Test]
-        public void TestBackgroundCyclingOnDefaultSkin([Values] bool supporter)
+        public void TestBackgroundCyclingOnDefaultSkin()
         {
             setSourceMode(BackgroundSource.Skin);
-            setSupporter(supporter);
             setDefaultSkin();
 
             AddUntilStep("wait for beatmap background to be loaded", () => (getCurrentBackground())?.GetType() == typeof(Graphics.Backgrounds.Background));
@@ -290,14 +265,8 @@ namespace osu.Game.Tests.Visual.Background
         private void setSourceMode(BackgroundSource source) =>
             AddStep($"set background mode to {source}", () => config.SetValue(OsuSetting.MenuBackgroundSource, source));
 
-        private void setSupporter(bool isSupporter) =>
-            AddStep($"set supporter {isSupporter}", () => ((DummyAPIAccess)API).LocalUser.Value = new APIUser
-            {
-                IsSupporter = isSupporter,
-                Id = API.LocalUser.Value.Id + 1,
-            });
-
         private WorkingBeatmap createTestWorkingBeatmapWithUniqueBackground() => new UniqueBackgroundTestWorkingBeatmap(renderer, Audio);
+
         private WorkingBeatmap createTestWorkingBeatmapWithStoryboard() => new TestWorkingBeatmapWithStoryboard(Audio);
 
         private partial class TestBackgroundScreenDefault : BackgroundScreenDefault
@@ -374,7 +343,7 @@ namespace osu.Game.Tests.Visual.Background
                 protected override void Update()
                 {
                     base.Update();
-                    Text = Time.Current.ToString("N2");
+                    Text = Time.Current.ToString("N2", CultureInfo.InvariantCulture);
                 }
             }
         }
