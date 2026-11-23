@@ -85,7 +85,34 @@ namespace osu.Game.Tests.Skins
             "Archives/modified-argon-20250308.osk",
             // Covers legacy bar hit error meter
             "Archives/modified-classic-20260806.osk",
+            // Banchosucks: covers the "pp if FC" counter
+            "Archives/modified-default-20261123.osk",
         };
+
+        /// <summary>
+        /// Banchosucks: a layout holding the "pp if FC" counter loads, with the type name and the setting key skins store.
+        /// </summary>
+        [Test]
+        public void TestDeserialiseBanchosucksPerformanceIfFcCounter()
+        {
+            using (var stream = TestResources.OpenResource("Archives/modified-default-20261123.osk"))
+            using (var storage = new ZipArchiveReader(stream))
+            {
+                var skin = new TestSkin(new SkinInfo(), null, storage);
+
+                var drawables = skin.LayoutInfos[GlobalSkinnableContainers.MainHUDComponents].AllDrawables.ToArray();
+                Assert.That(drawables.Select(i => i.Type), Is.EqualTo(new[] { typeof(TrianglesPerformancePointsCounter), typeof(osu.Game.Screens.Play.HUD.BanchosucksPerformanceIfFcCounter) }));
+
+                var counter = drawables[1];
+                Assert.That(counter.Settings.Single().Key, Is.EqualTo("show_label"));
+                Assert.That(counter.Settings.Single().Value, Is.EqualTo(false));
+
+                // the key in the file is the one the component publishes for its option
+                var instance = new osu.Game.Screens.Play.HUD.BanchosucksPerformanceIfFcCounter();
+                Assert.That(osu.Game.Configuration.SettingSourceExtensions.GetSettingsSourceProperties(instance).Select(p => osu.Game.Extensions.StringDehumanizeExtensions.ToSnakeCase(p.Item2.Name)),
+                    Is.EqualTo(new[] { "show_label" }));
+            }
+        }
 
         /// <summary>
         /// If this test fails, new test resources should be added to include new components.

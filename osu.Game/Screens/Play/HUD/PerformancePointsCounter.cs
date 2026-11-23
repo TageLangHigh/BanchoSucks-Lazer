@@ -101,8 +101,19 @@ namespace osu.Game.Screens.Play.HUD
             }
 
             scoreProcessor.PopulateScore(scoreInfo);
+            // Banchosucks: the "pp if FC" counter projects the score here; every other counter leaves it untouched
+            AdjustScoreBeforeCalculation(scoreInfo, scoreProcessor);
             Current.Value = (int)Math.Round(performanceCalculator?.Calculate(scoreInfo, attrib).Total ?? 0, MidpointRounding.AwayFromZero);
             IsValid = true;
+        }
+
+        /// <summary>
+        /// Banchosucks: called with this counter's own copy of the score, freshly populated from the score processor,
+        /// right before the performance calculator rates it. The base implementation does nothing, so the stock
+        /// counters behave exactly as before; <see cref="BanchosucksPerformanceIfFcCounter"/> overrides it.
+        /// </summary>
+        protected virtual void AdjustScoreBeforeCalculation(ScoreInfo score, ScoreProcessor processor)
+        {
         }
 
         [CanBeNull]
