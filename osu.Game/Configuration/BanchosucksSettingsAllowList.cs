@@ -49,9 +49,12 @@ namespace osu.Game.Configuration
             OsuSetting.BanchosucksPresetsHintShown,
             OsuSetting.BanchosucksStarRatingCheck,
             OsuSetting.BanchosucksStarRatingCheckPosition,
+            OsuSetting.BanchosucksWhatsNewShownVersion,
 
             // opt-ins stay a decision made on each PC
             OsuSetting.BanchosucksSkinSync,
+            OsuSetting.BanchosucksStreamerMode,
+            OsuSetting.BanchosucksOverlayDataSource,
 
             // names of things that only exist on this PC (the skin travels by name in its own field)
             OsuSetting.Skin,
@@ -196,6 +199,8 @@ namespace osu.Game.Configuration
             OsuSetting.BanchosucksAudioRate,
             OsuSetting.BanchosucksDailyGoalMinutes,
             OsuSetting.BanchosucksDailyGoalMaps,
+            OsuSetting.BanchosucksDoNotDisturb,
+            OsuSetting.BanchosucksStutterReport,
         };
 
         /// <summary>

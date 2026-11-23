@@ -347,3 +347,36 @@ and restart the app container.
   read and nothing runs during gameplay. A changed folder behaves like a manual re-import: same skin.ini
   replaces the previous import (the selection follows), a changed skin.ini adds a second skin. Tests:
   `BanchosucksSkinSyncTest`, `TestSceneBanchosucksSkinSync`.
+- **Do not disturb** (General > Comfort and streaming, on by default): while the player is in a map
+  (playing, break or pause) notifications that are neither critical, errors nor running tasks are held by
+  `BanchosucksNotificationGate` and, once the map is left, put into the notification overlay silently and
+  announced by one summary toast. Rules and bookkeeping are the pure `BanchosucksNotificationHold<T>`; the
+  hook is `NotificationOverlay.Post` / `NotificationOverlay.Banchosucks.cs`. Tests:
+  `BanchosucksNotificationHoldTest`, `TestSceneBanchosucksDoNotDisturb`.
+- **Streamer mode** (General > Comfort and streaming, off by default; rebindable key without default,
+  `GlobalAction.BanchosucksToggleStreamerMode`): the chat overlay cannot be opened
+  (`ChatOverlay.Banchosucks.cs`); private message, mention and friend notifications are held by the same
+  gate and summarised when the mode ends; multiplayer invitations and duels show no player name, room name
+  or avatar; the account field of the login form shows dots (`BanchosucksStreamerTextBox`). Server
+  announcements still appear. Not hidden: chat in multiplayer rooms and gameplay, names on leaderboards,
+  spectator list, dashboard and profiles. Component: `osu.Game/Overlays/BanchosucksStreamerMode.cs`.
+- **Stutter report** (General > Comfort and streaming, on by default): `osu.Game/Performance/
+  BanchosucksStutterMonitor.cs` records update and draw thread frame times while the player is actively
+  playing (histogram, no allocation per frame) and posts one notification on the results screen when there
+  were noticeable stutters: frames above 25 ms and longer than three times the thread's median, at least
+  three of them or one of 100 ms, with a hint when a known cause applies. Analysis and texts:
+  `BanchosucksStutterAnalysis.cs`.
+- **What's new**: the files `release-notes/<version>.md` are embedded into osu.Game
+  (`banchosucks-release-notes/<version>.md`). After an update the client shows the notes of the running
+  version once when the main menu comes up (`osu.Game/Updater/BanchosucksWhatsNewOverlay.cs`), in German or
+  English by client language (`OsuSetting.BanchosucksWhatsNewShownVersion`). The notes file must be
+  committed before the release is built. Parsing: `BanchosucksReleaseNotes.cs`.
+- **Overlay data source** (General > Comfort and streaming, off by default): the client answers tosu's v2
+  API itself so stream overlays written for tosu work: `ws://127.0.0.1:24050/websocket/v2` (document on
+  connect and on change, at most ten per second) and `GET /json/v2`, loopback only, through the game's own
+  `WebSocketServer` (`RequestFilter`). `osu.Game/IPC/BanchosucksOverlayDataSource.cs` collects the state,
+  `BanchosucksOverlayJson.cs` is the only place with tosu's field names (written from memory and not yet
+  checked against tosu or a real overlay; see its remarks for the unsure ones), `BanchosucksOverlayServer.cs`
+  sends. Never contains password, tokens, e-mail, IP, country, chat or local paths. Web pages that are not
+  local are refused by origin. Overlay files in `<game data>/banchosucks-overlays/<name>/` are served at
+  `http://127.0.0.1:24050/<name>/`. tosu cannot run at the same time (same port).
