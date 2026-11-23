@@ -10,6 +10,7 @@ using osu.Framework.Testing;
 using osu.Game.Online.API;
 using osu.Game.Online.Banchosucks;
 using osu.Game.Overlays.Toolbar;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK.Graphics;
 
 namespace osu.Game.Tests.Visual.Menus
@@ -30,6 +31,8 @@ namespace osu.Game.Tests.Visual.Menus
         [SetUpSteps]
         public void SetUpSteps()
         {
+            // the texts follow a static language switch which a game test in the same run may have set to German
+            AddStep("english", () => ClickerStrings.IsGerman = false);
             AddStep("online", () => dummyAPI.SetState(APIState.Online));
 
             AddStep("fake plugin", () =>

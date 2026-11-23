@@ -25,6 +25,7 @@ using osu.Game.Overlays.Notifications;
 using osu.Game.Overlays.Profile;
 using osu.Game.Overlays.Profile.Sections.Ranks;
 using osu.Game.Rulesets.Osu;
+using osu.Game.Screens.Banchosucks.Clicker;
 
 namespace osu.Game.Tests.Visual.Online
 {
@@ -103,6 +104,8 @@ namespace osu.Game.Tests.Visual.Online
         [SetUpSteps]
         public void SetUpSteps()
         {
+            // the collection name follows a static language switch which a game test in the same run may have set to German
+            AddStep("english", () => ClickerStrings.IsGerman = false);
             AddStep("close dialogs", () => dialogOverlay.CurrentDialog?.Hide());
             AddStep("clear notifications", () => notificationOverlay.ChildrenOfType<Notification>().ToArray().ForEach(n => n.Close(false)));
 

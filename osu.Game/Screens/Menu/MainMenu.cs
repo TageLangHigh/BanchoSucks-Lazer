@@ -203,6 +203,14 @@ namespace osu.Game.Screens.Menu
                     Margin = new MarginPadding { Left = 15, Top = 5 },
                     Action = () => this.Push(new osu.Game.Screens.Banchosucks.Stats.BanchosucksStatsScreen()),
                 },
+                // Banchosucks: the weekly tile (map of the week, community goal) one line below the daily goal, so the two
+                // never overlap and the song ticker on the right stays free. Invisible without data; a click opens its panel.
+                new BanchosucksWeeklyCard
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                    Margin = new MarginPadding { Left = 15, Top = 34 },
+                },
                 // For now, this is too much alongside the seasonal lighting.
                 SeasonalUIConfig.ENABLED ? Empty() : new KiaiMenuFountains(),
                 bottomElementsFlow = new FillFlowContainer
