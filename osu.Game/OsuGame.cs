@@ -70,6 +70,7 @@ using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Game.Screens;
 using osu.Game.Screens.Banchosucks.Clicker;
+using osu.Game.Screens.Banchosucks.Stats;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Footer;
 using osu.Game.Screens.Menu;
@@ -249,6 +250,9 @@ namespace osu.Game
         private RealmDetachedBeatmapStore detachedBeatmapStore;
 
         private ScreenStackFooter screenStackFooter;
+
+        // Banchosucks: see the load in LoadComplete and the call in ScreenChanged
+        private BanchosucksActivityLog banchosucksActivityLog;
 
         private readonly string[] args;
 
@@ -1206,6 +1210,9 @@ namespace osu.Game
             // Banchosucks: the osu! Clicker keeps producing in every screen (menu, gameplay, editor)
             loadComponentSingleFile(new ClickerEngine(), Add, true);
 
+            // Banchosucks: the local activity log behind the daily goal and the personal statistics (never leaves the PC)
+            loadComponentSingleFile(banchosucksActivityLog = new BanchosucksActivityLog(), Add, true);
+
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {
                 Anchor = Anchor.BottomRight,
@@ -1921,6 +1928,9 @@ namespace osu.Game
         protected virtual void ScreenChanged([CanBeNull] IOsuScreen current, [CanBeNull] IOsuScreen newScreen)
         {
             applyMenuOpacity(newScreen);
+
+            // Banchosucks: the activity log times real plays from the moment their screen comes up until it is left
+            banchosucksActivityLog?.ScreenChanged(current, newScreen);
 
             // Banchosucks: one-time pointer at the presets (Settings > General), once the main menu is up
             if (newScreen is MainMenu && !LocalConfig.Get<bool>(OsuSetting.BanchosucksPresetsHintShown))

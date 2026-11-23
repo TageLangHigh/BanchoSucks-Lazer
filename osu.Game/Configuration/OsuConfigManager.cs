@@ -142,6 +142,8 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.BanchosucksPresetsHintShown, false);
             SetDefault(OsuSetting.BanchosucksStarRatingCheck, 0);
             SetDefault(OsuSetting.BanchosucksStarRatingCheckPosition, string.Empty);
+            SetDefault(OsuSetting.BanchosucksDailyGoalMinutes, 0, 0, 240);
+            SetDefault(OsuSetting.BanchosucksDailyGoalMaps, 0, 0, 100);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -575,5 +577,15 @@ namespace osu.Game.Configuration
         /// The index of the seasonal background pinned via <see cref="PinnedSeasonalBackground"/>.
         /// </summary>
         PinnedSeasonalBackgroundIndex,
+
+        /// <summary>
+        /// Banchosucks: the player's own daily goal, minutes of active play per day (0 = off).
+        /// </summary>
+        BanchosucksDailyGoalMinutes,
+
+        /// <summary>
+        /// Banchosucks: the player's own daily goal, maps to pass per day (0 = off).
+        /// </summary>
+        BanchosucksDailyGoalMaps,
     }
 }
