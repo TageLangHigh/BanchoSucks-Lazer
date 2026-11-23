@@ -194,6 +194,8 @@ namespace osu.Game.Configuration
             // Banchosucks
             OsuSetting.BanchosucksInputRate,
             OsuSetting.BanchosucksAudioRate,
+            OsuSetting.BanchosucksDailyGoalMinutes,
+            OsuSetting.BanchosucksDailyGoalMaps,
         };
 
         /// <summary>
