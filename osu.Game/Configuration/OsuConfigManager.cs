@@ -69,6 +69,10 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToolbarAutoHideButtons, false);
 
             SetDefault(OsuSetting.SongSelectBackgroundBlur, false);
+            SetDefault(OsuSetting.ToriiLegacyFooterUseSkin, false);
+            SetDefault(OsuSetting.ToriiLegacySongSelectFooter, false);
+            SetDefault(OsuSetting.ToriiStableResults, false);
+            SetDefault(OsuSetting.ToriiLegacyFont, false);
 
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
@@ -516,6 +520,12 @@ namespace osu.Game.Configuration
         /// Volume of hitsounds, independent of the overall effect volume.
         /// </summary>
         HitsoundVolume,
+
+        // Stable-style song select, footer and results screen (port of Torii by way of g0v0); the original key names are kept.
+        ToriiLegacyFooterUseSkin,
+        ToriiLegacySongSelectFooter,
+        ToriiStableResults,
+        ToriiLegacyFont,
 
         /// <summary>
         /// Banchosucks: how often input is read and processed (see <see cref="BanchosucksThreadRate"/>).

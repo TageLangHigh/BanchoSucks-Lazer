@@ -43,6 +43,9 @@ Game resources: CC-BY-NC 4.0, ppy Pty Ltd and GooGuTeam, non-commercial use.
 https://github.com/GooGuTeam/g0v0-resources
 https://creativecommons.org/licenses/by-nc/4.0/
 Not affiliated with or endorsed by ppy Pty Ltd or GooGuTeam.
+The stable-style song select, footer and results screen come from Torii by ShikkesoraSIM
+(https://github.com/ShikkesoraSIM/torii-osu, MIT; its textures are part of the g0v0 resources package,
+CC BY-NC 4.0), taken over by way of the g0v0 port. See `docs/torii-legacy-port.md`.
 
 ## Build
 
@@ -83,6 +86,14 @@ and restart the app container.
 
 ## Banchosucks features
 
+- **Taken over from g0v0** (not our own work, kept close to their code so later updates stay easy):
+  jump to the next / previous miss in replays (`ReplayPlayer`), the customisable toolbar
+  (`osu.Game/Overlays/Toolbar/`, four optional icons here because news, changelog and wiki do not
+  exist on this server), and the stable look (Settings > User Interface: legacy song select, legacy
+  footer, results screen style "Stable (Torii)"; files `Legacy*.cs` under `osu.Game/Screens/Select`,
+  `osu.Game/Screens/Ranking` and `osu.Game/Skinning/Select`, hooks in `SongSelect`, `ScreenStackFooter`,
+  `ScreenFooter`, `ResultsScreen`, `ScalingContainer`). g0v0's "V2" results screen, ScoreV1/V2 scoring
+  and its own framework fork are deliberately not included.
 - **Mania star rating and pp** (`osu.Game.Rulesets.Mania/Difficulty/Banchosucks/`): `ManiaRating` is a
   line-by-line port of the server's Python package (bancho.py `app/maniadiff`, sunnyxxy's Star Rating
   Rebirth, 1-10 keys); `ManiaDifficultyCalculator` uses it for mania-specific maps (converts keep the

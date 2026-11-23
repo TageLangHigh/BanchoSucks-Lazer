@@ -26,7 +26,9 @@ namespace osu.Game.Overlays.Settings.Sections
                 new GeneralSettings(),
                 new ToolbarSettings(),
                 new MainMenuSettings(),
-                new SongSelectSettings()
+                new Torii.ToriiSongSelectSettings(),
+                new SongSelectSettings(),
+                new ResultsSettings()
             };
         }
     }

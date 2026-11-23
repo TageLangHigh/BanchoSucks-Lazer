@@ -1,5 +1,5 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using System;
 using System.Collections.Generic;
@@ -52,6 +52,21 @@ namespace osu.Game.Screens.Footer
         private readonly List<OverlayContainer> overlays = new List<OverlayContainer>();
 
         private Box background = null!;
+        private GridContainer buttonsGrid = null!;
+
+        public bool HasActiveOverlay => ActiveOverlay != null;
+        public event Action? OverlayStateChanged;
+        public bool DefaultChromeVisible { get; private set; } = true;
+
+        public void SetDefaultChromeVisible(bool visible)
+        {
+            DefaultChromeVisible = visible;
+            background.FadeTo(visible ? 1 : 0, 120, Easing.OutQuint);
+            buttonsGrid.FadeTo(visible ? 1 : 0, 120, Easing.OutQuint);
+            BackButton.FadeTo(visible ? 1 : 0, 120, Easing.OutQuint);
+        }
+
+        public void TriggerFooterButton(int index) => leftButtonsFlow.ElementAtOrDefault(index)?.TriggerClick();
         private FillFlowContainer<ScreenFooterButton> leftButtonsFlow = null!;
         private FillFlowContainer<ShearedButton> rightButtonsFlow = null!;
         private Container overlayContentContainer = null!;
@@ -92,7 +107,7 @@ namespace osu.Game.Screens.Footer
                     RelativeSizeAxes = Axes.Both,
                     Colour = colourProvider.Background5
                 },
-                new GridContainer
+                buttonsGrid = new GridContainer
                 {
                     RelativeSizeAxes = Axes.Both,
                     Padding = new MarginPadding
@@ -311,6 +326,7 @@ namespace osu.Game.Screens.Footer
             }
 
             ActiveOverlay = overlay;
+            OverlayStateChanged?.Invoke();
 
             Debug.Assert(temporarilyHiddenLeftButtons.Count == 0);
 
@@ -399,6 +415,7 @@ namespace osu.Game.Screens.Footer
 
             activeOverlayContent = null;
             ActiveOverlay = null;
+            OverlayStateChanged?.Invoke();
         }
 
         private void updateColourScheme(int hue)

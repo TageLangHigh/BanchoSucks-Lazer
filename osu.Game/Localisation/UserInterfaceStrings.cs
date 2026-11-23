@@ -204,6 +204,66 @@ namespace osu.Game.Localisation
         /// </summary>
         public static LocalisableString UserSearch => new TranslatableString(getKey(@"user_search"), @"User search");
 
+        /// <summary>
+        /// "Song Select Appearance"
+        /// </summary>
+        public static LocalisableString SongSelectAppearanceHeader => new TranslatableString(getKey(@"song_select_appearance_header"), @"Song Select Appearance");
+
+        /// <summary>
+        /// "Legacy song select"
+        /// </summary>
+        public static LocalisableString LegacySongSelect => new TranslatableString(getKey(@"legacy_song_select"), @"Legacy song select");
+
+        /// <summary>
+        /// "Use a stable-style song select with a skinnable footer and rank panel, without the modern filter bar or information wedges. Includes the legacy footer. Reopen song select to apply."
+        /// </summary>
+        public static LocalisableString LegacySongSelectDescription => new TranslatableString(getKey(@"legacy_song_select_description"), @"Use a stable-style song select with a skinnable footer and rank panel, without the modern filter bar or information wedges. Includes the legacy footer. Reopen song select to apply.");
+
+        /// <summary>
+        /// "Use Inter font in legacy song select"
+        /// </summary>
+        public static LocalisableString UseInterFont => new TranslatableString(getKey(@"use_inter_font"), @"Use Inter font in legacy song select");
+
+        /// <summary>
+        /// "Use Inter instead of the default UI font in legacy song select components. Reopen song select to apply."
+        /// </summary>
+        public static LocalisableString UseInterFontDescription => new TranslatableString(getKey(@"use_inter_font_description"), @"Use Inter instead of the default UI font in legacy song select components. Reopen song select to apply.");
+
+        /// <summary>
+        /// "Legacy song select footer"
+        /// </summary>
+        public static LocalisableString LegacySongSelectFooter => new TranslatableString(getKey(@"legacy_song_select_footer"), @"Legacy song select footer");
+
+        /// <summary>
+        /// "Show the stable-style footer and rank panel over the standard song select interface. Always enabled when legacy song select is on; your separate footer preference is preserved. Reopen song select to apply."
+        /// </summary>
+        public static LocalisableString LegacySongSelectFooterDescription => new TranslatableString(getKey(@"legacy_song_select_footer_description"), @"Show the stable-style footer and rank panel over the standard song select interface. Always enabled when legacy song select is on; your separate footer preference is preserved. Reopen song select to apply.");
+
+        /// <summary>
+        /// "Results"
+        /// </summary>
+        public static LocalisableString ResultsHeader => new TranslatableString(getKey(@"results_header"), @"Results");
+
+        /// <summary>
+        /// "Results screen style"
+        /// </summary>
+        public static LocalisableString ResultsScreenStyle => new TranslatableString(getKey(@"results_screen_style"), @"Results screen style");
+
+        /// <summary>
+        /// "Choose the default layout or the skinnable stable-style layout."
+        /// </summary>
+        public static LocalisableString ResultsScreenStyleDescription => new TranslatableString(getKey(@"results_screen_style_description"), @"Choose the default layout or the skinnable stable-style layout.");
+
+        /// <summary>
+        /// "Default"
+        /// </summary>
+        public static LocalisableString DefaultResultsStyle => new TranslatableString(getKey(@"default_results_style"), @"Default");
+
+        /// <summary>
+        /// "Stable (Torii)"
+        /// </summary>
+        public static LocalisableString LegacyResultsStyle => new TranslatableString(getKey(@"legacy_results_style"), @"Stable (Torii)");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }

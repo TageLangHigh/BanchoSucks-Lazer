@@ -15,6 +15,7 @@ using osu.Framework.Screens;
 using osu.Framework.Testing;
 using osu.Framework.Utils;
 using osu.Game.Beatmaps;
+using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online;
@@ -53,6 +54,9 @@ namespace osu.Game.Tests.Visual.Ranking
         [Resolved]
         private SkinManager skins { get; set; }
 
+        [Resolved]
+        private OsuConfigManager config { get; set; }
+
         private DummyAPIAccess dummyAPI => (DummyAPIAccess)API;
 
         private BeatmapInfo beatmap;
@@ -88,6 +92,277 @@ namespace osu.Game.Tests.Visual.Ranking
             {
                 skins?.CurrentSkinInfo.Value = v ? skins.DefaultClassicSkin.SkinInfo : skins.CurrentSkinInfo.Default;
             });
+        }
+
+        [Test]
+        public void TestLegacyResults()
+        {
+            TestResultsScreen screen = null;
+            AddStep("enable legacy results", () => config.SetValue(OsuSetting.ToriiStableResults, true));
+            AddStep("load legacy results", () => Child = resultsContainer = new TestResultsContainer(screen = createResultsScreen()));
+            AddUntilStep("legacy panel loaded", () => this.ChildrenOfType<LegacyRankingPanel>().Any(p => p.IsLoaded));
+            AddAssert("legacy back exits at top", () => !screen.OnBackButton());
+            AddStep("reset legacy setting", () => config.SetValue(OsuSetting.ToriiStableResults, false));
+        }
+
+        [Test]
+        public void TestLegacyResultsFavouriteButton()
+        {
+            TestResultsScreen screen = null;
+
+            AddStep("enable legacy results", () => config.SetValue(OsuSetting.ToriiStableResults, true));
+
+            AddStep("set up network requests", () =>
+            {
+                dummyAPI.HandleRequest = request =>
+                {
+                    switch (request)
+                    {
+                        case GetBeatmapSetRequest getBeatmapSetRequest:
+                        {
+                            Scheduler.AddDelayed(() => getBeatmapSetRequest.TriggerSuccess(CreateAPIBeatmapSet(beatmap)), 100);
+                            return true;
+                        }
+
+                        case PostBeatmapFavouriteRequest:
+                        {
+                            Scheduler.AddDelayed(request.TriggerSuccess, 100);
+                            return true;
+                        }
+
+                        case GetMyFavouriteBeatmapSetsRequest favouriteSetsRequest:
+                        {
+                            Scheduler.AddDelayed(() => favouriteSetsRequest.TriggerSuccess(new GetMyFavouriteBeatmapSetsResponse
+                            {
+                                BeatmapSetIds = [1],
+                            }), 100);
+                            return true;
+                        }
+                    }
+
+                    return false;
+                };
+            });
+
+            AddStep("load legacy results", () =>
+            {
+                var score = TestResources.CreateTestScoreInfo();
+                score.OnlineID = onlineScoreID++;
+                beatmap = score.BeatmapInfo;
+
+                Child = resultsContainer = new TestResultsContainer(screen = createResultsScreen(score));
+            });
+
+            AddUntilStep("legacy panel loaded", () => this.ChildrenOfType<LegacyRankingPanel>().Any(p => p.IsLoaded));
+
+            LegacyRankingOverlay legacyOverlay = null!;
+            FavouriteButton favouriteButton = null!;
+
+            AddStep("grab legacy favourite button", () =>
+            {
+                legacyOverlay = this.ChildrenOfType<LegacyRankingOverlay>().Single();
+                favouriteButton = legacyOverlay.ChildrenOfType<FavouriteButton>().Single();
+            });
+
+            AddUntilStep("favourite button enabled", () => favouriteButton.Enabled.Value);
+
+            AddStep("click favourite button", () => favouriteButton.TriggerClick());
+            AddStep("click favourite button again", () => favouriteButton.TriggerClick());
+            AddStep("reset legacy setting", () => config.SetValue(OsuSetting.ToriiStableResults, false));
+        }
+
+        [Test]
+        public void TestLegacyResultsCollectionButton()
+        {
+            TestResultsScreen screen = null;
+
+            AddStep("enable legacy results", () => config.SetValue(OsuSetting.ToriiStableResults, true));
+
+            AddStep("load legacy results", () =>
+            {
+                var score = TestResources.CreateTestScoreInfo();
+                score.OnlineID = onlineScoreID++;
+                Child = resultsContainer = new TestResultsContainer(screen = createResultsScreen(score));
+            });
+
+            AddUntilStep("legacy panel loaded", () => this.ChildrenOfType<LegacyRankingPanel>().Any(p => p.IsLoaded));
+
+            LegacyRankingOverlay legacyOverlay = null!;
+            CollectionButton collectionButton = null!;
+
+            AddStep("grab legacy collection button", () =>
+            {
+                legacyOverlay = this.ChildrenOfType<LegacyRankingOverlay>().Single();
+                collectionButton = legacyOverlay.ChildrenOfType<CollectionButton>().Single();
+            });
+
+            AddStep("click collection button", () => collectionButton.TriggerClick());
+            AddUntilStep("collection popover shown", () =>
+                this.ChildrenOfType<CollectionPopover>().Any(p => p.State.Value == Visibility.Visible));
+
+            AddStep("click elsewhere to dismiss", () => InputManager.Click(MouseButton.Left));
+            AddUntilStep("collection popover hidden", () =>
+                !this.ChildrenOfType<CollectionPopover>().Any(p => p.State.Value == Visibility.Visible));
+
+            AddStep("reset legacy setting", () => config.SetValue(OsuSetting.ToriiStableResults, false));
+        }
+
+        [Test]
+        public void TestLegacyResultsFavouriteButtonBeatmapSetFetchFailure()
+        {
+            TestResultsScreen screen = null;
+
+            AddStep("enable legacy results", () => config.SetValue(OsuSetting.ToriiStableResults, true));
+
+            AddStep("set up failing beatmap set request", () =>
+            {
+                dummyAPI.HandleRequest = request =>
+                {
+                    switch (request)
+                    {
+                        case GetBeatmapSetRequest getBeatmapSetRequest:
+                            Scheduler.AddDelayed(() => getBeatmapSetRequest.Fail(new InvalidOperationException("failed")), 100);
+                            return true;
+                    }
+
+                    return false;
+                };
+            });
+
+            AddStep("load legacy results", () =>
+            {
+                var score = TestResources.CreateTestScoreInfo();
+                score.OnlineID = onlineScoreID++;
+                Child = resultsContainer = new TestResultsContainer(screen = createResultsScreen(score));
+            });
+
+            AddUntilStep("legacy panel loaded", () => this.ChildrenOfType<LegacyRankingPanel>().Any(p => p.IsLoaded));
+
+            LegacyRankingOverlay legacyOverlay = null!;
+            FavouriteButton favouriteButton = null!;
+
+            AddStep("grab legacy favourite button", () =>
+            {
+                legacyOverlay = this.ChildrenOfType<LegacyRankingOverlay>().Single();
+                favouriteButton = legacyOverlay.ChildrenOfType<FavouriteButton>().Single();
+            });
+
+            AddUntilStep("favourite button disabled", () => !favouriteButton.Enabled.Value);
+
+            AddStep("click disabled favourite button", () => favouriteButton.TriggerClick());
+            AddStep("reset legacy setting", () => config.SetValue(OsuSetting.ToriiStableResults, false));
+        }
+
+        [Test]
+        public void TestLegacyResultsFavouriteButtonPostFailure()
+        {
+            TestResultsScreen screen = null;
+            ScoreInfo testScore = null;
+
+            AddStep("enable legacy results", () => config.SetValue(OsuSetting.ToriiStableResults, true));
+
+            AddStep("set up failing favourite request", () =>
+            {
+                dummyAPI.HandleRequest = request =>
+                {
+                    switch (request)
+                    {
+                        case GetBeatmapSetRequest getBeatmapSetRequest:
+                        {
+                            Scheduler.AddDelayed(() => getBeatmapSetRequest.TriggerSuccess(CreateAPIBeatmapSet(testScore.BeatmapInfo)), 100);
+                            return true;
+                        }
+
+                        case PostBeatmapFavouriteRequest postFavouriteRequest:
+                            Scheduler.AddDelayed(() => postFavouriteRequest.Fail(new InvalidOperationException("failed")), 100);
+                            return true;
+                    }
+
+                    return false;
+                };
+            });
+
+            AddStep("load legacy results", () =>
+            {
+                testScore = TestResources.CreateTestScoreInfo();
+                testScore.OnlineID = onlineScoreID++;
+                Child = resultsContainer = new TestResultsContainer(screen = createResultsScreen(testScore));
+            });
+
+            AddUntilStep("legacy panel loaded", () => this.ChildrenOfType<LegacyRankingPanel>().Any(p => p.IsLoaded));
+
+            LegacyRankingOverlay legacyOverlay = null!;
+            FavouriteButton favouriteButton = null!;
+
+            AddStep("grab legacy favourite button", () =>
+            {
+                legacyOverlay = this.ChildrenOfType<LegacyRankingOverlay>().Single();
+                favouriteButton = legacyOverlay.ChildrenOfType<FavouriteButton>().Single();
+            });
+
+            AddUntilStep("favourite button enabled", () => favouriteButton.Enabled.Value);
+
+            AddStep("click favourite button (post fails)", () => favouriteButton.TriggerClick());
+            AddStep("click favourite button again (post fails)", () => favouriteButton.TriggerClick());
+            AddStep("reset legacy setting", () => config.SetValue(OsuSetting.ToriiStableResults, false));
+        }
+
+        [Test]
+        public void TestLegacyResultsFavouriteButtonExitWithRequestInFlight()
+        {
+            TestResultsScreen screen = null;
+            ScoreInfo testScore = null;
+
+            AddStep("enable legacy results", () => config.SetValue(OsuSetting.ToriiStableResults, true));
+
+            AddStep("set up slow requests", () =>
+            {
+                dummyAPI.HandleRequest = request =>
+                {
+                    switch (request)
+                    {
+                        case GetBeatmapSetRequest getBeatmapSetRequest:
+                        {
+                            Scheduler.AddDelayed(() => getBeatmapSetRequest.TriggerSuccess(CreateAPIBeatmapSet(testScore.BeatmapInfo)), 2000);
+                            return true;
+                        }
+
+                        case PostBeatmapFavouriteRequest postFavouriteRequest:
+                        {
+                            Scheduler.AddDelayed(postFavouriteRequest.TriggerSuccess, 2000);
+                            return true;
+                        }
+                    }
+
+                    return false;
+                };
+            });
+
+            AddStep("load legacy results", () =>
+            {
+                testScore = TestResources.CreateTestScoreInfo();
+                testScore.OnlineID = onlineScoreID++;
+                Child = resultsContainer = new TestResultsContainer(screen = createResultsScreen(testScore));
+            });
+
+            AddUntilStep("legacy panel loaded", () => this.ChildrenOfType<LegacyRankingPanel>().Any(p => p.IsLoaded));
+
+            LegacyRankingOverlay legacyOverlay = null!;
+            FavouriteButton favouriteButton = null!;
+
+            AddStep("grab legacy favourite button", () =>
+            {
+                legacyOverlay = this.ChildrenOfType<LegacyRankingOverlay>().Single();
+                favouriteButton = legacyOverlay.ChildrenOfType<FavouriteButton>().Single();
+            });
+
+            AddUntilStep("favourite button enabled", () => favouriteButton.Enabled.Value);
+
+            AddStep("click favourite button", () => favouriteButton.TriggerClick());
+
+            AddStep("exit screen with request in flight", () => screen.Exit());
+
+            AddStep("reset legacy setting", () => config.SetValue(OsuSetting.ToriiStableResults, false));
         }
 
         [Test]

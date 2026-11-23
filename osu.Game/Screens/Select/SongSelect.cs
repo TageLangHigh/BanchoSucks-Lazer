@@ -1,5 +1,5 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using System;
 using System.Collections.Generic;
@@ -48,11 +48,13 @@ using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
 using osu.Game.Screens.Footer;
+using osu.Game.Screens.Select.Filter;
 using osu.Game.Screens.Menu;
 using osu.Game.Screens.Play;
 using osu.Game.Screens.Ranking;
 using osu.Game.Skinning;
 using osu.Game.Utils;
+using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
 
@@ -121,6 +123,21 @@ namespace osu.Game.Screens.Select
         private BeatmapTitleWedge titleWedge = null!;
         private BeatmapDetailsArea detailsArea = null!;
         private FillFlowContainer wedgesContainer = null!;
+        // Torii: legacy (stable-style) song-select UI. When on, the modern lazer chrome
+        // (filter/sort/star-rating bar + the left info & details wedges) is hidden so the
+        // screen reads like osu!stable (carousel + legacy footer). Shares the footer-skin toggle.
+        private Bindable<bool> legacyUi = null!;
+
+        // torii: guard de re-entrancy del rebuild del chrome legacy (si un toggle y un cambio de skin
+        // caen en el mismo frame).
+        private bool rebuildingLegacyChrome;
+
+        // Torii: watches the grouping config so a legacy-tab group change flags the carousel to collapse
+        // all groups once the re-group completes (consumed in BeatmapCarousel.HandleFilterCompleted).
+        private Bindable<GroupMode> legacyGroupCollapseWatcher = null!;
+        private Drawable legacyTopContainer = null!;
+        private Drawable legacyLeaderboardContainer = null!;
+        private Drawable legacyModsContainer = null!;
         private Box rightGradientBackground = null!;
         private Container mainContent = null!;
         private SkinnableContainer skinnableContent = null!;
@@ -159,6 +176,12 @@ namespace osu.Game.Screens.Select
 
         [Resolved]
         private IOverlayManager? overlayManager { get; set; }
+
+        [Resolved]
+        private ISkinSource skinSource { get; set; } = null!;
+
+        [Resolved(CanBeNull = true)]
+        private ScreenFooter? screenFooter { get; set; }
 
         private InputManager inputManager = null!;
 
@@ -230,7 +253,7 @@ namespace osu.Game.Screens.Select
                                                         // Pad enough to only reset scroll when well into the left wedge areas.
                                                         Padding = new MarginPadding { Right = 40 },
                                                         RelativeSizeAxes = Axes.Both,
-                                                        Child = new LeftSideInteractionContainer(() => carousel.ScrollToSelection())
+                                                        Child = new LeftSideInteractionContainer(() => carousel.ScrollToSelection(), delta => carousel.ScrollFromDelta(delta), () => legacyUi.Value)
                                                         {
                                                             RelativeSizeAxes = Axes.Both,
                                                         },
@@ -316,6 +339,60 @@ namespace osu.Game.Screens.Select
                     Origin = Anchor.Centre,
                     RelativeSizeAxes = Axes.Both,
                 },
+                // Torii: stable-style song-select top panel for the legacy UI (songselect-top skin
+                // texture + beatmap info). Mounted in a 1366x768 logical space (matching the legacy
+                // footer) so it aligns with stable coordinates and skin textures render correctly.
+                // Hidden by default; shown in legacy mode via updateLegacyChrome.
+                legacyTopContainer = new DrawSizePreservingFillContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    TargetDrawSize = new Vector2(1366, 768),
+                    Strategy = DrawSizePreservationStrategy.Minimum,
+                    Alpha = 0,
+                    Child = new LegacySongSelectTop
+                    {
+                        Anchor = Anchor.TopLeft,
+                        Origin = Anchor.TopLeft,
+                        RelativeSizeAxes = Axes.Both,
+                        FilterControl = FilterControl,
+                    },
+                },
+                // Torii: stable-style bottom-left ranking panel (Local Ranking dropdown + scores)
+                // for the legacy UI, in the same 1366x768 scaled space. Hidden by default.
+                legacyLeaderboardContainer = new DrawSizePreservingFillContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    TargetDrawSize = new Vector2(1366, 768),
+                    Strategy = DrawSizePreservationStrategy.Minimum,
+                    Alpha = 0,
+                    // Context-menu container wraps (rather than sits inside) the leaderboard so the
+                    // right-click menu renders above everything and stays clickable regardless of the
+                    // leaderboard's input pass-through. ContextMenuContainer only captures right-clicks
+                    // on an IHasContextMenu target, so the carousel drag still falls through it.
+                    Child = new OsuContextMenuContainer
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Child = new LegacyLeaderboard
+                        {
+                            Anchor = Anchor.TopLeft,
+                            Origin = Anchor.TopLeft,
+                            RelativeSizeAxes = Axes.Both,
+                            // hoverear la leaderboard vuelve el carousel a la seleccion (como el modo normal).
+                            HoverScrollRequested = () => carousel.ScrollToSelection(),
+                        },
+                    },
+                },
+                // Torii: el readout de mods activos estilo stable (texto semi-transparente arriba
+                // del footer), en el mismo espacio 1366x768. no depende del skin, asi que no
+                // participa del rebuild del chrome.
+                legacyModsContainer = new DrawSizePreservingFillContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    TargetDrawSize = new Vector2(1366, 768),
+                    Strategy = DrawSizePreservationStrategy.Minimum,
+                    Alpha = 0,
+                    Child = new LegacyModsList { RelativeSizeAxes = Axes.Both },
+                },
                 modSpeedHotkeyHandler = new ModSpeedHotkeyHandler()
             });
 
@@ -331,6 +408,118 @@ namespace osu.Game.Screens.Select
             });
 
             showConvertedBeatmaps = config.GetBindable<bool>(OsuSetting.ShowConvertedBeatmaps);
+
+            legacyUi = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
+            legacyUi.BindValueChanged(e =>
+            {
+                // al PRENDER el stable estando ya en la pantalla, reconstruimos el chrome para que las
+                // texturas de skin se resuelvan frescas (sino quedan stale hasta salir y volver). el
+                // invoke inicial (,true) corre durante el load -todavia no somos current- asi que cae al
+                // else y solo hace el fade, como antes.
+                if (e.NewValue && this.IsCurrentScreen())
+                    rebuildLegacyChrome();
+                else
+                    updateLegacyChrome();
+            }, true);
+
+            // Torii: when the user picks a grouping via the legacy tabs, collapse all groups after the
+            // re-group so they see every group closed (stable's "group then Shift+Enter"), instead of
+            // the selected group staying expanded. The carousel consumes this on the next completed
+            // filter (HandleFilterCompleted), after its own selection/expansion has settled.
+            legacyGroupCollapseWatcher = config.GetBindable<GroupMode>(OsuSetting.SongSelectGroupMode);
+            legacyGroupCollapseWatcher.BindValueChanged(_ =>
+            {
+                if (legacyUi.Value)
+                    carousel.CollapseGroupsOnNextFilter = true;
+            });
+        }
+
+        /// <summary>
+        /// Torii: hide/show the modern lazer song-select chrome for the legacy (stable-style)
+        /// UI mode. Hides the filter/sort bar and the left info + details wedges so only the
+        /// carousel + legacy footer remain, matching osu!stable.
+        /// </summary>
+        private void updateLegacyChrome()
+        {
+            if (FilterControl == null)
+                return;
+
+            bool legacy = legacyUi.Value;
+
+            FilterControl.FadeTo(legacy ? 0 : 1, 200, Easing.OutQuint);
+            wedgesContainer.FadeTo(legacy ? 0 : 1, 200, Easing.OutQuint);
+            legacyTopContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
+            legacyLeaderboardContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
+            legacyModsContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
+
+            // torii: cuando el area es mas ancha que 16:9 (tipico con la nav-bar arriba) letterboxeamos
+            // TODO el screen+footer juntos via el ScalingContainer, asi todo (carousel, chrome, footer,
+            // back button) se achica uniforme y centrado, con el fondo dimmeado del screen-scaling en
+            // los costados. al salir de legacy se limpia (null) y vuelve a full screen.
+            (game as OsuGame)?.SetLegacyScreenAspectLock(legacy ? 1366f / 768f : null);
+        }
+
+        // torii: el skin cambio. solo reconstruimos si el stable esta activo y seguimos en pantalla
+        // (SourceChanged es un callback de manager de larga vida; no debe tocar una screen ya disposeada).
+        private void onSkinChangedWhileLegacy()
+        {
+            if (!legacyUi.Value || !this.IsCurrentScreen())
+                return;
+
+            // diferimos un frame: en este momento SourceChanged esta iterando SU lista de handlers, que
+            // incluye los de los componentes legacy actuales. si los disposeamos ya, esos handlers (que
+            // siguen en la lista capturada de esta emision) correrian sobre objetos disposeados. en el
+            // proximo frame la emision ya termino y reconstruimos seguro (Schedule se cancela al disposear).
+            Schedule(rebuildLegacyChrome);
+        }
+
+        /// <summary>
+        /// torii: reconstruye el chrome legacy como si entraramos de cero. el toggle solo hacia fade de
+        /// los contenedores creados una vez en load(), pero sus hijos resuelven las texturas de skin
+        /// one-shot en LoadComplete; al prender el stable mid-screen (o cambiar de skin) quedaban stale
+        /// hasta salir y volver al menu. reemplazamos el Child de cada contenedor (no el contenedor, asi
+        /// el z-order no cambia): el setter disposa el hijo viejo -corriendo su Dispose, que desuscribe
+        /// sus handlers de skin- y carga el nuevo contra el skin ACTUAL.
+        /// </summary>
+        private void rebuildLegacyChrome()
+        {
+            if (rebuildingLegacyChrome || !this.IsCurrentScreen())
+                return;
+
+            if (legacyTopContainer is not Container topContainer || legacyLeaderboardContainer is not Container leaderboardContainer)
+                return;
+
+            rebuildingLegacyChrome = true;
+
+            try
+            {
+                topContainer.Child = new LegacySongSelectTop
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                    RelativeSizeAxes = Axes.Both,
+                    FilterControl = FilterControl,
+                };
+
+                leaderboardContainer.Child = new OsuContextMenuContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Child = new LegacyLeaderboard
+                    {
+                        Anchor = Anchor.TopLeft,
+                        Origin = Anchor.TopLeft,
+                        RelativeSizeAxes = Axes.Both,
+                        HoverScrollRequested = () => carousel.ScrollToSelection(),
+                    },
+                };
+            }
+            finally
+            {
+                rebuildingLegacyChrome = false;
+            }
+
+            // dejamos los contenedores en el estado visible correcto + re-aplica el aspect lock.
+            updateLegacyChrome();
         }
 
         // Colour scheme for mod overlay is left as default (green) to match mods button.
@@ -390,6 +579,8 @@ namespace osu.Game.Screens.Select
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            skinSource.SourceChanged += onSkinChangedWhileLegacy;
 
             modSelectOverlayRegistration = overlayManager?.RegisterBlockingOverlay(modSelectOverlay);
 
@@ -746,6 +937,7 @@ namespace osu.Game.Screens.Select
             }
 
             Beatmap.BindValueChanged(updateVariousState, true);
+            (game as OsuGame)?.SetLegacyScreenAspectLock(legacyUi.Value ? 1366f / 768f : null);
         }
 
         private void updateVariousState(ValueChangedEvent<WorkingBeatmap> e)
@@ -763,6 +955,7 @@ namespace osu.Game.Screens.Select
 
         private void onLeavingScreen()
         {
+            (game as OsuGame)?.SetLegacyScreenAspectLock(null);
             restoreBackground();
 
             Beatmap.ValueChanged -= updateVariousState;
@@ -846,7 +1039,8 @@ namespace osu.Game.Screens.Select
             {
                 titleWedge.Show();
                 detailsArea.Show();
-                FilterControl.Show();
+                if (!legacyUi.Value)
+                    FilterControl.Show();
             }
         }
 
@@ -1045,6 +1239,35 @@ namespace osu.Game.Screens.Select
                 return false;
 
             var flattenedMods = ModUtils.FlattenMods(game.AvailableMods.Value.SelectMany(kv => kv.Value));
+
+            // Torii: in legacy mode the default lazer footer is hidden (alpha 0), so its buttons leave
+            // the global key-binding queue and F1/F2/F3 stop working. Drive the same actions from the
+            // (always-present) screen. Gated on the chrome being hidden so the normal footer path isn't
+            // double-handled when the default footer is visible.
+            if (!e.Repeat && screenFooter != null && !screenFooter.DefaultChromeVisible)
+            {
+                switch (e.Action)
+                {
+                    case GlobalAction.ToggleModSelection:
+                        screenFooter.TriggerFooterButton(0);
+                        return true;
+
+                    case GlobalAction.SelectNextRandom:
+                        screenFooter.TriggerFooterButton(1);
+                        return true;
+
+                    case GlobalAction.SelectPreviousRandom:
+                        // index 1 only does NextRandom; rewind has to call the carousel directly.
+                        if (!carousel.PreviousRandom())
+                            errorSample?.Play();
+                        return true;
+
+                    case GlobalAction.ToggleBeatmapOptions:
+                        screenFooter.TriggerFooterButton(2);
+                        return true;
+                }
+            }
+
 
             switch (e.Action)
             {
@@ -1297,6 +1520,9 @@ namespace osu.Game.Screens.Select
 
         protected override void Dispose(bool isDisposing)
         {
+            if (skinSource != null)
+                skinSource.SourceChanged -= onSkinChangedWhileLegacy;
+
             base.Dispose(isDisposing);
             modSelectOverlayRegistration?.Dispose();
         }

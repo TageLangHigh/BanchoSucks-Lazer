@@ -1,5 +1,5 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 #nullable disable
 
@@ -39,6 +39,8 @@ namespace osu.Game.Screens.Backgrounds
         private GameHost gameHost { get; set; }
 
         protected virtual bool AllowStoryboardBackground => true;
+
+        protected virtual string SkinBackgroundLookupName => @"menu-background";
 
         [BackgroundDependencyLoader]
         private void load(IAPIProvider api, SkinManager skinManager, OsuConfigManager config)
@@ -160,7 +162,7 @@ namespace osu.Game.Screens.Backgrounds
                                 break;
 
                             default:
-                                newBackground = new SkinBackground(skin.Value, getBackgroundTextureName());
+                                newBackground = new SkinBackground(skin.Value, getBackgroundTextureName(), SkinBackgroundLookupName);
                                 break;
                         }
 

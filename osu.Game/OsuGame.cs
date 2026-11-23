@@ -167,6 +167,11 @@ namespace osu.Game
 
         protected ScalingContainer ScreenContainer { get; private set; }
 
+        /// <summary>
+        /// Locks the screen area to a fixed aspect ratio (used by the stable-style song select), or releases it with <c>null</c>.
+        /// </summary>
+        public void SetLegacyScreenAspectLock(float? aspectRatio) => ScreenContainer.SetForcedAspectRatio(aspectRatio);
+
         protected Container ScreenOffsetContainer { get; private set; }
 
         private Container overlayOffsetContainer;

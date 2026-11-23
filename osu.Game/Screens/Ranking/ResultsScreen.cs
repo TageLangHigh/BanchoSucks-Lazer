@@ -19,6 +19,7 @@ using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Screens;
 using osu.Game.Audio;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.UserInterface;
@@ -27,6 +28,7 @@ using osu.Game.Localisation;
 using osu.Game.Online.Placeholders;
 using osu.Game.Overlays;
 using osu.Game.Scoring;
+using osu.Game.Screens.Footer;
 using osu.Game.Screens.Play;
 using osu.Game.Screens.Ranking.Expanded.Accuracy;
 using osu.Game.Screens.Ranking.Statistics;
@@ -67,6 +69,17 @@ namespace osu.Game.Screens.Ranking
 
         private Task lastFetchTask = Task.CompletedTask;
 
+        // stable-style results (port of Torii by way of g0v0): an overlay on top of this screen, chosen in Settings > User Interface > Results
+        internal bool LegacyStableDirectMode;
+        private LegacyRankingOverlay? legacyOverlay;
+        private bool useLegacyResults;
+
+        /// <summary>
+        /// Whether the current score should play the full flair sequence (sound + animation).
+        /// The stable-style results bring their own presentation for solo scores.
+        /// </summary>
+        private bool shouldFlairForCurrentScore => player != null && Score?.User.IsBot == false && !(useLegacyResults && this is SoloResultsScreen);
+
         /// <summary>
         /// Whether the user can retry the beatmap from the results screen.
         /// </summary>
@@ -96,9 +109,11 @@ namespace osu.Game.Screens.Ranking
         }
 
         [BackgroundDependencyLoader]
-        private void load(AudioManager audio)
+        private void load(AudioManager audio, OsuConfigManager config)
         {
             FillFlowContainer buttons;
+
+            useLegacyResults = config.Get<bool>(OsuSetting.ToriiStableResults);
 
             popInSample = audio.Samples.Get(@"UI/overlay-pop-in");
 
@@ -180,13 +195,13 @@ namespace osu.Game.Screens.Ranking
             if (Score != null)
             {
                 // only show flair / animation when arriving after watching a play that isn't autoplay.
-                bool shouldFlair = player != null && !Score.User.IsBot;
+                bool shouldFlair = shouldFlairForCurrentScore;
 
                 ScorePanelList.AddScore(Score, shouldFlair);
                 // this is mostly for medal display.
                 // we don't want the medal animation to trample on the results screen animation, so we (ab)use `OverlayActivationMode`
                 // to give the results screen enough time to play the animation out before the medals can be shown.
-                Scheduler.AddDelayed(() => OverlayActivationMode.Value = OverlayActivation.All, shouldFlair ? AccuracyCircle.TOTAL_DURATION + 1000 : 0);
+                Scheduler.AddDelayed(() => OverlayActivationMode.Value = OverlayActivation.All, shouldFlair ? AccuracyCircle.TOTAL_DURATION + 1000 : useLegacyResults && this is SoloResultsScreen ? 4000 : 0);
             }
 
             bool allowHotkeyRetry = false;
@@ -231,6 +246,9 @@ namespace osu.Game.Screens.Ranking
 
             if (Score?.BeatmapInfo?.BeatmapSet != null && Score.BeatmapInfo.BeatmapSet.OnlineID > 0)
                 buttons.Add(new FavouriteButton(Score.BeatmapInfo.BeatmapSet));
+
+            if (useLegacyResults)
+                AddInternal(legacyOverlay = new LegacyRankingOverlay(this, StatisticsPanel, VerticalScrollContent, bottomPanel, autoShowDetails: this is SoloResultsScreen) { Depth = float.MinValue });
         }
 
         protected override void LoadComplete()
@@ -239,7 +257,25 @@ namespace osu.Game.Screens.Ranking
 
             StatisticsPanel.State.BindValueChanged(onStatisticsStateChanged, true);
 
+            if (useLegacyResults)
+            {
+                // the stable-style overlay replaces the bottom bar and shows its own back button
+                FooterContent.Value = ScreenFooterContent.Legacy(showBackButton: false);
+                bottomPanel.Height = 0;
+            }
+
             fetchScores(null);
+        }
+
+        /// <summary>
+        /// Shows or hides the global footer's legacy back button without changing the footer mode.
+        /// </summary>
+        public void SetFooterBackButtonVisible(bool visible)
+        {
+            if (FooterContent.Value.Mode != ScreenFooterContent.FooterMode.Legacy)
+                return;
+
+            FooterContent.Value = ScreenFooterContent.Legacy(showBackButton: visible);
         }
 
         protected override void Update()
@@ -263,7 +299,9 @@ namespace osu.Game.Screens.Ranking
             if (!this.IsCurrentScreen())
                 return;
 
-            rankApplauseSound?.Dispose();
+            // the previous sound is still a child of this screen, so it must leave the hierarchy before it is disposed
+            // (disposing it in place would leave a disposed drawable in the list, throwing on the next update).
+            rankApplauseSound?.Expire();
 
             var applauseSamples = new List<string>();
 
@@ -424,6 +462,9 @@ namespace osu.Game.Screens.Ranking
 
         public override bool OnBackButton()
         {
+            if (LegacyStableDirectMode)
+                return legacyOverlay?.HandleBackScroll() == true;
+
             if (StatisticsPanel.State.Value == Visibility.Visible)
             {
                 StatisticsPanel.Hide();
@@ -507,6 +548,9 @@ namespace osu.Game.Screens.Ranking
                     break;
 
                 case GlobalAction.Select:
+                    if (LegacyStableDirectMode)
+                        return true;
+
                     if (SelectedScore.Value != null)
                         StatisticsPanel.ToggleVisibility();
                     return true;

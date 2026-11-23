@@ -1,6 +1,7 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
+using System;
 using osuTK.Graphics;
 
 namespace osu.Game.Overlays
@@ -11,6 +12,8 @@ namespace osu.Game.Overlays
         /// The hue degree associated with the colour shades provided by this <see cref="OverlayColourProvider"/>.
         /// </summary>
         public int Hue { get; private set; }
+
+        public event Action? ColoursChanged;
 
         public OverlayColourProvider(OverlayColourScheme colourScheme)
             : this(colourScheme.GetHue())
@@ -65,7 +68,11 @@ namespace osu.Game.Overlays
         /// Note that this does not trigger any kind of signal to any drawable that received colours from here, all drawables need to be updated manually.
         /// </summary>
         /// <param name="hue">The proposed hue degree.</param>
-        public void ChangeColourScheme(int hue) => Hue = hue;
+        public void ChangeColourScheme(int hue)
+        {
+            Hue = hue;
+            ColoursChanged?.Invoke();
+        }
 
         private Color4 getColour(float saturation, float lightness) => Framework.Graphics.Colour4.FromHSL(Hue / 360f, saturation, lightness);
     }

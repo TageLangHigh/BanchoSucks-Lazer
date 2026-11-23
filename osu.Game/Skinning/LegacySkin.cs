@@ -1,5 +1,5 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using System;
 using System.Collections.Generic;
@@ -34,6 +34,7 @@ namespace osu.Game.Skinning
         /// Conversion factor from converting legacy positioning values (based in x480 dimensions) to x768.
         /// </summary>
         public const float STABLE_MAGIC_SCALE_FACTOR = 1.6f;
+        public const float POSITION_SCALE_FACTOR = STABLE_MAGIC_SCALE_FACTOR;
 
         protected virtual bool AllowManiaConfigLookups => true;
 
