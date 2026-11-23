@@ -60,6 +60,39 @@ namespace osu.Game.Tests.NonVisual
         }
 
         [Test]
+        public void TestCollectionGetsEveryDifficultyOnce()
+        {
+            var plays = new[] { new Play(1, "AA11"), new Play(1, "bb22"), new Play(2, "aa11"), new Play(3, null), new Play(4, " "), new Play(5, "cc33") };
+
+            // "bb22" is already in the collection; hashes compare without case
+            var toAdd = BanchosucksTopPlays.HashesToAdd(plays, new[] { "BB22", "zz99" }, out int withoutHash);
+
+            Assert.That(toAdd, Is.EqualTo(new[] { "aa11", "cc33" }));
+            Assert.That(withoutHash, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void TestCollectionUpdateAddsNothingTwice()
+        {
+            var plays = new[] { new Play(1, "aa"), new Play(2, "bb") };
+
+            var first = BanchosucksTopPlays.HashesToAdd(plays, Enumerable.Empty<string>(), out _);
+            var second = BanchosucksTopPlays.HashesToAdd(plays, first, out _);
+
+            Assert.That(first, Has.Count.EqualTo(2));
+            Assert.That(second, Is.Empty);
+        }
+
+        [Test]
+        public void TestCollectionNames()
+        {
+            var (english, german) = BanchosucksTopPlays.CollectionNames("Lidl");
+
+            Assert.That(english, Is.EqualTo("Top plays of Lidl"));
+            Assert.That(german, Is.EqualTo("Top-Plays von Lidl"));
+        }
+
+        [Test]
         public void TestPagesForAllTopPlays()
         {
             // the section starts with five loaded plays

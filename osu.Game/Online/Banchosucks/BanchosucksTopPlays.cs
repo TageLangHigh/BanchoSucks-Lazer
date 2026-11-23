@@ -7,7 +7,7 @@ using System.Collections.Generic;
 namespace osu.Game.Online.Banchosucks
 {
     /// <summary>
-    /// Banchosucks: the arithmetic behind "download missing maps" in the profile overlay.
+    /// Banchosucks: the arithmetic behind "download missing maps" and "top plays as a collection" in the profile overlay.
     /// Pure: what is local and what is downloading comes in as functions.
     /// </summary>
     public static class BanchosucksTopPlays
@@ -57,6 +57,41 @@ namespace osu.Game.Online.Banchosucks
 
             return new DownloadPlan(toDownload, seen.Count, local, downloading);
         }
+
+        /// <summary>
+        /// The hashes to add to a collection that already holds <paramref name="existing"/>, in the order of the plays, each once.
+        /// Difficulties that are not in the library are included: a collection stores hashes, so they appear once downloaded.
+        /// </summary>
+        /// <param name="plays">The top plays.</param>
+        /// <param name="existing">Hashes already in the collection.</param>
+        /// <param name="withoutHash">Plays the server sent without a hash; they cannot be stored.</param>
+        public static IReadOnlyList<string> HashesToAdd(IEnumerable<Play> plays, IEnumerable<string> existing, out int withoutHash)
+        {
+            var known = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+            var toAdd = new List<string>();
+            withoutHash = 0;
+
+            foreach (var play in plays)
+            {
+                if (string.IsNullOrWhiteSpace(play.MD5Hash))
+                {
+                    withoutHash++;
+                    continue;
+                }
+
+                string hash = play.MD5Hash.Trim().ToLowerInvariant();
+
+                if (known.Add(hash))
+                    toAdd.Add(hash);
+            }
+
+            return toAdd;
+        }
+
+        /// <summary>
+        /// The collection's name in both languages. A collection made in one language is found again after the client language changed.
+        /// </summary>
+        public static (string english, string german) CollectionNames(string username) => ($"Top plays of {username}", $"Top-Plays von {username}");
 
         /// <summary>
         /// The offsets to request for every top play that is not loaded yet, in pages of <see cref="PAGE_SIZE"/>.

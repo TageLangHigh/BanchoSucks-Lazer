@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Beatmaps;
+using osu.Game.Collections;
 using osu.Game.Database;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
@@ -26,13 +27,13 @@ using osuTK;
 namespace osu.Game.Overlays.Profile.Sections.Ranks
 {
     /// <summary>
-    /// Banchosucks: the button above a player's best performances in the profile overlay: download the beatmap sets of the
-    /// top plays that are not in the library.
+    /// Banchosucks: the two buttons above a player's best performances in the profile overlay: download the beatmap sets of the
+    /// top plays that are not in the library, and put the top plays' difficulties into a local collection named after the player.
     /// </summary>
     /// <remarks>
-    /// It works on the plays the section has loaded; with "all 100" ticked the rest is fetched first (the standard
+    /// Both work on the plays the section has loaded; with "all 100" ticked the rest is fetched first (the standard
     /// <see cref="GetUserScoresRequest"/>, two requests of fifty). Nothing about the local player is sent: the downloads
-    /// are the game's normal beatmap downloads.
+    /// are the game's normal beatmap downloads, the collection is local.
     /// </remarks>
     public partial class BanchosucksTopPlaysActions : CompositeDrawable
     {
@@ -56,6 +57,7 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
         private INotificationOverlay? notifications { get; set; }
 
         private RoundedButton downloadButton = null!;
+        private RoundedButton collectionButton = null!;
         private OsuCheckbox allCheckbox = null!;
 
         private readonly List<APIRequest> requests = new List<APIRequest>();
@@ -96,6 +98,14 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
                             "Lädt die Beatmap-Sets dieser Top-Plays, die nicht in deiner Bibliothek sind."),
                         Action = () => withPlays(confirmDownload),
                     },
+                    collectionButton = new RoundedButton
+                    {
+                        Size = new Vector2(230, 30),
+                        Text = ClickerStrings.Text("Top plays as collection", "Top-Plays als Sammlung"),
+                        TooltipText = ClickerStrings.Text("Creates or extends a local collection with the difficulties of these top plays, also the ones you have not downloaded yet.",
+                            "Legt eine lokale Sammlung mit den Schwierigkeiten dieser Top-Plays an oder ergänzt sie, auch um noch nicht geladene."),
+                        Action = () => withPlays(saveCollection),
+                    },
                     new Container
                     {
                         Size = new Vector2(340, 30),
@@ -129,6 +139,7 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
         {
             busy = value;
             downloadButton.Enabled.Value = !value;
+            collectionButton.Enabled.Value = !value;
         }
 
         private void cancelRequests()
@@ -250,6 +261,54 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
         }
 
         private bool isLocal(int setId) => realm.Run(r => r.All<BeatmapSetInfo>().Where(s => s.OnlineID == setId && !s.DeletePending).Count() > 0);
+
+        #endregion
+
+        #region Collection
+
+        private void saveCollection(APIUser player, IReadOnlyList<SoloScoreInfo> scores)
+        {
+            var (english, german) = BanchosucksTopPlays.CollectionNames(player.Username);
+            string name = ClickerStrings.Pick(english, german);
+
+            int added = 0;
+            int total = 0;
+            int withoutHash = 0;
+            bool created = false;
+
+            realm.Write(r =>
+            {
+                // found under either name, so switching the client language does not start a second collection
+                var collection = r.All<BeatmapCollection>().FirstOrDefault(c => c.Name == english) ?? r.All<BeatmapCollection>().FirstOrDefault(c => c.Name == german);
+
+                if (collection == null)
+                {
+                    collection = r.Add(new BeatmapCollection(name));
+                    created = true;
+                }
+
+                var toAdd = BanchosucksTopPlays.HashesToAdd(toPlays(scores), collection.BeatmapMD5Hashes, out withoutHash);
+
+                foreach (string hash in toAdd)
+                    collection.BeatmapMD5Hashes.Add(hash);
+
+                if (toAdd.Count > 0 || created)
+                    collection.LastModified = DateTimeOffset.UtcNow;
+
+                name = collection.Name;
+                added = toAdd.Count;
+                total = collection.BeatmapMD5Hashes.Count;
+            });
+
+            LocalisableString message = created
+                ? ClickerStrings.Text("Collection \"{0}\" created with {1} difficulties.", "Sammlung „{0}“ mit {1} Schwierigkeiten angelegt.", name, total)
+                : ClickerStrings.Text("Collection \"{0}\": {1} added, {2} in total.", "Sammlung „{0}“: {1} neu, {2} insgesamt.", name, added, total);
+
+            if (withoutHash > 0)
+                message = LocalisableString.Interpolate($"{message} {ClickerStrings.Text("{0} plays came without a map hash and were left out.", "{0} Plays kamen ohne Map-Hash und fehlen.", withoutHash)}");
+
+            say(message);
+        }
 
         #endregion
 

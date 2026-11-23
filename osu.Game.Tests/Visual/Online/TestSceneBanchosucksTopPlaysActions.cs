@@ -13,6 +13,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Platform;
 using osu.Framework.Testing;
 using osu.Game.Beatmaps;
+using osu.Game.Collections;
 using osu.Game.Database;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Online.API;
@@ -28,7 +29,7 @@ using osu.Game.Rulesets.Osu;
 namespace osu.Game.Tests.Visual.Online
 {
     /// <summary>
-    /// "Download missing maps" of the profile overlay, with a fake api, a real database and a
+    /// "Download missing maps" and "top plays as collection" of the profile overlay, with a fake api, a real database and a
     /// downloader whose downloads never finish on their own.
     /// </summary>
     public partial class TestSceneBanchosucksTopPlaysActions : OsuTestScene
@@ -137,6 +138,7 @@ namespace osu.Game.Tests.Visual.Online
 
             AddStep("library with set 10", () => Realm.Write(r =>
             {
+                r.RemoveAll<BeatmapCollection>();
                 r.RemoveAll<BeatmapSetInfo>();
                 r.Add(new BeatmapSetInfo { OnlineID = 10 });
             }));
@@ -167,6 +169,8 @@ namespace osu.Game.Tests.Visual.Online
         }
 
         private void clickDownload() => AddStep("click download", () => actions.ChildrenOfType<RoundedButton>().First().TriggerClick());
+
+        private void clickCollection() => AddStep("click collection", () => actions.ChildrenOfType<RoundedButton>().Last().TriggerClick());
 
         private string dialogText => dialogOverlay.CurrentDialog?.HeaderText.ToString() ?? string.Empty;
 
@@ -253,6 +257,42 @@ namespace osu.Game.Tests.Visual.Online
             AddUntilStep("told so", () => actions.LastMessage.ToString(), () => Is.EqualTo("Nothing to download: all 4 beatmap sets of these 5 top plays are in your library."));
             AddAssert("no dialog", () => dialogOverlay.CurrentDialog?.State.Value, () => Is.Not.EqualTo(Visibility.Visible));
         }
+
+        [Test]
+        public void TestTopPlaysAsCollection()
+        {
+            clickCollection();
+
+            AddUntilStep("collection created", () => hashes("Top plays of Lidl"), () => Is.EqualTo(new[] { "aa01", "aa02", "aa03", "aa04", "aa05" }));
+            AddAssert("message", () => actions.LastMessage.ToString(), () => Is.EqualTo("Collection \"Top plays of Lidl\" created with 5 difficulties."));
+
+            // the difficulties are stored by hash although only set 10 is in the library
+            AddAssert("no downloads", () => downloads, () => Is.Empty);
+
+            AddStep("tick all 100", () => actions.IncludeAll.Value = true);
+            clickCollection();
+
+            AddUntilStep("collection extended", () => hashes("Top plays of Lidl"), () => Has.Length.EqualTo(8).And.Unique);
+            AddAssert("message", () => actions.LastMessage.ToString(), () => Is.EqualTo("Collection \"Top plays of Lidl\": 3 added, 8 in total."));
+            AddAssert("still one collection", () => Realm.Run(r => r.All<BeatmapCollection>().Count()), () => Is.EqualTo(1));
+
+            clickCollection();
+            AddUntilStep("nothing added twice", () => actions.LastMessage.ToString(), () => Is.EqualTo("Collection \"Top plays of Lidl\": 0 added, 8 in total."));
+        }
+
+        [Test]
+        public void TestCollectionMadeInGermanIsFoundAgain()
+        {
+            AddStep("german collection exists", () => Realm.Write(r => r.Add(new BeatmapCollection("Top-Plays von Lidl", new List<string> { "aa01", "ff99" }))));
+
+            clickCollection();
+
+            AddUntilStep("extended, not duplicated", () => hashes("Top-Plays von Lidl"), () => Is.EqualTo(new[] { "aa01", "ff99", "aa02", "aa03", "aa04", "aa05" }));
+            AddAssert("one collection", () => Realm.Run(r => r.All<BeatmapCollection>().Count()), () => Is.EqualTo(1));
+        }
+
+        private string[] hashes(string collection)
+            => Realm.Run(r => r.All<BeatmapCollection>().FirstOrDefault(c => c.Name == collection)?.BeatmapMD5Hashes.ToArray()) ?? Array.Empty<string>();
 
         private class TestBeatmapModelDownloader : BeatmapModelDownloader
         {

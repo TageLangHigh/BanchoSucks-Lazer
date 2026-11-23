@@ -71,8 +71,8 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
             base.OnItemsReceived(items);
         }
 
-        // Banchosucks: the best performances get a button above the list ("download missing maps",
-        // see BanchosucksTopPlaysActions). It works on the scores this section has loaded, which are remembered here.
+        // Banchosucks: the best performances get two buttons above the list ("download missing maps", "top plays as collection",
+        // see BanchosucksTopPlaysActions). They work on the scores this section has loaded, which are remembered here.
         private readonly List<SoloScoreInfo> banchosucksLoadedScores = new List<SoloScoreInfo>();
         private UserProfileData? banchosucksLoadedScoresOwner;
 
