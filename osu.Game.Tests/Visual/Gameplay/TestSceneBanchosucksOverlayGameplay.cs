@@ -39,8 +39,7 @@ namespace osu.Game.Tests.Visual.Gameplay
             AddUntilStep("listening", () => source.IsRunning);
         }
 
-        [TearDownSteps]
-        public void TearDownSteps()
+        public override void TearDownSteps()
         {
             AddStep("close client", () =>
             {
@@ -52,6 +51,8 @@ namespace osu.Game.Tests.Visual.Gameplay
                 LocalConfig.SetValue(OsuSetting.BanchosucksOverlayDataSource, false);
                 Remove(source, true);
             });
+
+            base.TearDownSteps();
         }
 
         [Test]

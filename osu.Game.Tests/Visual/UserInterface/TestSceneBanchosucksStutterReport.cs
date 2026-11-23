@@ -114,13 +114,13 @@ namespace osu.Game.Tests.Visual.UserInterface
             AddAssert("nothing yet, the results are not up", () => reports().Any(), () => Is.False);
 
             AddStep("results open", () => currentScreen = results);
-            AddUntilStep("report posted", () => reports().Count(), () => Is.EqualTo(1));
+            AddUntilStep("report posted", () => reports().Length, () => Is.EqualTo(1));
             AddAssert("three stutters", () => reports().Single().Report.Stutters, () => Is.EqualTo(3));
             AddAssert("worst frame", () => reports().Single().Report.Worst, () => Is.EqualTo(83.6));
             AddAssert("text", () => reports().Single().Text.ToString(), () => Does.Contain("3 stutters").And.Contain("84 ms"));
 
             AddWaitStep("wait", 5);
-            AddAssert("posted only once", () => reports().Count(), () => Is.EqualTo(1));
+            AddAssert("posted only once", () => reports().Length, () => Is.EqualTo(1));
         }
 
         [Test]
