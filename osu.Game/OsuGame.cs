@@ -65,6 +65,7 @@ using osu.Game.Overlays.OSD;
 using osu.Game.Overlays.SkinEditor;
 using osu.Game.Overlays.Toolbar;
 using osu.Game.Overlays.Volume;
+using osu.Game.Performance;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
@@ -1339,6 +1340,8 @@ namespace osu.Game
             Add(new FriendPresenceNotifier());
             // Banchosucks: streamer mode (chat blocked, see the class for everything it hides)
             Add(banchosucksStreamerMode = new BanchosucksStreamerMode());
+            // Banchosucks: stutter report after a map
+            Add(new BanchosucksStutterMonitor(() => ScreenStack.CurrentScreen));
 
             // side overlays which cancel each other.
             var singleDisplaySideOverlays = new OverlayContainer[] { Settings, Notifications, FirstRunOverlay, loginOverlay, nowPlayingOverlay };

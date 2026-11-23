@@ -39,6 +39,15 @@ namespace osu.Game.Overlays.Settings.Sections.General
                 {
                     Keywords = new[] { @"stream", @"streamer", @"obs", @"twitch", @"privacy", @"privat", @"chat" },
                 },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Ruckler-Bericht nach der Map / Stutter report after a map",
+                    HintText = "Misst beim Spielen die Frame-Zeiten. Gab es spürbare Ruckler (Frames über 25 ms und länger als das Dreifache des Üblichen), erscheint auf dem Ergebnisbildschirm eine Meldung mit Anzahl, längstem Frame und einem Tipp zu den Einstellungen. / Measures frame times while you play. After noticeable stutters (frames above 25 ms and longer than three times the usual) a notification on the results screen shows how many, the longest frame and a hint about your settings.",
+                    Current = config.GetBindable<bool>(OsuSetting.BanchosucksStutterReport),
+                })
+                {
+                    Keywords = new[] { @"stutter", @"ruckler", @"lag", @"fps", @"frame", @"performance" },
+                },
             });
         }
     }

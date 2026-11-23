@@ -179,6 +179,8 @@ namespace osu.Game.Tests.Visual
                 LocalConfig.SetValue(OsuSetting.BanchosucksPresetsHintShown, true);
                 // Banchosucks: the tests expect notifications to behave as upstream; "do not disturb" has its own tests
                 LocalConfig.SetValue(OsuSetting.BanchosucksDoNotDisturb, false);
+                // Banchosucks: a headless test run stutters by nature; the report would put a toast on every results screen
+                LocalConfig.SetValue(OsuSetting.BanchosucksStutterReport, false);
 
                 API.Login("Rhythm Champion", "osu!");
                 ((DummyAPIAccess)API).AuthenticateSecondFactor("abcdefgh");

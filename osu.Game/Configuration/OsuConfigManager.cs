@@ -147,6 +147,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.BanchosucksDailyGoalMaps, 0, 0, 100);
             SetDefault(OsuSetting.BanchosucksDoNotDisturb, true);
             SetDefault(OsuSetting.BanchosucksStreamerMode, false);
+            SetDefault(OsuSetting.BanchosucksStutterReport, true);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -619,5 +620,10 @@ namespace osu.Game.Configuration
         /// other players' names removed from notifications, login field masked).
         /// </summary>
         BanchosucksStreamerMode,
+
+        /// <summary>
+        /// Banchosucks: report stutters (long frames) after a map, see <c>BanchosucksStutterMonitor</c>.
+        /// </summary>
+        BanchosucksStutterReport,
     }
 }
