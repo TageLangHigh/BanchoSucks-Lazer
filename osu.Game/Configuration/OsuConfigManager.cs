@@ -150,6 +150,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.BanchosucksStutterReport, true);
             SetDefault(OsuSetting.BanchosucksWhatsNewShownVersion, string.Empty);
             SetDefault(OsuSetting.BanchosucksOverlayDataSource, false);
+            SetDefault(OsuSetting.BanchosucksChatBeatmapPreviews, true);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -638,5 +639,8 @@ namespace osu.Game.Configuration
         /// (see <c>BanchosucksOverlayDataSource</c>). Off by default.
         /// </summary>
         BanchosucksOverlayDataSource,
+        /// Banchosucks: whether chat messages with a beatmap link get a preview card under them.
+        /// </summary>
+        BanchosucksChatBeatmapPreviews,
     }
 }

@@ -1214,6 +1214,9 @@ namespace osu.Game
             // Banchosucks: the local activity log behind the daily goal and the personal statistics (never leaves the PC)
             loadComponentSingleFile(banchosucksActivityLog = new BanchosucksActivityLog(), Add, true);
 
+            // Banchosucks: looks up the sets behind beatmap links in chat (our own API, cached, a few per second) for the preview cards
+            loadComponentSingleFile(new BanchosucksChatBeatmapLookup(), Add, true);
+
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {
                 Anchor = Anchor.BottomRight,

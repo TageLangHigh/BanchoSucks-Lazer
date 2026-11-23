@@ -11,6 +11,7 @@ using osu.Game.Configuration;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Localisation;
 using osu.Game.Resources.Localisation.Web;
+using osu.Game.Screens.Banchosucks.Clicker;
 
 namespace osu.Game.Overlays.Settings.Sections.Online
 {
@@ -47,6 +48,18 @@ namespace osu.Game.Overlays.Settings.Sections.Online
                     HintText = AccountsStrings.PrivacyFriendsOnlyInfo.ToSentence(),
                     Current = config.GetBindable<bool>(OsuSetting.PMFriendsOnly),
                 }),
+                // Banchosucks: beatmap links in chat show a preview card (looked up on our own server)
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = ClickerStrings.Text("Beatmap previews in chat", "Kartenvorschau im Chat"),
+                    HintText = ClickerStrings.Text(
+                        "Shows a small card with cover, title, stars and a download button under messages that link to a beatmap.",
+                        "Zeigt unter Nachrichten mit einem Beatmap-Link eine kleine Karte mit Cover, Titel, Sternen und Download-Knopf."),
+                    Current = config.GetBindable<bool>(OsuSetting.BanchosucksChatBeatmapPreviews),
+                })
+                {
+                    Keywords = new[] { "chat", "beatmap", "preview", "vorschau", "link" },
+                },
             };
         }
     }

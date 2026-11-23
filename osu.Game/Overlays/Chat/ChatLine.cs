@@ -71,6 +71,8 @@ namespace osu.Game.Overlays.Chat
 
         private LinkFlowContainer drawableContentFlow = null!;
 
+        private BanchosucksChatBeatmapPreview banchosucksBeatmapPreview = null!;
+
         private readonly Bindable<bool> prefer24HourTime = new Bindable<bool>();
 
         private Container? highlight;
@@ -202,10 +204,21 @@ namespace osu.Game.Overlays.Chat
                                 AccentColour = UsernameColour,
                                 Inverted = !string.IsNullOrEmpty(message.Sender.Colour),
                             },
-                            drawableContentFlow = new LinkFlowContainer(styleMessageContent)
+                            // Banchosucks: the message text with room under it for a beatmap preview card (links to beatmaps)
+                            new FillFlowContainer
                             {
                                 AutoSizeAxes = Axes.Y,
                                 RelativeSizeAxes = Axes.X,
+                                Direction = FillDirection.Vertical,
+                                Children = new Drawable[]
+                                {
+                                    drawableContentFlow = new LinkFlowContainer(styleMessageContent)
+                                    {
+                                        AutoSizeAxes = Axes.Y,
+                                        RelativeSizeAxes = Axes.X,
+                                    },
+                                    banchosucksBeatmapPreview = new BanchosucksChatBeatmapPreview(this),
+                                }
                             }
                         },
                     }
@@ -307,6 +320,9 @@ namespace osu.Game.Overlays.Chat
 
             drawableContentFlow.Clear();
             drawableContentFlow.AddLinks(message.DisplayContent, message.Links);
+
+            // Banchosucks: a beatmap link in the message gets a preview card under the text
+            banchosucksBeatmapPreview.SetMessage(message);
         }
 
         private void updateTimestamp()
