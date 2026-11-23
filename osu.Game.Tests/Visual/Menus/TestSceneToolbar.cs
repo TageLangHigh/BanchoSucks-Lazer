@@ -223,9 +223,9 @@ namespace osu.Game.Tests.Visual.Menus
                 toolbar.RelativeSizeAxes = Axes.None;
                 toolbar.Width = 400;
             });
-            AddStep("move mouse over news toggle button", () =>
+            AddStep("move mouse over rankings toggle button", () =>
             {
-                var button = toolbar.ChildrenOfType<ToolbarNewsButton>().Single();
+                var button = toolbar.ChildrenOfType<ToolbarRankingsButton>().Single();
                 InputManager.MoveMouseTo(button);
             });
             AddAssert("no ruleset toggle buttons hovered", () => !toolbar.ChildrenOfType<ToolbarRulesetTabButton>().Any(button => button.IsHovered));

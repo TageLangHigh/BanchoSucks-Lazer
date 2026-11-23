@@ -65,6 +65,8 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ProfileCoverExpanded, true);
 
             SetDefault(OsuSetting.ToolbarClockDisplayMode, ToolbarClockDisplayMode.Full);
+            SetDefault(OsuSetting.ToolbarButtons, string.Empty);
+            SetDefault(OsuSetting.ToolbarAutoHideButtons, false);
 
             SetDefault(OsuSetting.SongSelectBackgroundBlur, false);
 
@@ -407,6 +409,8 @@ namespace osu.Game.Configuration
         ChatDisplayHeight,
         BeatmapListingCardSize,
         ToolbarClockDisplayMode,
+        ToolbarButtons,
+        ToolbarAutoHideButtons,
         SongSelectBackgroundBlur,
         Version,
         ShowFirstRunSetup,

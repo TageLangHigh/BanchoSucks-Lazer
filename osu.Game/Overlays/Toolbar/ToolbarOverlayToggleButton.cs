@@ -1,5 +1,5 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 #nullable disable
 
@@ -20,6 +20,11 @@ namespace osu.Game.Overlays.Toolbar
         private OverlayContainer stateContainer;
 
         private readonly Bindable<Visibility> overlayState = new Bindable<Visibility>();
+
+        /// <summary>
+        /// The visibility of <see cref="StateContainer"/>.
+        /// </summary>
+        public IBindable<Visibility> OverlayState => overlayState;
 
         public OverlayContainer StateContainer
         {

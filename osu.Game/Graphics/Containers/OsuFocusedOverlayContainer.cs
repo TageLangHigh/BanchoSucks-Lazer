@@ -1,5 +1,5 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
@@ -30,6 +30,16 @@ namespace osu.Game.Graphics.Containers
         /// Should be eventually replaced by dimming which is aware of the target dim container (traverse parent for certain interface type?).
         /// </summary>
         protected virtual bool DimMainContent => true;
+
+        /// <summary>
+        /// Whether the floating overlay columns (which hold the notifications, the login panel, the now playing
+        /// panel and the volume meter) are dimmed along with the main content while this overlay is visible.
+        /// </summary>
+        /// <remarks>
+        /// Off by default, as those columns are deliberately left at full brightness while another overlay is open,
+        /// so that a notification which arrives while one is being used can still be read.
+        /// </remarks>
+        public virtual bool DimFloatingOverlays => false;
 
         [Resolved]
         private IOverlayManager? overlayManager { get; set; }

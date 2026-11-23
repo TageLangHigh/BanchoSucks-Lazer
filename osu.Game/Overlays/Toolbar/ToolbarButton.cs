@@ -1,12 +1,15 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
@@ -21,11 +24,73 @@ using osuTK.Graphics;
 
 namespace osu.Game.Overlays.Toolbar
 {
-    public abstract partial class ToolbarButton : OsuClickableContainer, IKeyBindingHandler<GlobalAction>
+    public abstract partial class ToolbarButton : OsuClickableContainer, IKeyBindingHandler<GlobalAction>, IHasContextMenu
     {
         public const float PADDING = 3;
 
-        protected GlobalAction? Hotkey { get; set; }
+        /// <summary>
+        /// The duration over which hiding or showing this button is animated.
+        /// </summary>
+        public const double COLLAPSE_DURATION = 300;
+
+        public GlobalAction? Hotkey { get; protected set; }
+
+        /// <summary>
+        /// The stable identifier of this button, as used to persist its position and visibility in the user's
+        /// toolbar layout. <c>null</c> for buttons which the user cannot reorder or hide.
+        /// </summary>
+        /// <remarks>
+        /// The identifiers are the ones listed in <see cref="ToolbarButtonLayout"/>, and are deliberately decoupled
+        /// from the button types, so that renaming or moving a button implementation does not invalidate the
+        /// user's configuration.
+        /// </remarks>
+        public string? ID { get; init; }
+
+        /// <summary>
+        /// The icon this button is displaying, if it was set via <see cref="SetIcon(IconUsage)"/>.
+        /// </summary>
+        public IconUsage? Icon { get; private set; }
+
+        /// <summary>
+        /// Provides the items to display when this button is right-clicked.
+        /// When null (the default), this button is not considered a context menu target.
+        /// </summary>
+        internal Func<MenuItem[]?>? ContextMenuItemsProvider;
+
+        public MenuItem[]? ContextMenuItems => ContextMenuItemsProvider?.Invoke();
+
+        private bool collapsed;
+
+        /// <summary>
+        /// Whether this button is currently taking up no space in the toolbar, and no longer accepts positional input.
+        /// Collapsed buttons remain present, and thus keep receiving the keyboard input which triggers their hotkey.
+        /// </summary>
+        /// <remarks>
+        /// Only usable by buttons whose <see cref="ButtonContent"/> is sized explicitly, i.e. the optional icon buttons.
+        /// </remarks>
+        public bool Collapsed
+        {
+            get => collapsed;
+            set
+            {
+                if (collapsed == value)
+                    return;
+
+                collapsed = value;
+
+                // this button's own width is automatic, and therefore derived from its content, so animating the
+                // content is what animates the size of the button - and with it the room it takes up in the toolbar.
+                // the content is faded at the same time, so that it does not linger over its neighbours as it shrinks.
+                // the easing is deliberately gentler than the OutQuint used elsewhere, as a front-loaded curve
+                // makes the button look like it snaps shut rather than slides.
+                ButtonContent.ResizeWidthTo(value ? 0 : Toolbar.HEIGHT, COLLAPSE_DURATION, Easing.OutCubic);
+
+                if (value)
+                    ButtonContent.FadeOut(COLLAPSE_DURATION, Easing.OutCubic);
+                else
+                    ButtonContent.FadeIn(COLLAPSE_DURATION, Easing.OutCubic);
+            }
+        }
 
         public void SetIcon(Drawable icon)
         {
@@ -33,7 +98,11 @@ namespace osu.Game.Overlays.Toolbar
             IconContainer.Show();
         }
 
-        public void SetIcon(IconUsage icon) => SetIcon(new SpriteIcon { Icon = icon });
+        public void SetIcon(IconUsage icon)
+        {
+            Icon = icon;
+            SetIcon(new SpriteIcon { Icon = icon });
+        }
 
         public LocalisableString TooltipMain
         {
@@ -168,6 +237,10 @@ namespace osu.Game.Overlays.Toolbar
                 });
             }
         }
+
+        // a collapsed button has no width of its own, but its content still does.
+        // without this, that content would keep receiving hover and click events.
+        public override bool PropagatePositionalInputSubTree => !collapsed && base.PropagatePositionalInputSubTree;
 
         protected override bool OnMouseDown(MouseDownEvent e) => false;
 

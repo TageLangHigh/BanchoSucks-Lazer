@@ -41,6 +41,7 @@ using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Cursor;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Input;
 using osu.Game.Input.Bindings;
@@ -282,8 +283,20 @@ namespace osu.Game
 
         IBindable<OverlayActivation> IOverlayManager.OverlayActivationMode => OverlayActivationMode;
 
-        private void updateBlockingOverlayFade() =>
+        private void updateBlockingOverlayFade()
+        {
             ScreenContainer.FadeColour(visibleBlockingOverlays.Any() ? OsuColour.Gray(0.5f) : Color4.White, 500, Easing.OutQuint);
+
+            // the floating overlay columns sit outside the screen layer, so they have to be faded separately.
+            // they are only faded for overlays which ask for it, as they are otherwise deliberately left legible
+            // for the duration - a notification arriving while an overlay is open should still be readable.
+            Color4 floatingOverlayColour = visibleBlockingOverlays.Any(overlay => overlay is OsuFocusedOverlayContainer { DimFloatingOverlays: true })
+                ? OsuColour.Gray(0.5f)
+                : Color4.White;
+
+            leftFloatingOverlayContent.FadeColour(floatingOverlayColour, 500, Easing.OutQuint);
+            rightFloatingOverlayContent.FadeColour(floatingOverlayColour, 500, Easing.OutQuint);
+        }
 
         IDisposable IOverlayManager.RegisterBlockingOverlay(OverlayContainer overlayContainer)
         {
@@ -1216,7 +1229,31 @@ namespace osu.Game
                     if (menuScreen?.GetChildScreen() != null)
                         menuScreen.MakeCurrent();
                 },
-            }, topMostOverlayContent.Add);
+            }, toolbar =>
+            {
+                // the toolbar's icon buttons need both a full-screen context menu container and a full-screen popover
+                // container to be present as ancestors, as both need to know the available space around their target.
+                topMostOverlayContent.Add(new PopoverContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Child = new OsuContextMenuContainer
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Child = toolbar,
+                    },
+                });
+            });
+
+            ToolbarIconManagementDialog toolbarIconManagementDialog;
+
+            // must be added after the toolbar so that it is presented in front of it, while still being created
+            // before the settings overlay in order to be resolvable by the toolbar settings subsection.
+            loadComponentSingleFile(toolbarIconManagementDialog = new ToolbarIconManagementDialog
+            {
+                Toolbar = Toolbar,
+            }, topMostOverlayContent.Add, true);
+
+            Toolbar.ShowIconManagement = () => toolbarIconManagementDialog.Show();
 
             onScreenDisplay = new OnScreenDisplay();
 
