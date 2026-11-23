@@ -174,7 +174,15 @@ namespace osu.Game.Overlays.SkinEditor
 
                 if (beatmap.Value is DummyWorkingBeatmap)
                 {
-                    // presume we don't have anything good to play and just bail.
+                    // Banchosucks: there is no bundled intro beatmap in this client, so the menu can still be on the dummy
+                    // beatmap although beatmaps have been imported since. Try switching to one of them once.
+                    if (!attemptedBeatmapSwitch)
+                    {
+                        music.NextTrack();
+                        Schedule(() => presentGameplay(true));
+                    }
+
+                    // otherwise presume we don't have anything good to play and just bail.
                     return;
                 }
 
