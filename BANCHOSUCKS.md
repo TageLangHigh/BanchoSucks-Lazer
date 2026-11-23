@@ -408,3 +408,40 @@ and restart the app container.
   playfields would not match (different map version; HR, EZ, MR, DA, RD, TP, DP, WG, TR or rate mods that
   differ; AS, MG, RP always). The ghost travels through `ReplayPlayer.BanchosucksGhostScore` and
   `OsuGame.PresentScore(..., banchosucksGhostScore:)`.
+- **"Gives pp" in mod select** (mod select overlay, bottom right; "Unranked" badge on song select's Mods
+  button): `osu.Game/Online/Banchosucks/BanchosucksRankedModRules.cs` says whether the selected mods give pp
+  on this server and why not: Classic and Double Time at every speed (1.01x to 2.00x) give pp, Difficulty
+  Adjust in osu!, taiko and catch inside the plugin's limits, osu!mania only with the neutral mod list and
+  never on converts; every other mod follows `Mod.Ranked`. It is a hand-written mirror of the plugins
+  `banchosucks_rankedmods/rules.py`, `banchosucks_stablescores` (Classic) and `banchosucks_maniapp`
+  (NEUTRAL_MODS) and has to be changed together with them. Open point: Hard Rock and Constant Speed in
+  mania follow the neutral list here; check against the server's `ranked_mods.json`.
+- **Stable badge** (song select leaderboard rows, results panel): `BanchosucksStableBadge` shows "STABLE" on
+  scores imported from the stable server. `BanchosucksScoreOrigins` asks
+  `banchosucks_stablescores/origin/{id}`, one score per request, so `BanchosucksScoreOriginCache` keeps it
+  sparse: only scores on screen, only scores with Classic and no mod settings (every import looks like
+  that), answers kept for the session, two requests at a time and four per second at most, nothing during
+  gameplay. A batch endpoint would only change `BanchosucksScoreOrigins.Update`.
+- **Top plays of a player** (profile overlay > Ranks > Best Performance): `BanchosucksTopPlaysActions` offers
+  "download missing maps" (sets of the listed top plays, or all 100, that are not in the library; one
+  confirmation with the count; `BanchosucksBeatmapDownloadQueue`, two at a time, nothing during gameplay)
+  and "top plays as collection" (creates or extends the local collection "Top-Plays von NAME" with the
+  difficulties' MD5 hashes, including maps not downloaded yet; only ever adds).
+- **Server status in the toolbar** (right of the clock): `BanchosucksServerStatusIndicator` shows the api
+  connection as a dot and the round-trip time of the last status request; the tooltip adds players online,
+  open rooms and the daily challenge from `banchosucks_status/summary`. One request every two minutes while
+  the toolbar is visible, never more than one per minute (`BanchosucksRefreshGate`). A countdown to a
+  planned restart appears once the plugin sends `maintenance_at` / `maintenance_message` (not yet).
+- **Weekly tile** (main menu, top left under the daily goal): `osu.Game/Screens/Menu/BanchosucksWeeklyCard.cs`
+  names the map of the week and the community goal's progress; a click opens a panel with the map (show in
+  song select or download) and the goal. Data from `banchosucks_motw/current` and
+  `banchosucks_goal/current`, every five minutes while visible. Mod of the week has a marked place in the
+  code and needs an endpoint on `banchosucks_modweek`.
+- **Medal overview** (profile overlay > Medals, switched on here): `BanchosucksMedalList` lists the server's
+  catalogue (`banchosucks_medals/catalogue`, kept for the session) grouped by origin (Banchosucks, g0v0,
+  osu!) with the shown player's medals highlighted and counted. The catalogue has no conditions or
+  progress, so a medal is achieved or not.
+- **Server endpoints the client is prepared for but which do not exist yet**: `banchosucks_modweek/current`;
+  `banchosucks_stablescores/origin?ids=` (batch) or a flag on leaderboard scores; `maintenance_at` and
+  `maintenance_message` in `banchosucks_status/summary`; `grouping`/`ordering` in the medal catalogue and
+  `banchosucks_medals/progress`; `banchosucks_rankedmods/rules` to replace the hand mirror.
