@@ -28,7 +28,8 @@ using osu.Game.Users;
 
 namespace osu.Game.Configuration
 {
-    public class OsuConfigManager : IniConfigManager<OsuSetting>, IGameplaySettings
+    // Banchosucks: IBanchosucksTextSettings lets the settings export / import read and write settings by name.
+    public class OsuConfigManager : IniConfigManager<OsuSetting>, IGameplaySettings, IBanchosucksTextSettings
     {
         public OsuConfigManager(Storage storage)
             : base(storage)
@@ -267,6 +268,17 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.PMFriendsOnly, false);
         }
+
+        // Banchosucks: text access for the settings export / import (same text form as osu.cfg). Which settings may
+        // travel is decided by BanchosucksSettingsAllowList, not here.
+        public string? BanchosucksGetText(string key)
+            => Enum.TryParse(key, false, out OsuSetting lookup) && Enum.IsDefined(lookup) && lookup.ToString() == key && ConfigStore.TryGetValue(lookup, out var bindable)
+                ? BanchosucksSettingsText.Get(bindable)
+                : null;
+
+        public bool BanchosucksTrySetText(string key, string text)
+            => Enum.TryParse(key, false, out OsuSetting lookup) && Enum.IsDefined(lookup) && lookup.ToString() == key && ConfigStore.TryGetValue(lookup, out var bindable)
+               && BanchosucksSettingsText.TrySet(bindable, text);
 
         protected override bool CheckLookupContainsPrivateInformation(OsuSetting lookup)
         {

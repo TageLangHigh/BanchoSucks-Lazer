@@ -27,6 +27,8 @@ namespace osu.Game.Overlays.Settings.Sections
         {
             Add(new QuickActionSettings());
             Add(new BanchosucksPresetSettings());
+            // Banchosucks: settings export / import with backup, next to the presets
+            Add(new BanchosucksSettingsBackupSettings());
             // Banchosucks: the player's own daily goal and the way into the personal statistics
             Add(new BanchosucksDailyGoalSettings());
             Add(new LanguageSettings());

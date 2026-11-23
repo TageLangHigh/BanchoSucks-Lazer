@@ -15,7 +15,8 @@ using osu.Game.Database;
 
 namespace osu.Game.Rulesets.Configuration
 {
-    public abstract class RulesetConfigManager<TLookup> : ConfigManager<TLookup>, IRulesetConfigManager
+    // Banchosucks: IBanchosucksTextSettings lets the settings export / import reach the live values by name.
+    public abstract class RulesetConfigManager<TLookup> : ConfigManager<TLookup>, IRulesetConfigManager, IBanchosucksTextSettings
         where TLookup : struct, Enum
     {
         private readonly RealmAccess realm;
@@ -75,6 +76,17 @@ namespace osu.Game.Rulesets.Configuration
 
             return true;
         }
+
+        // Banchosucks: text access by setting name for the settings export / import. Going through the bindable
+        // (instead of writing the database row) validates the value and updates the running game.
+        public string BanchosucksGetText(string key)
+            => Enum.TryParse(key, false, out TLookup lookup) && lookup.ToString() == key && ConfigStore.TryGetValue(lookup, out var bindable)
+                ? BanchosucksSettingsText.Get(bindable)
+                : null;
+
+        public bool BanchosucksTrySetText(string key, string text)
+            => Enum.TryParse(key, false, out TLookup lookup) && lookup.ToString() == key && ConfigStore.TryGetValue(lookup, out var bindable)
+               && BanchosucksSettingsText.TrySet(bindable, text);
 
         protected override void AddBindable<TBindable>(TLookup lookup, Bindable<TBindable> bindable)
         {
