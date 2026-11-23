@@ -11,5 +11,12 @@ namespace osu.Game.Overlays.Profile.Sections
         public override LocalisableString Title => UsersStrings.ShowExtraMedalsTitle;
 
         public override string Identifier => @"medals";
+
+        // Banchosucks: upstream leaves this section empty (and out of the profile). Here it holds the medal overview:
+        // the server's catalogue grouped by origin, the player's medals highlighted.
+        public MedalsSection()
+        {
+            Child = new BanchosucksMedalList(User);
+        }
     }
 }

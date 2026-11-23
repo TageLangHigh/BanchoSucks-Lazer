@@ -116,7 +116,8 @@ namespace osu.Game.Overlays
                     //new AboutSection(),
                     new RecentSection(),
                     new RanksSection(),
-                    //new MedalsSection(),
+                    // Banchosucks: switched on (upstream keeps it commented out): the medal overview, see BanchosucksMedalList
+                    new MedalsSection(),
                     new HistoricalSection(),
                     new BeatmapsSection(),
                     new KudosuSection()
