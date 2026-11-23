@@ -446,7 +446,14 @@ namespace osu.Game.Screens.Select
 
             bool legacy = legacyUi.Value;
 
-            FilterControl.FadeTo(legacy ? 0 : 1, 200, Easing.OutQuint);
+            // Banchosucks: the filter control is an overlay which fades itself in and out with its visibility state.
+            // Fading it directly made it visible while still hidden (so not usable) before the carousel had loaded,
+            // and after switching the stable look off. Go through the visibility state instead.
+            if (legacy)
+                FilterControl.Hide();
+            else if (this.IsCurrentScreen())
+                updateWedgeVisibility();
+
             wedgesContainer.FadeTo(legacy ? 0 : 1, 200, Easing.OutQuint);
             legacyTopContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
             legacyLeaderboardContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
