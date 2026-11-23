@@ -1,5 +1,5 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -9,6 +9,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Localisation;
 using osu.Game.Screens.Edit.Timing;
 using osuTK;
@@ -127,6 +128,35 @@ namespace osu.Game.Screens.Play.PlayerSettings
                                     Icon = FontAwesome.Solid.FastForward,
                                     Action = () => replayPlayer.SeekInDirection(10),
                                     TooltipText = PlayerSettingsOverlayStrings.SeekForwardSeconds(10 * ReplayPlayer.BASE_SEEK_AMOUNT / 1000),
+                                },
+                            },
+                        },
+                        new GridContainer
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            Height = 30,
+                            ColumnDimensions = new[] { new Dimension(), new Dimension(GridSizeMode.Absolute, 5), new Dimension() },
+                            Content = new[]
+                            {
+                                new Drawable[]
+                                {
+                                    new RoundedButton
+                                    {
+                                        RelativeSizeAxes = Axes.Both,
+                                        Size = Vector2.One,
+                                        Text = PlayerSettingsOverlayStrings.PreviousMiss,
+                                        TooltipText = PlayerSettingsOverlayStrings.SeekToPreviousMiss,
+                                        Action = () => replayPlayer.SeekToMiss(-1),
+                                    },
+                                    new Container(),
+                                    new RoundedButton
+                                    {
+                                        RelativeSizeAxes = Axes.Both,
+                                        Size = Vector2.One,
+                                        Text = PlayerSettingsOverlayStrings.NextMiss,
+                                        TooltipText = PlayerSettingsOverlayStrings.SeekToNextMiss,
+                                        Action = () => replayPlayer.SeekToMiss(1),
+                                    },
                                 },
                             },
                         },

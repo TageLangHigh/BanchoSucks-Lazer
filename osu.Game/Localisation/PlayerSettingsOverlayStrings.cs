@@ -1,5 +1,5 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using osu.Framework.Localisation;
 
@@ -28,6 +28,26 @@ namespace osu.Game.Localisation
         /// "Seek forward {0} seconds"
         /// </summary>
         public static LocalisableString SeekForwardSeconds(double arg0) => new TranslatableString(getKey(@"seek_forward_seconds"), @"Seek forward {0} seconds", arg0);
+
+        /// <summary>
+        /// "Previous Miss"
+        /// </summary>
+        public static LocalisableString PreviousMiss => new TranslatableString(getKey(@"previous_miss"), @"Previous Miss");
+
+        /// <summary>
+        /// "Next Miss"
+        /// </summary>
+        public static LocalisableString NextMiss => new TranslatableString(getKey(@"next_miss"), @"Next Miss");
+
+        /// <summary>
+        /// "Seek to one second before the previous Miss"
+        /// </summary>
+        public static LocalisableString SeekToPreviousMiss => new TranslatableString(getKey(@"seek_to_previous_miss"), @"Seek to one second before the previous Miss");
+
+        /// <summary>
+        /// "Seek to one second before the next Miss"
+        /// </summary>
+        public static LocalisableString SeekToNextMiss => new TranslatableString(getKey(@"seek_to_next_miss"), @"Seek to one second before the next Miss");
 
         /// <summary>
         /// "Playback speed"

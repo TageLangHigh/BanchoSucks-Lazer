@@ -1,5 +1,5 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
-// See the LICENCE-OSU file in the repository root for full licence text.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh> & GooGuTeam. Licensed under the MIT Licence.
+// See the LICENCE & LICENCE-OSU file in the repository root for full licence text.
 
 using System;
 using System.Collections.Generic;
@@ -10,12 +10,16 @@ using osu.Framework.Graphics;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Screens;
+using osu.Framework.Utils;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Input.Bindings;
+using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Objects;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Game.Screens.Play.HUD;
 using osu.Game.Screens.Play.Leaderboards;
@@ -47,6 +51,15 @@ namespace osu.Game.Screens.Play
 
         private double userPlaybackRateBeforeFastForward;
 
+        private const double miss_seek_lead_in = 1000;
+
+        private readonly SortedSet<double> missTimes = new SortedSet<double>();
+
+        private MissSeekRequest? missSeekRequest;
+        private double? selectedMissTime;
+        private double selectedMissSeekTime;
+        private bool performingMissSeek;
+
         private ReplayFailIndicator? failIndicator;
         private PlaybackSettings? playbackSettings;
 
@@ -54,6 +67,10 @@ namespace osu.Game.Screens.Play
 
         protected override bool CheckModsAllowFailure()
         {
+            // Searching should not fail the replay or interrupt frame-stable catch-up.
+            if (missSeekRequest != null)
+                return false;
+
             // autoplay should be able to fail if the beatmap is not humanly beatable
             if (isAutoplayPlayback)
                 return base.CheckModsAllowFailure();
@@ -150,6 +167,9 @@ namespace osu.Game.Screens.Play
         {
             DrawableRuleset?.SetReplayScore(Score);
             lastFrameTime = Score.Replay.Frames.LastOrDefault()?.Time;
+
+            DrawableRuleset!.NewResult += onReplayResult;
+            GameplayClockContainer.OnSeek += onSeek;
         }
 
         protected override Score CreateScore(IBeatmap beatmap) => createScore(beatmap, Mods.Value);
@@ -227,6 +247,153 @@ namespace osu.Game.Screens.Play
             Seek(target);
         }
 
+        /// <summary>
+        /// Seek to one second before the previous or next Miss, retaining the playback state.
+        /// </summary>
+        /// <param name="direction">A negative value seeks backwards; a positive value seeks forwards.</param>
+        public void SeekToMiss(int direction)
+        {
+            if (!LoadedBeatmapSuccessfully || direction == 0 || missSeekRequest != null || GameplayState.HasFailed)
+                return;
+
+            double currentTime = GameplayClockContainer.CurrentTime;
+            // Repeated navigation should move between misses, rather than selecting the same miss during its lead-in.
+            double referenceTime = selectedMissTime != null && currentTime >= selectedMissSeekTime && currentTime < selectedMissTime
+                ? selectedMissTime.Value
+                : currentTime;
+
+            double? target = direction < 0
+                ? missTimes.Where(time => time < referenceTime).Select(time => (double?)time).LastOrDefault()
+                : missTimes.Where(time => time > referenceTime).Select(time => (double?)time).FirstOrDefault();
+
+            if (target != null)
+            {
+                seekBeforeMiss(target.Value);
+                return;
+            }
+
+            if (direction < 0)
+                return;
+
+            // Replays contain inputs, not judgement timestamps. Seek with frame stability enabled to discover the next miss.
+            // Temporarily pause audio and suppress results while searching, including on perfect and failed replays.
+            double endTime = GameplayState.Beatmap.HitObjects.Max(h => h.GetEndTime() + h.MaximumJudgementOffset) + miss_seek_lead_in;
+            missSeekRequest = new MissSeekRequest(currentTime, referenceTime, endTime, GameplayClockContainer.IsPaused.Value, Configuration.ShowResults);
+            Configuration.ShowResults = false;
+            GameplayClockContainer.Stop();
+            seekForMiss(endTime);
+        }
+
+        private void onReplayResult(JudgementResult result)
+        {
+            if (result.Type != HitResult.Miss)
+                return;
+
+            missTimes.Add(result.TimeAbsolute);
+
+            if (missSeekRequest == null || missSeekRequest.RestoreTime != null || missSeekRequest.TargetTime != null || result.TimeAbsolute <= missSeekRequest.ReferenceTime)
+                return;
+
+            missSeekRequest.TargetTime = result.TimeAbsolute;
+            // Stop catch-up at the frame which produced this miss. Rewind only after the current frame has finished judging.
+            seekForMiss(result.RawTime ?? result.TimeAbsolute);
+        }
+
+        protected override void UpdateAfterChildren()
+        {
+            base.UpdateAfterChildren();
+
+            if (missSeekRequest == null)
+                return;
+
+            var request = missSeekRequest;
+
+            if (request.RestoreTime != null)
+            {
+                // Keep results and failure suppressed until the judgements from the search have been reverted.
+                if (Precision.AlmostEquals(DrawableRuleset!.FrameStableClock.CurrentTime, request.RestoreTime.Value))
+                    finishMissSeek();
+
+                return;
+            }
+
+            if (request.TargetTime != null)
+            {
+                seekBeforeMiss(request.TargetTime.Value);
+                request.RestoreTime = selectedMissSeekTime;
+            }
+            else if (Precision.AlmostEquals(DrawableRuleset!.FrameStableClock.CurrentTime, request.EndTime))
+            {
+                request.RestoreTime = request.OriginalTime;
+                seekForMiss(request.OriginalTime);
+            }
+        }
+
+        private void seekBeforeMiss(double time)
+        {
+            selectedMissSeekTime = Math.Max(GameplayClockContainer.StartTime, time - miss_seek_lead_in);
+            seekForMiss(selectedMissSeekTime);
+            selectedMissTime = time;
+        }
+
+        private void seekForMiss(double time)
+        {
+            performingMissSeek = true;
+
+            try
+            {
+                Seek(time);
+            }
+            finally
+            {
+                performingMissSeek = false;
+            }
+        }
+
+        private void onSeek()
+        {
+            if (performingMissSeek)
+                return;
+
+            selectedMissTime = null;
+
+            // A manual seek cancels the search, but still needs to undo any judgements encountered while searching.
+            missSeekRequest?.RestoreTime = GameplayClockContainer.CurrentTime;
+        }
+
+        private void finishMissSeek(bool resumePlayback = true)
+        {
+            if (missSeekRequest == null)
+                return;
+
+            var request = missSeekRequest;
+            missSeekRequest = null;
+            Configuration.ShowResults = request.ShowResults;
+
+            if (resumePlayback && !request.WasPaused)
+                GameplayClockContainer.Start();
+        }
+
+        private class MissSeekRequest
+        {
+            public readonly double OriginalTime;
+            public readonly double ReferenceTime;
+            public readonly double EndTime;
+            public readonly bool WasPaused;
+            public readonly bool ShowResults;
+            public double? TargetTime;
+            public double? RestoreTime;
+
+            public MissSeekRequest(double originalTime, double referenceTime, double endTime, bool wasPaused, bool showResults)
+            {
+                OriginalTime = originalTime;
+                ReferenceTime = referenceTime;
+                EndTime = endTime;
+                WasPaused = wasPaused;
+                ShowResults = showResults;
+            }
+        }
+
         public void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
         {
             switch (e.Action)
@@ -252,6 +419,8 @@ namespace osu.Game.Screens.Play
 
         public override bool OnExiting(ScreenExitEvent e)
         {
+            finishMissSeek(resumePlayback: false);
+
             // safety against filters or samples from the indicator playing long after the screen is exited
             failIndicator?.RemoveAndDisposeImmediately();
             return base.OnExiting(e);
@@ -259,6 +428,8 @@ namespace osu.Game.Screens.Play
 
         private void stopAllAudioEffects()
         {
+            finishMissSeek(resumePlayback: false);
+
             // safety against filters or samples from the indicator playing long after the screen is exited
             failIndicator?.RemoveAndDisposeImmediately();
 
