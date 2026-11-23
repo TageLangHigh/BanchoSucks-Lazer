@@ -1224,6 +1224,8 @@ namespace osu.Game
 
             // Banchosucks: replay comparison (mark a score on a leaderboard, pick a second one, watch both; osu!standard)
             loadComponentSingleFile(new BanchosucksReplayCompare(), Add, true);
+            // Banchosucks: tells score rows which scores were imported from the stable server ("Stable" badge); cached for the session
+            loadComponentSingleFile(new osu.Game.Online.Banchosucks.BanchosucksScoreOrigins(), Add, true);
 
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {

@@ -541,7 +541,22 @@ namespace osu.Game.Screens.Select
                         Direction = FillDirection.Vertical,
                         Children = new Drawable[]
                         {
-                            shadowed(displayName, 25, FontWeight.Regular, Anchor.TopLeft),
+                            // Banchosucks: the name line also carries the "Stable" badge of imported scores (empty until known)
+                            new FillFlowContainer
+                            {
+                                AutoSizeAxes = Axes.Both,
+                                Direction = FillDirection.Horizontal,
+                                Spacing = new Vector2(6, 0),
+                                Children = new Drawable[]
+                                {
+                                    shadowed(displayName, 25, FontWeight.Regular, Anchor.TopLeft),
+                                    new osu.Game.Online.Banchosucks.BanchosucksStableBadge(score)
+                                    {
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
+                                    },
+                                },
+                            },
                             shadowed($"Score: {score.TotalScore:#,0} ({score.MaxCombo:#,0}x)", 17, FontWeight.Regular, Anchor.TopLeft),
                         },
                     },

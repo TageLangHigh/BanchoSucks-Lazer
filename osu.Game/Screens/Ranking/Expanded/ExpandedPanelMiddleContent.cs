@@ -234,6 +234,13 @@ namespace osu.Game.Screens.Ranking.Expanded
 
             if (score.Date != default)
                 AddInternal(new PlayedOnText(score.Date, true));
+
+            // Banchosucks: "Stable" in the bottom left corner for scores imported from the stable server (empty until known)
+            AddInternal(new osu.Game.Online.Banchosucks.BanchosucksStableBadge(score)
+            {
+                Anchor = Anchor.BottomLeft,
+                Origin = Anchor.BottomLeft,
+            });
         }
 
         protected override void LoadComplete()

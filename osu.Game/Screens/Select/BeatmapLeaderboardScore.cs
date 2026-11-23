@@ -302,6 +302,12 @@ namespace osu.Game.Screens.Select
                                                                 Origin = Anchor.CentreLeft,
                                                                 Colour = colourProvider.Content2,
                                                                 UseFullGlyphHeight = false,
+                                                            },
+                                                            // Banchosucks: "Stable" for scores imported from the stable server; empty until that is known
+                                                            new osu.Game.Online.Banchosucks.BanchosucksStableBadge(Score)
+                                                            {
+                                                                Anchor = Anchor.CentreLeft,
+                                                                Origin = Anchor.CentreLeft,
                                                             }
                                                         }
                                                     },
