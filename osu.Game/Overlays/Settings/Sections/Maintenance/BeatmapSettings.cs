@@ -83,6 +83,9 @@ namespace osu.Game.Overlays.Settings.Sections.Maintenance
                     }
                 }
             });
+
+            // Banchosucks: finds duplicate and broken sets; removing them needs a confirmation and is a normal soft delete.
+            Add(new BanchosucksLibraryCleanupButton());
         }
     }
 }
