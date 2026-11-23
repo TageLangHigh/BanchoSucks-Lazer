@@ -50,8 +50,12 @@ using osuTK;
 
 namespace osu.Game.Rulesets.Osu
 {
-    public class OsuRuleset : Ruleset, ILegacyRuleset
+    public class OsuRuleset : Ruleset, ILegacyRuleset, IBanchosucksHitAreaProvider
     {
+        // Banchosucks: the miss review compares the stored click position of a missed circle with the circle itself.
+        (Vector2 centre, float radius)? IBanchosucksHitAreaProvider.GetHitArea(Rulesets.Objects.HitObject hitObject)
+            => hitObject is HitCircle circle ? (circle.StackedPosition, (float)circle.Radius) : null;
+
         public override DrawableRuleset CreateDrawableRulesetWith(IBeatmap beatmap, IReadOnlyList<Mod>? mods = null) => new DrawableOsuRuleset(this, beatmap, mods);
 
         public override ScoreProcessor CreateScoreProcessor() => new OsuScoreProcessor();

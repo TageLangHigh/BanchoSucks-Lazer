@@ -853,7 +853,10 @@ namespace osu.Game
         /// Present a score's replay immediately.
         /// The user should have already requested this interactively.
         /// </summary>
-        public void PresentScore(IScoreInfo score, ScorePresentType presentType = ScorePresentType.Results)
+        /// <param name="score">The score.</param>
+        /// <param name="presentType">Whether to show the results or the replay.</param>
+        /// <param name="banchosucksMissTime">Banchosucks: with <see cref="ScorePresentType.Gameplay"/>, a map time the replay jumps to (one second before it), used by the miss review.</param>
+        public void PresentScore(IScoreInfo score, ScorePresentType presentType = ScorePresentType.Results, double? banchosucksMissTime = null)
         {
             Logger.Log($"Beginning {nameof(PresentScore)} with score {score}");
 
@@ -932,7 +935,8 @@ namespace osu.Game
                 switch (presentType)
                 {
                     case ScorePresentType.Gameplay:
-                        screen.Push(new ReplayPlayerLoader(databasedScore));
+                        // Banchosucks: the miss review opens the replay at a miss.
+                        screen.Push(new ReplayPlayerLoader(databasedScore, banchosucksMissTime));
                         break;
 
                     case ScorePresentType.Results:

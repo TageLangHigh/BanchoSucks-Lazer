@@ -65,6 +65,26 @@ namespace osu.Game.Screens.Play
 
         public ReplayOverlay ReplayOverlay { get; private set; } = null!;
 
+        /// <summary>
+        /// Banchosucks: a map time to jump to when the replay starts (one second before it, like jumping between misses).
+        /// Set by the miss review on the results screen.
+        /// </summary>
+        public double? BanchosucksInitialMissTime { get; init; }
+
+        /// <summary>
+        /// Banchosucks: where the last jump to a miss went (for tests).
+        /// </summary>
+        public double? BanchosucksSelectedMissTime => selectedMissTime;
+
+        protected override void StartGameplay()
+        {
+            base.StartGameplay();
+
+            // Banchosucks: open the replay at the miss chosen in the miss review, with the existing jump-to-miss seek.
+            if (BanchosucksInitialMissTime is double missTime && LoadedBeatmapSuccessfully)
+                seekBeforeMiss(missTime);
+        }
+
         protected override bool CheckModsAllowFailure()
         {
             // Searching should not fail the replay or interrupt frame-stable catch-up.

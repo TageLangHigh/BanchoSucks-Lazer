@@ -213,6 +213,9 @@ namespace osu.Game.Screens.Ranking.Statistics
             foreach (var statistic in newScore.Ruleset.CreateInstance().CreateStatisticsForScore(newScore, playableBeatmap))
                 yield return statistic;
 
+            // Banchosucks: every miss with its time and reason; a click opens the replay there.
+            yield return BanchosucksMissReview.CreateStatisticItem(newScore);
+
             if (AchievedScore != null
                 && newScore.UserID > 1
                 && newScore.UserID == AchievedScore.UserID
