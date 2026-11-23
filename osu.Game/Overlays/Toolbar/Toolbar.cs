@@ -167,6 +167,9 @@ namespace osu.Game.Overlays.Toolbar
                 new ToolbarMusicButton(),
                 userButton = new ToolbarUserButton(),
                 new ToolbarClock(),
+                // Banchosucks: connection state and response time of our server, right of the clock. Not one of the
+                // optional buttons: it is narrow, always there, and counted with the permanent width by the auto-hide.
+                new BanchosucksServerStatusIndicator(),
                 new ToolbarNotificationButton(),
             };
 

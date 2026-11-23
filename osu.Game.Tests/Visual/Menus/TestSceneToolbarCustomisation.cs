@@ -515,6 +515,8 @@ namespace osu.Game.Tests.Visual.Menus
                + toolbar.ChildrenOfType<ToolbarMusicButton>().Single().DrawWidth
                + toolbar.ChildrenOfType<ToolbarUserButton>().Single().DrawWidth
                + toolbar.ChildrenOfType<ToolbarClock>().Single().DrawWidth
+               // Banchosucks: the server status next to the clock is permanent as well
+               + toolbar.ChildrenOfType<BanchosucksServerStatusIndicator>().Single().DrawWidth
                + toolbar.ChildrenOfType<ToolbarNotificationButton>().Single().DrawWidth
                + ToolbarButtonLayout.DEFAULT_ORDER.Length * ToolbarButtonLayout.BUTTON_WIDTH;
 
