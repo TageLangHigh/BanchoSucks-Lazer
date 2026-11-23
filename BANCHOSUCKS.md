@@ -312,3 +312,38 @@ and restart the app container.
   sets have no difficulty or lack the .osu or the named audio file for every difficulty; sets with at least
   one playable difficulty are only reported. Tests: `BanchosucksLibraryCleanupTest`,
   `TestSceneBanchosucksLibraryCleanup`.
+- **Settings backup** (General > Settings backup): exports the player's setup to one JSON file in `exports`
+  (`banchosucks-settings-<date>.json`, format version 1) and imports such a file again. Content: allow-listed
+  game settings, frame limiter / threading / volumes, mouse sensitivity and raw input, key bindings of all
+  rulesets and the global actions, per-ruleset settings, saved key profiles and the name of the selected
+  skin. What may travel is listed by hand in `osu.Game/Configuration/BanchosucksSettingsAllowList.cs`;
+  account, server address, Discord application id and anything describing the PC are never written and
+  never read. A new `OsuSetting` is NOT exported until it is added to that list. An import shows what
+  changes (`BanchosucksChangePreview`), asks once and first writes the current setup to
+  `<game data>/banchosucks/settings-backup.json`, which "Restore backup" brings back. Code:
+  `BanchosucksSettingsDocument`, `BanchosucksSettingsDiff`, `BanchosucksSettingsTransfer`,
+  `BanchosucksSettingsBackupSettings`. Tests: `BanchosucksSettingsExportTest`,
+  `TestSceneBanchosucksSettingsBackup`.
+- **Key profiles** (Input > key bindings > a ruleset, button above each variant): saves the bindings of one
+  ruleset and variant under a name, switches between saved profiles and deletes them
+  (`osu.Game/Input/BanchosucksKeyProfileManager.cs`, `BanchosucksKeyProfileButton.cs`). Profiles live in
+  `<game data>/banchosucks/key-profiles.json` and share their text form with the settings backup. A switch
+  says how many keys change, asks once and keeps the replaced bindings as the profile "Sicherung / Backup".
+  Tests: `BanchosucksKeyProfilesTest`, `TestSceneBanchosucksKeyProfiles`.
+- **Take over osu!stable settings** (General > Take over from osu!stable, desktop): reads
+  `osu!.<Windows user>.cfg` of the stable installation (found like the stable import; read-only) and offers
+  key bindings for all four rulesets, universal offset, mouse sensitivity and raw input, the three volumes,
+  cursor size, background dim and the skin if one of that name is imported. Mapping and its reasoning are
+  in `osu.Game/Configuration/BanchosucksStableConfig.cs`: offset in ms with inverted sign, percent to
+  fractions, XNA key names into the first binding slot. Only the listed keys are parsed, so the stable
+  account in that file is never read. The stable key names were written from memory and are only tested
+  against a hand-made sample cfg: check against a real file before relying on it. Tests:
+  `BanchosucksStableConfigTest`, `TestSceneBanchosucksStableSettings`.
+- **Skin sync from osu!stable** (General > Take over from osu!stable, off by default,
+  `OsuSetting.BanchosucksSkinSync`): `osu.Game/Skinning/BanchosucksSkinSync.cs` looks at the stable `Skins`
+  folder 20 s after startup, every ten minutes and on "Check skins now", and imports folders that are new
+  or whose files changed through the normal skin importer. `BanchosucksSkinSyncRecord` keeps folder name,
+  newest file time, total size and file count in `<game data>/banchosucks/skin-sync.json`. Stable is only
+  read and nothing runs during gameplay. A changed folder behaves like a manual re-import: same skin.ini
+  replaces the previous import (the selection follows), a changed skin.ini adds a second skin. Tests:
+  `BanchosucksSkinSyncTest`, `TestSceneBanchosucksSkinSync`.
