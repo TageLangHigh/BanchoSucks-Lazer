@@ -76,6 +76,13 @@ namespace osu.Game.Screens.Play
         /// </summary>
         public double? BanchosucksSelectedMissTime => selectedMissTime;
 
+        /// <summary>
+        /// Banchosucks: replay comparison. A second score on the same beatmap whose replay the ruleset draws as a
+        /// ghost (osu!standard: a second cursor, see <c>BanchosucksGhostCursorOverlay</c>). It takes no part in the
+        /// play: no input, no judgements, no sounds, no effect on the shown score.
+        /// </summary>
+        public Score? BanchosucksGhostScore { get; init; }
+
         protected override void StartGameplay()
         {
             base.StartGameplay();

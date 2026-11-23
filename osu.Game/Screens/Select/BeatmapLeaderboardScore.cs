@@ -75,6 +75,10 @@ namespace osu.Game.Screens.Select
         [Resolved]
         private BanchosucksReplayRenderer? replayRenderer { get; set; }
 
+        // Banchosucks: replay comparison (mark this score / compare with the marked one)
+        [Resolved]
+        private BanchosucksReplayCompare? replayCompare { get; set; }
+
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
 
@@ -634,6 +638,8 @@ namespace osu.Game.Screens.Select
                     // Banchosucks: online scores with a replay on the server can be rendered too
                     if (replayRenderer != null && BanchosucksReplayRenderer.CanRender(Score))
                         items.Add(new OsuMenuItem(BanchosucksReplayRenderer.RenderActionText, MenuItemType.Standard, () => replayRenderer.Render(Score)));
+                    if (replayCompare != null)
+                        items.AddRange(replayCompare.CreateMenuItems(Score));
                     return items.ToArray();
                 }
 
@@ -645,6 +651,8 @@ namespace osu.Game.Screens.Select
                 items.Add(new OsuMenuItem(CommonStrings.Export, MenuItemType.Standard, () => scoreManager.Export(Score)));
                 if (replayRenderer != null && BanchosucksReplayRenderer.CanRender(Score))
                     items.Add(new OsuMenuItem(BanchosucksReplayRenderer.RenderActionText, MenuItemType.Standard, () => replayRenderer.Render(Score)));
+                if (replayCompare != null)
+                    items.AddRange(replayCompare.CreateMenuItems(Score));
                 items.Add(new OsuMenuItem(Resources.Localisation.Web.CommonStrings.ButtonsDelete, MenuItemType.Destructive, () => dialogOverlay?.Push(new LocalScoreDeleteDialog(Score))));
 
                 return items.ToArray();

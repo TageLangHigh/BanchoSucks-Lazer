@@ -49,6 +49,14 @@ namespace osu.Game.Rulesets.Osu.UI
                 Overlays.Add(analysisOverlay.CreateProxy().With(p => p.Depth = float.NegativeInfinity));
                 replayPlayer.AddSettings(new ReplayAnalysisSettings(Config));
 
+                // Banchosucks: replay comparison, the second replay is drawn as a ghost cursor (drawing only, no input)
+                if (replayPlayer.BanchosucksGhostScore?.Replay != null)
+                {
+                    var ghost = new BanchosucksGhostCursorOverlay(replayPlayer.BanchosucksGhostScore);
+                    PlayfieldAdjustmentContainer.Add(ghost);
+                    Overlays.Add(ghost.CreateProxy().With(p => p.Depth = float.NegativeInfinity));
+                }
+
                 cursorHideEnabled = Config.GetBindable<bool>(OsuRulesetSetting.ReplayCursorHideEnabled);
 
                 // I have little faith in this working (other things touch cursor visibility) but haven't broken it yet.

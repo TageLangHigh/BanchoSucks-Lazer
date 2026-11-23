@@ -11,9 +11,10 @@ namespace osu.Game.Screens.Play
     {
         public readonly ScoreInfo Score;
 
-        // Banchosucks: optionally starts the replay shortly before a miss (miss review on the results screen).
-        public ReplayPlayerLoader(Score score, double? banchosucksMissTime = null)
-            : base(createPlayer(score, banchosucksMissTime))
+        // Banchosucks: optionally starts the replay shortly before a miss (miss review on the results screen),
+        // and optionally shows a second score's replay as a ghost (replay comparison).
+        public ReplayPlayerLoader(Score score, double? banchosucksMissTime = null, Score? banchosucksGhostScore = null)
+            : base(createPlayer(score, banchosucksMissTime, banchosucksGhostScore))
         {
             if (score.Replay == null)
                 throw new ArgumentException($"{nameof(score)} must have a non-null {nameof(score.Replay)}.", nameof(score));
@@ -22,14 +23,15 @@ namespace osu.Game.Screens.Play
             WindowShouldBeActiveForGameplayStart = false;
         }
 
-        private static Func<Player> createPlayer(Score score, double? banchosucksMissTime)
+        private static Func<Player> createPlayer(Score score, double? banchosucksMissTime, Score? banchosucksGhostScore)
         {
             // only the first player jumps to the miss; a restart of the replay begins at the start as usual
             double? missTime = banchosucksMissTime;
 
             return () =>
             {
-                var player = new ReplayPlayer(score) { BanchosucksInitialMissTime = missTime };
+                // the ghost stays for every restart of the replay
+                var player = new ReplayPlayer(score) { BanchosucksInitialMissTime = missTime, BanchosucksGhostScore = banchosucksGhostScore };
                 missTime = null;
                 return player;
             };

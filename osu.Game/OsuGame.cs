@@ -862,7 +862,8 @@ namespace osu.Game
         /// <param name="score">The score.</param>
         /// <param name="presentType">Whether to show the results or the replay.</param>
         /// <param name="banchosucksMissTime">Banchosucks: with <see cref="ScorePresentType.Gameplay"/>, a map time the replay jumps to (one second before it), used by the miss review.</param>
-        public void PresentScore(IScoreInfo score, ScorePresentType presentType = ScorePresentType.Results, double? banchosucksMissTime = null)
+        /// <param name="banchosucksGhostScore">Banchosucks: with <see cref="ScorePresentType.Gameplay"/>, a second score on the same beatmap shown as a ghost (replay comparison).</param>
+        public void PresentScore(IScoreInfo score, ScorePresentType presentType = ScorePresentType.Results, double? banchosucksMissTime = null, Score banchosucksGhostScore = null)
         {
             Logger.Log($"Beginning {nameof(PresentScore)} with score {score}");
 
@@ -941,8 +942,8 @@ namespace osu.Game
                 switch (presentType)
                 {
                     case ScorePresentType.Gameplay:
-                        // Banchosucks: the miss review opens the replay at a miss.
-                        screen.Push(new ReplayPlayerLoader(databasedScore, banchosucksMissTime));
+                        // Banchosucks: the miss review opens the replay at a miss, the replay comparison adds a ghost.
+                        screen.Push(new ReplayPlayerLoader(databasedScore, banchosucksMissTime, banchosucksGhostScore));
                         break;
 
                     case ScorePresentType.Results:
@@ -1220,6 +1221,9 @@ namespace osu.Game
 
             // Banchosucks: turns share cards (score card, profile card) into images, saved locally and copied to the clipboard
             loadComponentSingleFile(new BanchosucksCardExporter(), Add, true);
+
+            // Banchosucks: replay comparison (mark a score on a leaderboard, pick a second one, watch both; osu!standard)
+            loadComponentSingleFile(new BanchosucksReplayCompare(), Add, true);
 
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {

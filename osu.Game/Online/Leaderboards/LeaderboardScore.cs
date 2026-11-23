@@ -91,6 +91,10 @@ namespace osu.Game.Online.Leaderboards
         [Resolved(canBeNull: true)]
         private BanchosucksReplayRenderer replayRenderer { get; set; }
 
+        // Banchosucks: replay comparison (mark this score / compare with the marked one)
+        [Resolved(canBeNull: true)]
+        private BanchosucksReplayCompare replayCompare { get; set; }
+
         public LeaderboardScore(ScoreInfo score, int? rank, bool isOnlineScope = true, bool highlightFriend = true)
         {
             Score = score;
@@ -467,6 +471,10 @@ namespace osu.Game.Online.Leaderboards
 
                 if (replayRenderer != null && BanchosucksReplayRenderer.CanRender(Score))
                     items.Add(new OsuMenuItem(BanchosucksReplayRenderer.RenderActionText, MenuItemType.Standard, () => replayRenderer.Render(Score)));
+
+                // Banchosucks: replay comparison (mark this score / compare with the marked one)
+                if (replayCompare != null)
+                    items.AddRange(replayCompare.CreateMenuItems(Score));
 
                 if (Score.Files.Count > 0)
                 {
