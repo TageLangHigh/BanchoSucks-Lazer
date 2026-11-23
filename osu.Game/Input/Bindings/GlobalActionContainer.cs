@@ -114,6 +114,7 @@ namespace osu.Game.Input.Bindings
             new KeyBinding(new[] { InputKey.Shift, InputKey.F12 }, GlobalAction.TakeAndUploadScreeshot),
 
             new KeyBinding(InputKey.Pause, GlobalAction.BanchosucksBossKey),
+            new KeyBinding(InputKey.None, GlobalAction.BanchosucksToggleStreamerMode),
         };
 
         private static IEnumerable<KeyBinding> overlayKeyBindings => new[]
@@ -642,6 +643,9 @@ namespace osu.Game.Input.Bindings
         // Banchosucks: new actions go at the end, realm stores the enum value
         [Description("Boss-Taste: Spiel minimieren und stummschalten / Boss key: minimise and mute the game")]
         BanchosucksBossKey,
+
+        [Description("Streamer-Modus umschalten / Toggle streamer mode")]
+        BanchosucksToggleStreamerMode,
     }
 
     public enum GlobalActionCategory

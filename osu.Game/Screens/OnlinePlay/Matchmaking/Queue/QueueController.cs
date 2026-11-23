@@ -12,6 +12,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Screens;
+using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Localisation;
@@ -50,6 +51,10 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         [Resolved]
         private INotificationOverlay? notifications { get; set; }
+
+        // Banchosucks: streamer mode hides who issued a duel
+        [Resolved]
+        private OsuConfigManager? banchosucksConfig { get; set; }
 
         private BackgroundQueueNotification? backgroundNotification;
 
@@ -209,7 +214,9 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                 if (user == null)
                     return;
 
-                Scheduler.Add(() => notifications?.Post(new DuelNotification(this, user, duel)));
+                // Banchosucks: no name of another player in a notification while streamer mode is on
+                Scheduler.Add(() => notifications?.Post(new DuelNotification(this,
+                    banchosucksConfig?.Get<bool>(OsuSetting.BanchosucksStreamerMode) == true ? "Someone" : user.Username, duel)));
             }).FireAndForget();
         }
 
@@ -369,9 +376,9 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         private partial class DuelNotification : SimpleNotification
         {
-            public DuelNotification(QueueController controller, APIUser user, MatchmakingDuelIssuedParams duel)
+            public DuelNotification(QueueController controller, string challenger, MatchmakingDuelIssuedParams duel)
             {
-                Text = $"{user.Username} challenged you to a duel ({duel.Pool.DisplayName}). Click to accept.";
+                Text = $"{challenger} challenged you to a duel ({duel.Pool.DisplayName}). Click to accept.";
 
                 Activated = () =>
                 {

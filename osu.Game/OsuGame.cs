@@ -1337,6 +1337,8 @@ namespace osu.Game
             Add(new MusicKeyBindingHandler());
             Add(new OnlineStatusNotifier(() => ScreenStack.CurrentScreen));
             Add(new FriendPresenceNotifier());
+            // Banchosucks: streamer mode (chat blocked, see the class for everything it hides)
+            Add(banchosucksStreamerMode = new BanchosucksStreamerMode());
 
             // side overlays which cancel each other.
             var singleDisplaySideOverlays = new OverlayContainer[] { Settings, Notifications, FirstRunOverlay, loginOverlay, nowPlayingOverlay };
@@ -1726,6 +1728,10 @@ namespace osu.Game
                     bossKey();
                     return true;
 
+                case GlobalAction.BanchosucksToggleStreamerMode:
+                    banchosucksStreamerMode?.Toggle();
+                    return true;
+
                 case GlobalAction.ToggleFPSDisplay:
                     fpsCounter.ToggleVisibility();
                     return true;
@@ -1878,6 +1884,8 @@ namespace osu.Game
         private Bindable<float> menuOpacity;
 
         private bool bossKeyMuted;
+
+        private BanchosucksStreamerMode banchosucksStreamerMode;
 
         /// <summary>
         /// Banchosucks: minimises the window and mutes the game in one keypress. Gameplay pauses through the usual

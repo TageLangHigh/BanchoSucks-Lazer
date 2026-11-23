@@ -13,7 +13,7 @@ using osu.Game.Screens.Play;
 namespace osu.Game.Overlays
 {
     /// <summary>
-    /// Banchosucks: "do not disturb" for the notification overlay.
+    /// Banchosucks: "do not disturb" and the notification part of streamer mode.
     /// </summary>
     /// <remarks>
     /// Upstream already keeps non-critical notifications in a queue while overlays are disabled (active gameplay) and
@@ -21,6 +21,7 @@ namespace osu.Game.Overlays
     /// critical, errors nor running tasks are instead kept by the <see cref="BanchosucksNotificationGate"/> until the
     /// player has left the map, put straight into the overlay without toast or sound, and announced by one summary toast.
     /// Critical notifications and errors keep the upstream behaviour.
+    /// Streamer mode uses the same gate for private message, mention and friend notifications, for as long as it is on.
     /// </remarks>
     public partial class NotificationOverlay
     {
@@ -33,6 +34,7 @@ namespace osu.Game.Overlays
         private readonly BanchosucksNotificationGate banchosucksGate = new BanchosucksNotificationGate();
 
         private Bindable<bool>? banchosucksDoNotDisturb;
+        private Bindable<bool>? banchosucksStreamerMode;
         private IBindable<LocalUserPlayingState>? banchosucksPlayingState;
 
         /// <summary>
@@ -47,6 +49,9 @@ namespace osu.Game.Overlays
 
             banchosucksDoNotDisturb = banchosucksConfig.GetBindable<bool>(OsuSetting.BanchosucksDoNotDisturb);
             banchosucksDoNotDisturb.BindValueChanged(_ => updateBanchosucksGameplayHold());
+
+            banchosucksStreamerMode = banchosucksConfig.GetBindable<bool>(OsuSetting.BanchosucksStreamerMode);
+            banchosucksStreamerMode.BindValueChanged(mode => deliverBanchosucksHeld(banchosucksGate.SetActive(BanchosucksHoldReason.StreamerMode, mode.NewValue)), true);
 
             if (banchosucksPlayInfo != null)
             {

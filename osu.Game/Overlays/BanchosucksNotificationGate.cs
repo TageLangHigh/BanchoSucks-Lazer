@@ -5,7 +5,9 @@ using System;
 using System.Threading;
 using osu.Game.Online;
 using osu.Game.Online.Chat;
+using osu.Game.Online.Multiplayer;
 using osu.Game.Overlays.Notifications;
+using osu.Game.Screens.Banchosucks.Clicker;
 
 namespace osu.Game.Overlays
 {
@@ -18,6 +20,8 @@ namespace osu.Game.Overlays
     {
         private readonly Lock syncRoot = new Lock();
         private readonly BanchosucksNotificationHold<Notification> hold = new BanchosucksNotificationHold<Notification>();
+
+        private volatile bool streamerMode;
 
         /// <summary>
         /// Number of notifications currently waiting.
@@ -80,8 +84,36 @@ namespace osu.Game.Overlays
         /// </summary>
         public BanchosucksHoldRelease<Notification> SetActive(BanchosucksHoldReason reason, bool active)
         {
+            if (reason == BanchosucksHoldReason.StreamerMode)
+                streamerMode = active;
+
             lock (syncRoot)
                 return hold.SetActive(reason, active);
+        }
+
+        /// <summary>
+        /// Called right before a notification is handed to the overlay for display. In streamer mode a notification
+        /// about another player (the ones not held back: multiplayer invitations) loses the name and the avatar.
+        /// Has to run before the notification is loaded. May be called from any thread.
+        /// </summary>
+        public void Prepare(Notification notification)
+        {
+            if (!streamerMode || notification is not UserAvatarNotification about || about.BanchosucksAnonymous)
+                return;
+
+            about.BanchosucksAnonymous = true;
+
+            if (about is MultiplayerInvitationNotification)
+            {
+                // the room name is left out as well, rooms are usually named after their host
+                about.Text = ClickerStrings.Text("You were invited to a multiplayer room.", "Du wurdest in einen Mehrspieler-Raum eingeladen.");
+                return;
+            }
+
+            string name = about.BanchosucksUsername;
+
+            if (!string.IsNullOrEmpty(name))
+                about.Text = about.Text.ToString().Replace(name, "…");
         }
     }
 }

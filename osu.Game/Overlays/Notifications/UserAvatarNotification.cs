@@ -16,6 +16,17 @@ namespace osu.Game.Overlays.Notifications
 
         protected DrawableAvatar Avatar { get; private set; } = null!;
 
+        /// <summary>
+        /// Banchosucks: streamer mode shows a neutral avatar instead of the player this notification is about
+        /// (set by <see cref="BanchosucksNotificationGate.Prepare"/> before the notification is loaded, which also replaces the text).
+        /// </summary>
+        public bool BanchosucksAnonymous { get; set; }
+
+        /// <summary>
+        /// Banchosucks: the name of the player this notification is about, for <see cref="BanchosucksNotificationGate"/>.
+        /// </summary>
+        public string BanchosucksUsername => User.Username;
+
         protected UserAvatarNotification(APIUser user, LocalisableString text = default)
         {
             User = user;
@@ -30,7 +41,8 @@ namespace osu.Game.Overlays.Notifications
             IconContent.CornerRadius = CORNER_RADIUS;
             IconContent.ChangeChildDepth(IconDrawable, float.MinValue);
 
-            LoadComponentAsync(Avatar = new DrawableAvatar(User)
+            // Banchosucks: no face of another player in streamer mode
+            LoadComponentAsync(Avatar = new DrawableAvatar(BanchosucksAnonymous ? new APIUser() : User)
             {
                 FillMode = FillMode.Fill,
             }, IconContent.Add);

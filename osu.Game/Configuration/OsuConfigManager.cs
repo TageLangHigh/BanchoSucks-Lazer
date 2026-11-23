@@ -146,6 +146,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.BanchosucksDailyGoalMinutes, 0, 0, 240);
             SetDefault(OsuSetting.BanchosucksDailyGoalMaps, 0, 0, 100);
             SetDefault(OsuSetting.BanchosucksDoNotDisturb, true);
+            SetDefault(OsuSetting.BanchosucksStreamerMode, false);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -612,5 +613,11 @@ namespace osu.Game.Configuration
         /// Banchosucks: hold non-critical notifications back while a map is played and show one summary afterwards.
         /// </summary>
         BanchosucksDoNotDisturb,
+
+        /// <summary>
+        /// Banchosucks: streamer mode (chat overlay blocked, private message / mention / friend notifications held back,
+        /// other players' names removed from notifications, login field masked).
+        /// </summary>
+        BanchosucksStreamerMode,
     }
 }

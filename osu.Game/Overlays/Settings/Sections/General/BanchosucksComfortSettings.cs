@@ -30,6 +30,15 @@ namespace osu.Game.Overlays.Settings.Sections.General
                 {
                     Keywords = new[] { @"notifications", @"meldungen", @"benachrichtigungen", @"dnd", @"nicht stören", @"toast" },
                 },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Streamer-Modus / Streamer mode",
+                    HintText = "Der Chat lässt sich nicht öffnen; Meldungen zu Privatnachrichten, Erwähnungen und Freunden werden gesammelt und erst beim Ausschalten gezeigt; Einladungen zeigen keinen Spielernamen; das Kontofeld im Login zeigt Punkte. Ankündigungen des Servers erscheinen weiter. Chat in Mehrspieler-Räumen und Namen auf Ranglisten bleiben sichtbar. Eine Taste dafür lässt sich unter Eingabe festlegen. / The chat cannot be opened; private message, mention and friend notifications are collected and shown when the mode is switched off; invitations show no player name; the account field of the login form shows dots. Server announcements still appear. Chat in multiplayer rooms and names on leaderboards stay visible. A key can be bound under Input.",
+                    Current = config.GetBindable<bool>(OsuSetting.BanchosucksStreamerMode),
+                })
+                {
+                    Keywords = new[] { @"stream", @"streamer", @"obs", @"twitch", @"privacy", @"privat", @"chat" },
+                },
             });
         }
     }

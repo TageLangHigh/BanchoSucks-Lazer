@@ -186,7 +186,14 @@ namespace osu.Game.Overlays
 
         // Banchosucks: the body of Post, with one addition: a notification that was held back is delivered "silently",
         // straight into the overlay without toast, sound or window flash.
-        private void post(Notification notification, bool silent) => (notification.IsCritical ? criticalPostScheduler : postScheduler).Add(() =>
+        private void post(Notification notification, bool silent)
+        {
+            // Banchosucks: streamer mode removes other players' names before anything is drawn
+            banchosucksGate.Prepare(notification);
+            schedulePost(notification, silent);
+        }
+
+        private void schedulePost(Notification notification, bool silent) => (notification.IsCritical ? criticalPostScheduler : postScheduler).Add(() =>
         {
             ++runningDepth;
 

@@ -65,7 +65,8 @@ namespace osu.Game.Overlays.Login
                             Text = LoginPanelStrings.Account.ToUpper(),
                             Font = OsuFont.GetFont(weight: FontWeight.Bold),
                         },
-                        username = new OsuTextBox
+                        // Banchosucks: shows dots instead of the account name / e-mail address while streamer mode is on
+                        username = new BanchosucksStreamerTextBox
                         {
                             InputProperties = new TextInputProperties(TextInputType.Username, false),
                             PlaceholderText = UsersStrings.LoginUsername.ToLower(),
