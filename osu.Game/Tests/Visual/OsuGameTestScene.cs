@@ -28,6 +28,7 @@ using osu.Game.Scoring;
 using osu.Game.Screens;
 using osu.Game.Screens.Menu;
 using osu.Game.Screens.Play;
+using osu.Game.Updater;
 using osuTK.Graphics;
 
 namespace osu.Game.Tests.Visual
@@ -181,6 +182,8 @@ namespace osu.Game.Tests.Visual
                 LocalConfig.SetValue(OsuSetting.BanchosucksDoNotDisturb, false);
                 // Banchosucks: a headless test run stutters by nature; the report would put a toast on every results screen
                 LocalConfig.SetValue(OsuSetting.BanchosucksStutterReport, false);
+                // Banchosucks: no "what's new" dialog over the screen under test (the test version has no notes anyway)
+                LocalConfig.SetValue(OsuSetting.BanchosucksWhatsNewShownVersion, BanchosucksReleaseNotes.NormaliseVersion(Version));
 
                 API.Login("Rhythm Champion", "osu!");
                 ((DummyAPIAccess)API).AuthenticateSecondFactor("abcdefgh");

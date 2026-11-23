@@ -1403,6 +1403,9 @@ namespace osu.Game
             if (IsDeployedBuild && !string.IsNullOrEmpty(lastVersion) && version != lastVersion)
                 Notifications.Post(new UpdateCompleteNotification(version));
 
+            // Banchosucks: "what's new" needs the version of the previous start; the dialog itself waits for the main menu
+            banchosucksPreviousVersion = lastVersion ?? string.Empty;
+
             // finally, update the version stored to the configuration.
             // this MUST happen after `applyConfigMigrations()` call, as it relies on comparing the previous version.
             // debug / local compilations will reset to a non-release string.
@@ -1891,6 +1894,11 @@ namespace osu.Game
         private BanchosucksStreamerMode banchosucksStreamerMode;
 
         /// <summary>
+        /// Banchosucks: the version stored by the previous start (empty on a fresh install), until "what's new" was decided.
+        /// </summary>
+        private string banchosucksPreviousVersion;
+
+        /// <summary>
         /// Banchosucks: minimises the window and mutes the game in one keypress. Gameplay pauses through the usual
         /// focus-loss handling; <see cref="updateActiveState"/> lifts the mute again.
         /// </summary>
@@ -1945,6 +1953,21 @@ namespace osu.Game
 
             // Banchosucks: the activity log times real plays from the moment their screen comes up until it is left
             banchosucksActivityLog?.ScreenChanged(current, newScreen);
+            // Banchosucks: release notes of the running version, once after an update, when the main menu is up
+            if (newScreen is MainMenu && banchosucksPreviousVersion != null)
+            {
+                var whatsNew = BanchosucksWhatsNewOverlay.CreateIfDue(LocalConfig, banchosucksPreviousVersion, Version);
+                banchosucksPreviousVersion = null;
+
+                if (whatsNew != null)
+                {
+                    LoadComponentAsync(whatsNew, loaded =>
+                    {
+                        topMostOverlayContent.Add(loaded);
+                        loaded.Show();
+                    });
+                }
+            }
 
             // Banchosucks: one-time pointer at the presets (Settings > General), once the main menu is up
             if (newScreen is MainMenu && !LocalConfig.Get<bool>(OsuSetting.BanchosucksPresetsHintShown))

@@ -46,6 +46,9 @@ Full licence text: see LICENCE and LICENCE-OSU.</PackageReleaseNotes>
   <ItemGroup Label="Banchosucks">
     <!-- osu! Clicker balance: the single source of numbers, mirrored by the lazer server plugin banchosucks_clicker -->
     <EmbeddedResource Include="Screens\Banchosucks\Clicker\clicker-balance.json" LogicalName="clicker-balance.json" />
+    <!-- Release notes of every version, shown once after an update ("what's new"), see Updater\BanchosucksReleaseNotes.cs.
+         The file of a new version has to be in release-notes\ before that version is built. -->
+    <EmbeddedResource Include="..\release-notes\*.md" LogicalName="banchosucks-release-notes/%(Filename).md" Link="Updater\ReleaseNotes\%(Filename).md" />
   </ItemGroup>
   <ItemGroup Label="Package References">
     <!-- Resources are released separately from GooGuTeam/g0v0-resources and must stay aligned with the game package version. -->
