@@ -10,6 +10,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Online.Banchosucks;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
@@ -131,7 +132,11 @@ namespace osu.Game.Overlays.Mods
                 double multiplier = scoreMultiplierCalculator?.CalculateFor(ActiveMods.Value) ?? 1;
 
                 rankingInformationDisplay.ModMultiplier.Value = multiplier;
-                rankingInformationDisplay.Ranked.Value = ActiveMods.Value.All(m => m.Ranked);
+                // Banchosucks: "ranked" means "gives pp on our server" here; the server's rules differ from Mod.Ranked
+                // (Classic, Double Time speeds, Difficulty Adjust limits, the mania mod list), see BanchosucksRankedModRules.
+                var banchosucksVerdict = BanchosucksPerformanceEligibility.Check(Ruleset.Value, workingBeatmap.BeatmapInfo, ActiveMods.Value);
+                rankingInformationDisplay.BanchosucksVerdict.Value = banchosucksVerdict;
+                rankingInformationDisplay.Ranked.Value = banchosucksVerdict.GivesPerformance;
             }
 
             beatmapAttributesDisplay?.Mods.Value = ActiveMods.Value;

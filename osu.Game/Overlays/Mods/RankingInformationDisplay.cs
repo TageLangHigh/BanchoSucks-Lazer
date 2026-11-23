@@ -13,6 +13,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
+using osu.Game.Online.Banchosucks;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Utils;
 
@@ -28,6 +29,14 @@ namespace osu.Game.Overlays.Mods
         public Bindable<double> ModMultiplier = new BindableDouble(1);
 
         public Bindable<bool> Ranked { get; } = new BindableBool(true);
+
+        /// <summary>
+        /// Banchosucks: why the selected mods give no pp on our server (or that they do). Set together with <see cref="Ranked"/>;
+        /// the label then says "gives pp" / "no pp" instead of upstream's "Ranked" / "Unranked" and its tooltip names the reason.
+        /// The label keeps upstream's width on purpose: a label as wide as the reason pushed this display over the footer buttons
+        /// (TestSceneModSelectOverlay.TestDeselectAllViaButton_WithSearchApplied could no longer click "Deselect all").
+        /// </summary>
+        public Bindable<BanchosucksRankedModRules.Verdict?> BanchosucksVerdict { get; } = new Bindable<BanchosucksRankedModRules.Verdict?>();
 
         private readonly BindableWithCurrent<double> current = new BindableWithCurrent<double>();
 
@@ -151,7 +160,23 @@ namespace osu.Game.Overlays.Mods
                     rankedText.FadeColour(ColourProvider.Background5, transition_duration, Easing.OutQuint);
                     FrontBackground.FadeColour(colours.Orange1, transition_duration, Easing.OutQuint);
                 }
+
+                updateBanchosucksText();
             }, true);
+
+            BanchosucksVerdict.BindValueChanged(_ => updateBanchosucksText(), true);
+        }
+
+        /// <summary>
+        /// Banchosucks: replaces the label with our server's answer once one was set (plain uses of this display keep upstream's text).
+        /// </summary>
+        private void updateBanchosucksText()
+        {
+            if (BanchosucksVerdict.Value is not BanchosucksRankedModRules.Verdict verdict)
+                return;
+
+            rankedText.Text = BanchosucksPerformanceEligibility.Label(verdict);
+            rankedText.TooltipText = BanchosucksPerformanceEligibility.Explain(verdict);
         }
 
         private void flash()

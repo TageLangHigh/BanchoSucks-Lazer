@@ -20,6 +20,7 @@ using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Localisation;
+using osu.Game.Online.Banchosucks;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Mods;
 using osu.Game.Rulesets;
@@ -228,8 +229,12 @@ namespace osu.Game.Screens.Select
             }
             else
             {
-                if (Mods.Value.Any(m => !m.Ranked))
+                // Banchosucks: the badge follows our server's pp rules (BanchosucksRankedModRules), its tooltip names the reason
+                var banchosucksVerdict = BanchosucksPerformanceEligibility.Check(Ruleset.Value, beatmap.Value?.BeatmapInfo, Mods.Value);
+
+                if (!banchosucksVerdict.GivesPerformance)
                 {
+                    ((UnrankedBadge)unrankedBadge).TooltipText = BanchosucksPerformanceEligibility.Explain(banchosucksVerdict);
                     unrankedBadge.MoveToX(0, duration, easing);
                     unrankedBadge.FadeIn(duration, easing);
 
@@ -390,7 +395,8 @@ namespace osu.Game.Screens.Select
 
         internal partial class UnrankedBadge : InputBlockingContainer, IHasTooltip
         {
-            public LocalisableString TooltipText { get; }
+            // Banchosucks: settable, the reason depends on the selected mods
+            public LocalisableString TooltipText { get; set; }
 
             public UnrankedBadge()
             {
