@@ -17,6 +17,7 @@ using osu.Framework;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Game.Beatmaps;
@@ -26,6 +27,8 @@ using osu.Game.Online.API;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Dialog;
 using osu.Game.Overlays.Notifications;
+using osu.Game.Rulesets;
+using osu.Game.Screens.Banchosucks.Clicker;
 
 namespace osu.Game.Scoring
 {
@@ -70,7 +73,19 @@ namespace osu.Game.Scoring
         private IDialogOverlay? dialogOverlay { get; set; }
 
         private Storage root = null!;
-        private int busy;
+
+        // one render runs, up to five more wait their turn
+        private readonly BanchosucksRenderQueue<QueuedRender> queue = new BanchosucksRenderQueue<QueuedRender>();
+
+        /// <summary>
+        /// How many renders are waiting behind the running one.
+        /// </summary>
+        public int WaitingCount => queue.WaitingCount;
+
+        /// <summary>
+        /// Whether a render is running right now.
+        /// </summary>
+        public bool IsRendering => queue.Running != null;
 
         private static bool platformSupported => RuntimeInfo.OS == RuntimeInfo.Platform.Windows || RuntimeInfo.OS == RuntimeInfo.Platform.Linux;
 
@@ -88,13 +103,50 @@ namespace osu.Game.Scoring
         /// Whether the score could be rendered: osu!standard, and a replay either stored locally or on the server.
         /// </summary>
         public static bool CanRender(ScoreInfo score) =>
-            platformSupported && score.Ruleset.ShortName == "osu" && (score.Files.Count > 0 || (score.OnlineID > 0 && score.HasOnlineReplay));
+            CanRenderRuleset(score.Ruleset) && (score.Files.Count > 0 || (score.OnlineID > 0 && score.HasOnlineReplay));
+
+        /// <summary>
+        /// Whether replays of this ruleset can be rendered on this platform at all (osu!standard on Windows and Linux).
+        /// Used to hide the entry everywhere else.
+        /// </summary>
+        public static bool CanRenderRuleset(IRulesetInfo ruleset) => platformSupported && ruleset.ShortName == "osu";
+
+        /// <summary>
+        /// The text of the menu entry and button, the same everywhere.
+        /// </summary>
+        public static LocalisableString RenderActionText => ClickerStrings.Text("Render as video", "Als Video rendern");
+
+        /// <summary>
+        /// The stored copy of a score, when there is one. The results screen and the profile hand over scores
+        /// without their files, although the replay may already be in the database.
+        /// </summary>
+        public ScoreInfo ResolveLocal(ScoreInfo score)
+        {
+            if (score.Files.Count > 0)
+                return score;
+
+            string hash = score.Hash;
+            long onlineId = score.OnlineID;
+
+            return realm.Run(r =>
+            {
+                ScoreInfo? found = null;
+
+                if (!string.IsNullOrEmpty(hash))
+                    found = r.All<ScoreInfo>().FirstOrDefault(s => s.Hash == hash && !s.DeletePending);
+
+                if (found == null && onlineId > 0)
+                    found = r.All<ScoreInfo>().FirstOrDefault(s => s.OnlineID == onlineId && !s.DeletePending);
+
+                return found != null && found.Files.Count > 0 ? found.Detach() : score;
+            });
+        }
 
         public void Render(ScoreInfo score)
         {
-            if (Volatile.Read(ref busy) == 1)
+            if (queue.IsFull)
             {
-                notifications?.Post(new SimpleNotification { Text = "Es wird gerade schon ein Replay gerendert, bitte warte bis es fertig ist." });
+                postQueueFull();
                 return;
             }
 
@@ -156,24 +208,99 @@ namespace osu.Game.Scoring
             });
         }
 
+        /// <summary>
+        /// For tests only: stands in for the download of danser-go and the render itself, so the queue can be
+        /// exercised without either. Gets the job's title, returns the path of the "video".
+        /// </summary>
+        internal Func<string, CancellationToken, Task<string>>? TestWork;
+
+        /// <summary>
+        /// For tests only: a request as it arrives at the queue, after the map check and the consent dialog.
+        /// </summary>
+        internal void TestRequest(string title) => start(new RenderJob(null, 0, new List<RenderFile>(), "test", "test", title));
+
+        private void postQueueFull() => notifications?.Post(new SimpleNotification
+        {
+            Text = ClickerStrings.Text(
+                "The render queue is full (one video is being rendered, {0} are waiting). Please wait until one is done.",
+                "Die Render-Warteschlange ist voll (ein Video wird gerendert, {0} warten). Bitte warte, bis eines fertig ist.",
+                BanchosucksRenderQueue<QueuedRender>.MAX_WAITING),
+            Icon = FontAwesome.Solid.ExclamationTriangle,
+        });
+
+        /// <summary>
+        /// Starts the render, or queues it behind the running one. Every request has its own notification;
+        /// closing the notification of a waiting request takes it out of the queue.
+        /// </summary>
         private void start(RenderJob job)
         {
-            if (Interlocked.Exchange(ref busy, 1) == 1)
-                return;
+            var notification = new ProgressNotification();
+            var entry = new QueuedRender(job, notification);
 
-            var notification = new ProgressNotification
+            switch (queue.Add(entry, out int position))
             {
-                Text = $"Replay-Video wird vorbereitet: {job.Title}",
-                State = ProgressNotificationState.Active,
-            };
-            notifications?.Post(notification);
+                case BanchosucksRenderQueueResult.Started:
+                    notifications?.Post(notification);
+                    run(entry);
+                    break;
+
+                case BanchosucksRenderQueueResult.Queued:
+                    notification.Text = queuedText(job, position);
+                    notification.State = ProgressNotificationState.Queued;
+
+                    // runs when the player closes the notification while the request is still waiting
+                    notification.CancellationToken.Register(() =>
+                    {
+                        if (queue.Remove(entry))
+                            refreshQueueTexts();
+                    });
+
+                    notifications?.Post(notification);
+                    break;
+
+                default:
+                    postQueueFull();
+                    break;
+            }
+        }
+
+        private LocalisableString queuedText(RenderJob job, int position) => ClickerStrings.Text(
+            "Waiting to be rendered (place {0} in the queue): {1}",
+            "Wartet auf das Rendern (Platz {0} in der Warteschlange): {1}",
+            position, job.Title);
+
+        /// <summary>
+        /// The places change whenever a request starts or is cancelled.
+        /// </summary>
+        private void refreshQueueTexts()
+        {
+            var waiting = queue.Waiting;
+
+            for (int i = 0; i < waiting.Count; i++)
+                waiting[i].Notification.Text = queuedText(waiting[i].Job, i + 1);
+        }
+
+        private void run(QueuedRender entry)
+        {
+            var job = entry.Job;
+            var notification = entry.Notification;
+
+            notification.Text = $"Replay-Video wird vorbereitet: {job.Title}";
+            notification.State = ProgressNotificationState.Active;
 
             Task.Run(async () =>
             {
                 try
                 {
-                    await ensureInstalled(notification, notification.CancellationToken).ConfigureAwait(false);
-                    string video = await render(job, notification, notification.CancellationToken).ConfigureAwait(false);
+                    string video;
+
+                    if (TestWork != null)
+                        video = await TestWork(job.Title, notification.CancellationToken).ConfigureAwait(false);
+                    else
+                    {
+                        await ensureInstalled(notification, notification.CancellationToken).ConfigureAwait(false);
+                        video = await render(job, notification, notification.CancellationToken).ConfigureAwait(false);
+                    }
 
                     string relative = Path.GetRelativePath(root.GetFullPath(string.Empty), video);
                     notification.CompletionText = $"Video fertig: {Path.GetFileName(video)}. Zum Öffnen klicken.";
@@ -196,7 +323,12 @@ namespace osu.Game.Scoring
                 }
                 finally
                 {
-                    Volatile.Write(ref busy, 0);
+                    // the next waiting request takes over; one cancelled in this very moment ends at its first cancellation check
+                    var next = queue.Complete(entry);
+                    refreshQueueTexts();
+
+                    if (next != null)
+                        run(next);
                 }
             });
         }
@@ -481,6 +613,21 @@ namespace osu.Game.Scoring
             string SetFolder,
             string OutputName,
             string Title);
+
+        /// <summary>
+        /// A reference type on purpose: the queue tells requests apart by identity.
+        /// </summary>
+        private sealed class QueuedRender
+        {
+            public readonly RenderJob Job;
+            public readonly ProgressNotification Notification;
+
+            public QueuedRender(RenderJob job, ProgressNotification notification)
+            {
+                Job = job;
+                Notification = notification;
+            }
+        }
     }
 
     /// <summary>

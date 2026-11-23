@@ -466,7 +466,7 @@ namespace osu.Game.Online.Leaderboards
                     items.Add(new OsuMenuItem(CommonStrings.CopyLink, MenuItemType.Standard, () => game?.CopyToClipboard($@"{api.Endpoints.WebsiteUrl}/scores/{Score.OnlineID}")));
 
                 if (replayRenderer != null && BanchosucksReplayRenderer.CanRender(Score))
-                    items.Add(new OsuMenuItem("Als Video rendern", MenuItemType.Standard, () => replayRenderer.Render(Score)));
+                    items.Add(new OsuMenuItem(BanchosucksReplayRenderer.RenderActionText, MenuItemType.Standard, () => replayRenderer.Render(Score)));
 
                 if (Score.Files.Count > 0)
                 {

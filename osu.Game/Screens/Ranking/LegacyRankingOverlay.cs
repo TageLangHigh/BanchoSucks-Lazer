@@ -119,6 +119,9 @@ namespace osu.Game.Screens.Ranking
             if (screen.Score?.BeatmapInfo?.BeatmapSet != null && screen.Score.BeatmapInfo.BeatmapSet.OnlineID > 0)
                 buttons.Add(new FavouriteButton(screen.Score.BeatmapInfo.BeatmapSet));
 
+            // Banchosucks: the same share buttons as the normal results screen (score card image, render as video)
+            BanchosucksResultsButtons.AddTo(buttons, screen.SelectedScore);
+
             // el boton de colecciones de la barra flotante abre un popover: el overlay vive
             // FUERA del PopoverContainer del screen (se agrega con AddInternal al screen
             // por el depth), asi que necesita el suyo propio en la raiz. full-screen, igual

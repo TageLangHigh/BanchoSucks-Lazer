@@ -247,6 +247,9 @@ namespace osu.Game.Screens.Ranking
             if (Score?.BeatmapInfo?.BeatmapSet != null && Score.BeatmapInfo.BeatmapSet.OnlineID > 0)
                 buttons.Add(new FavouriteButton(Score.BeatmapInfo.BeatmapSet));
 
+            // Banchosucks: share and show (score card image, render as video); the stable-style overlay adds the same to its own bar
+            BanchosucksResultsButtons.AddTo(buttons, SelectedScore);
+
             if (useLegacyResults)
                 AddInternal(legacyOverlay = new LegacyRankingOverlay(this, StatisticsPanel, VerticalScrollContent, bottomPanel, autoShowDetails: this is SoloResultsScreen) { Depth = float.MinValue });
         }

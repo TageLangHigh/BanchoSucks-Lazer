@@ -633,7 +633,7 @@ namespace osu.Game.Screens.Select
                 {
                     // Banchosucks: online scores with a replay on the server can be rendered too
                     if (replayRenderer != null && BanchosucksReplayRenderer.CanRender(Score))
-                        items.Add(new OsuMenuItem("Als Video rendern", MenuItemType.Standard, () => replayRenderer.Render(Score)));
+                        items.Add(new OsuMenuItem(BanchosucksReplayRenderer.RenderActionText, MenuItemType.Standard, () => replayRenderer.Render(Score)));
                     return items.ToArray();
                 }
 
@@ -644,7 +644,7 @@ namespace osu.Game.Screens.Select
                     items.Add(new OsuMenuItem(SongSelectStrings.WatchReplay, MenuItemType.Standard, () => ShowReplay.Invoke(Score)));
                 items.Add(new OsuMenuItem(CommonStrings.Export, MenuItemType.Standard, () => scoreManager.Export(Score)));
                 if (replayRenderer != null && BanchosucksReplayRenderer.CanRender(Score))
-                    items.Add(new OsuMenuItem("Als Video rendern", MenuItemType.Standard, () => replayRenderer.Render(Score)));
+                    items.Add(new OsuMenuItem(BanchosucksReplayRenderer.RenderActionText, MenuItemType.Standard, () => replayRenderer.Render(Score)));
                 items.Add(new OsuMenuItem(Resources.Localisation.Web.CommonStrings.ButtonsDelete, MenuItemType.Destructive, () => dialogOverlay?.Push(new LocalScoreDeleteDialog(Score))));
 
                 return items.ToArray();

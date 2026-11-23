@@ -8,8 +8,10 @@ using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Localisation;
 using osu.Game.Beatmaps;
 using osu.Game.Graphics;
@@ -26,8 +28,13 @@ using osuTK;
 
 namespace osu.Game.Overlays.Profile.Sections.Ranks
 {
-    public partial class DrawableProfileScore : CompositeDrawable
+    // Banchosucks: IHasContextMenu, scores with a replay on the server offer "render as video" (BanchosucksProfileScoreActions)
+    public partial class DrawableProfileScore : CompositeDrawable, IHasContextMenu
     {
+        private readonly BanchosucksProfileScoreActions banchosucksActions;
+
+        public MenuItem[] ContextMenuItems => banchosucksActions.MenuItems;
+
         private const int height = 40;
         private const int performance_width = 100;
 
@@ -47,6 +54,8 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
 
             RelativeSizeAxes = Axes.X;
             Height = height;
+
+            AddInternal(banchosucksActions = new BanchosucksProfileScoreActions(score));
         }
 
         [BackgroundDependencyLoader]
