@@ -21,6 +21,11 @@ namespace osu.Game.Screens.Ranking
         public static void AddTo(FillFlowContainer buttons, Bindable<ScoreInfo?> selectedScore)
         {
             // no anchors here: every child of a fill flow has to use the same one as the stock buttons
+            buttons.Add(new BanchosucksScoreCardButton
+            {
+                Score = { BindTarget = selectedScore },
+            });
+
             buttons.Add(new BanchosucksRenderVideoButton
             {
                 Score = { BindTarget = selectedScore },

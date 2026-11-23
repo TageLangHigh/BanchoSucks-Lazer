@@ -71,6 +71,7 @@ using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Game.Screens;
 using osu.Game.Screens.Banchosucks.Clicker;
+using osu.Game.Screens.Banchosucks.Share;
 using osu.Game.Screens.Banchosucks.Stats;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Footer;
@@ -1216,6 +1217,9 @@ namespace osu.Game
 
             // Banchosucks: looks up the sets behind beatmap links in chat (our own API, cached, a few per second) for the preview cards
             loadComponentSingleFile(new BanchosucksChatBeatmapLookup(), Add, true);
+
+            // Banchosucks: turns share cards (score card, profile card) into images, saved locally and copied to the clipboard
+            loadComponentSingleFile(new BanchosucksCardExporter(), Add, true);
 
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {
