@@ -50,6 +50,9 @@ namespace osu.Game.Configuration
             OsuSetting.BanchosucksStarRatingCheck,
             OsuSetting.BanchosucksStarRatingCheckPosition,
 
+            // opt-ins stay a decision made on each PC
+            OsuSetting.BanchosucksSkinSync,
+
             // names of things that only exist on this PC (the skin travels by name in its own field)
             OsuSetting.Skin,
             OsuSetting.SongSelectCollectionFilter,

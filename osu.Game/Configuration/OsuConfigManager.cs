@@ -267,6 +267,9 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.DashboardDisplayStyle, OverlayPanelDisplayStyle.Card);
 
             SetDefault(OsuSetting.PMFriendsOnly, false);
+
+            // Banchosucks: skin sync from the osu!stable Skins folder, off until the player turns it on
+            SetDefault(OsuSetting.BanchosucksSkinSync, false);
         }
 
         // Banchosucks: text access for the settings export / import (same text form as osu.cfg). Which settings may
@@ -599,5 +602,11 @@ namespace osu.Game.Configuration
         /// Banchosucks: the player's own daily goal, maps to pass per day (0 = off).
         /// </summary>
         BanchosucksDailyGoalMaps,
+
+        /// <summary>
+        /// Banchosucks: whether new and changed skins from the osu!stable Skins folder are imported automatically
+        /// (see <c>BanchosucksSkinSync</c>). Off by default.
+        /// </summary>
+        BanchosucksSkinSync,
     }
 }

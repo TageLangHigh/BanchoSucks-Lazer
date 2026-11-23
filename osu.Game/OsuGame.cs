@@ -1327,6 +1327,9 @@ namespace osu.Game
             loadComponentSingleFile(new MedalAwarderContainer(), Add, true);
 
             loadComponentSingleFile(new BackgroundDataStoreProcessor(), Add);
+
+            // Banchosucks: imports new and changed skins from the osu!stable Skins folder while the player has the setting on
+            loadComponentSingleFile(new BanchosucksSkinSync(), Add, true);
             loadComponentSingleFile<BeatmapStore>(detachedBeatmapStore = new RealmDetachedBeatmapStore(), Add, true);
             loadComponentSingleFile(new QueueController(), Add, true);
 

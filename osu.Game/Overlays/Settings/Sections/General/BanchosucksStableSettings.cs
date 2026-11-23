@@ -6,21 +6,26 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions;
+using osu.Framework.Graphics;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Game.Configuration;
 using osu.Game.Database;
+using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Overlays.Settings.Sections.Maintenance;
 using osu.Game.Screens.Banchosucks.Clicker;
+using osu.Game.Skinning;
 
 namespace osu.Game.Overlays.Settings.Sections.General
 {
     /// <summary>
     /// Banchosucks: "Von osu!stable übernehmen". Reads the player's osu!stable config and offers to apply its
     /// key bindings, audio offset, mouse settings, volumes, cursor size, background dim and skin
-    /// (mapping: <see cref="BanchosucksStableConfig"/>). The stable folder is only read.
+    /// (mapping: <see cref="BanchosucksStableConfig"/>). Below that the opt-in skin sync (<see cref="BanchosucksSkinSync"/>).
+    /// The stable folder is only read.
     /// </summary>
     public partial class BanchosucksStableSettings : BanchosucksTransferSubsection
     {
@@ -40,6 +45,14 @@ namespace osu.Game.Overlays.Settings.Sections.General
         [Resolved(CanBeNull = true)]
         private OsuGame? game { get; set; }
 
+        [Resolved(CanBeNull = true)]
+        private BanchosucksSkinSync? skinSync { get; set; }
+
+        [Resolved]
+        private OsuConfigManager config { get; set; } = null!;
+
+        private Bindable<bool> skinSyncEnabled = null!;
+
         [BackgroundDependencyLoader]
         private void load()
         {
@@ -52,6 +65,33 @@ namespace osu.Game.Overlays.Settings.Sections.General
             });
 
             AddPreviewHolder();
+
+            skinSyncEnabled = config.GetBindable<bool>(OsuSetting.BanchosucksSkinSync);
+
+            SettingsButtonV2 checkNow;
+
+            AddRange(new Drawable[]
+            {
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Skin-Abgleich mit osu!stable / Skin sync from osu!stable",
+                    HintText = "Solange das an ist, schaut der Client beim Start und danach alle zehn Minuten in den Skins-Ordner von osu!stable und importiert neue oder geänderte Skins. Es wird nie ein Skin gelöscht und nie während des Spielens importiert; in stable wird nichts geschrieben. / While this is on, the client looks into osu!stable's Skins folder at startup and every ten minutes after and imports new or changed skins. No skin is ever deleted, nothing is imported during gameplay, nothing is written to stable.",
+                    Current = skinSyncEnabled,
+                })
+                {
+                    Keywords = new[] { @"skin", @"sync", @"abgleich", @"stable", @"import" },
+                },
+                checkNow = new SettingsButtonV2
+                {
+                    Text = "Skins jetzt abgleichen / Check skins now",
+                    TooltipText = "Sucht sofort nach neuen oder geänderten Skins im Skins-Ordner von osu!stable. / Looks for new or changed skins in osu!stable's Skins folder right away.",
+                    Keywords = new[] { @"skin", @"sync", @"abgleich", @"stable" },
+                    Action = () => skinSync?.CheckNow(true),
+                },
+            });
+
+            // the manual check belongs to the opt-in: without it nothing reads the stable Skins folder
+            skinSyncEnabled.BindValueChanged(enabled => checkNow.Enabled.Value = enabled.NewValue && skinSync != null, true);
         }
 
         /// <summary>
