@@ -260,7 +260,7 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
             }));
         }
 
-        private bool isLocal(int setId) => realm.Run(r => r.All<BeatmapSetInfo>().Where(s => s.OnlineID == setId && !s.DeletePending).Count() > 0);
+        private bool isLocal(int setId) => realm.Run(r => r.All<BeatmapSetInfo>().Where(s => s.OnlineID == setId && !s.DeletePending).Any());
 
         #endregion
 
