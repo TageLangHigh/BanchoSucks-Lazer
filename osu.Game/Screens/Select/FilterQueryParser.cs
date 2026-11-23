@@ -133,6 +133,15 @@ namespace osu.Game.Screens.Select
                     criteria.UserTags.Add(tagFilter);
                     return true;
 
+                // Banchosucks: "score=no" (also "nein") shows only difficulties without an own local score, "score=yes" ("ja") the others.
+                case "score":
+                case "scores":
+                    if (!BanchosucksLocalScoreQuery.TryParse(op, value, out bool hasLocalScore))
+                        return false;
+
+                    criteria.BanchosucksHasLocalScore = hasLocalScore;
+                    return true;
+
                 default:
                     return criteria.RulesetCriteria?.TryParseCustomKeywordCriteria(key, op, value) ?? false;
             }

@@ -154,6 +154,10 @@ namespace osu.Game.Screens.Select
             if (match && criteria.BeatmapSetId != null)
                 match &= criteria.BeatmapSetId == beatmap.BeatmapSet?.OnlineID;
 
+            // Banchosucks: "score=no" / "score=yes". One hash lookup per difficulty; the ids are loaded once per score change.
+            if (match && criteria.BanchosucksHasLocalScore != null && criteria.BanchosucksScoredBeatmaps != null)
+                match &= criteria.BanchosucksScoredBeatmaps.Matches(beatmap.ID, criteria.BanchosucksHasLocalScore.Value);
+
             return match;
         }
     }

@@ -27,6 +27,7 @@ using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osu.Game.Screens.Select.Filter;
 using osuTK;
 using osuTK.Input;
@@ -46,6 +47,11 @@ namespace osu.Game.Screens.Select
 
         internal Bindable<string> SearchQuery => searchTextBox.Current;
         private ShearedToggleButton showConvertedBeatmapsButton = null!;
+
+        // Banchosucks: "no score yet" filter. The button only writes "score=no" into the search box, so the filter is
+        // always visible there (also in the stable look, which hides this control but shares the search text).
+        private ShearedToggleButton banchosucksNoScoreButton = null!;
+        private BanchosucksLocalScoreTracker banchosucksScoreTracker = null!;
         private DifficultyRangeSlider difficultyRangeSlider = null!;
         private ShearedDropdown<SortMode> sortDropdown = null!;
         private ShearedDropdown<GroupModeDropdownItem> groupDropdown = null!;
@@ -147,6 +153,9 @@ namespace osu.Game.Screens.Select
                                         new Dimension(),
                                         new Dimension(GridSizeMode.Absolute), // can probably be removed?
                                         new Dimension(GridSizeMode.AutoSize),
+                                        // Banchosucks: gap and "no score yet" button.
+                                        new Dimension(GridSizeMode.Absolute, 5),
+                                        new Dimension(GridSizeMode.AutoSize),
                                     },
                                     Content = new[]
                                     {
@@ -164,6 +173,18 @@ namespace osu.Game.Screens.Select
                                                 Origin = Anchor.Centre,
                                                 AutoSizeAxes = Axes.X,
                                                 Text = UserInterfaceStrings.ShowConverts,
+                                                Height = 30f,
+                                            },
+                                            Empty(),
+                                            banchosucksNoScoreButton = new ShearedToggleButton
+                                            {
+                                                Anchor = Anchor.Centre,
+                                                Origin = Anchor.Centre,
+                                                AutoSizeAxes = Axes.X,
+                                                Text = ClickerStrings.Text("No score yet", "Ohne Score"),
+                                                TooltipText = ClickerStrings.Text(
+                                                    "Only difficulties you have no local score on (search: score=no, the opposite: score=yes)",
+                                                    "Nur Schwierigkeiten, auf denen du noch keinen lokalen Score hast (Suche: score=no, das Gegenteil: score=yes)"),
                                                 Height = 30f,
                                             },
                                         },
@@ -218,6 +239,8 @@ namespace osu.Game.Screens.Select
 
             localUser = api.LocalUser.GetBoundCopy();
             localUserFavouriteBeatmapSets.BindTo(api.LocalUserState.FavouriteBeatmapSets);
+
+            banchosucksScoreTracker = new BanchosucksLocalScoreTracker(realm);
         }
 
         protected override void LoadComplete()
@@ -248,6 +271,19 @@ namespace osu.Game.Screens.Select
             });
 
             searchTextBox.Current.BindValueChanged(_ => updateCriteria());
+
+            // Banchosucks: the button mirrors the search text and edits nothing but its own keyword.
+            searchTextBox.Current.BindValueChanged(q => banchosucksNoScoreButton.Active.Value = BanchosucksLocalScoreQuery.GetState(q.NewValue) == false, true);
+            banchosucksNoScoreButton.Active.BindValueChanged(active =>
+            {
+                string query = searchTextBox.Current.Value;
+
+                if ((BanchosucksLocalScoreQuery.GetState(query) == false) != active.NewValue)
+                    searchTextBox.Current.Value = BanchosucksLocalScoreQuery.WithNoScore(query, active.NewValue);
+            });
+            // a new or deleted score changes the list while the filter is on. Not scheduled: in the stable look this control is
+            // hidden and its scheduler does not run. Song select itself applies the new criteria once it is on screen again.
+            banchosucksScoreTracker.ScoresChanged += banchosucksRefilterAfterScoreChange;
 
             ScheduledDelegate? sliderDebounce = null;
 
@@ -283,6 +319,15 @@ namespace osu.Game.Screens.Select
         {
             base.Dispose(isDisposing);
             collectionsSubscription?.Dispose();
+            // Banchosucks: null when disposed before load.
+            // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
+            banchosucksScoreTracker?.Dispose();
+        }
+
+        private void banchosucksRefilterAfterScoreChange()
+        {
+            if (currentCriteria.BanchosucksHasLocalScore != null)
+                updateCriteria(clearScopedSet: false);
         }
 
         /// <summary>
@@ -322,6 +367,10 @@ namespace osu.Game.Screens.Select
             FilterQueryParser.ApplyQueries(criteria, query);
 
             ApplyRequiredCriteria?.Invoke(criteria);
+
+            // Banchosucks: "score=no" / "score=yes" needs the ids of the difficulties with a score; cached until the scores change.
+            if (criteria.BanchosucksHasLocalScore != null && criteria.Ruleset != null)
+                criteria.BanchosucksScoredBeatmaps = banchosucksScoreTracker.Get(criteria.LocalUserId, criteria.Ruleset.ShortName);
 
             return criteria;
         }

@@ -56,6 +56,11 @@ namespace osu.Game.Screens.Select
 
         public bool? HasOnlineID;
 
+        // Banchosucks: "score=no" / "score=yes" limits the list to difficulties without / with an own local score.
+        // The keyword only says what is wanted; the ids come from FilterControl (without them the filter does nothing).
+        public bool? BanchosucksHasLocalScore;
+        public BanchosucksScoredBeatmaps? BanchosucksScoredBeatmaps;
+
         private string searchText = string.Empty;
 
         /// <summary>
