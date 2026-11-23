@@ -243,3 +243,72 @@ and restart the app container.
   `banchosucks_guess/rules.py`, which only bounds results: best run per player and board,
   leaderboards in the screen and on banchosucks.cc/lazer/guess. Tests:
   `osu.Game.Tests/NonVisual/BanchosucksGuessRulesTest.cs` and `TestSceneBanchosucksMinigames`.
+- **Practise a section** (song select: right-click a difficulty or Options > "Practise section"):
+  `osu.Game/Screens/Banchosucks/Practice/`. `BanchosucksPracticeSetupScreen` picks start, end (sliders over
+  the map, shown as mm:ss) and speed (50 to 100 %); `BanchosucksPracticePlayer` plays that section in a loop
+  and restarts at the start point when the end point is reached, when everything is judged, or on a fail,
+  until the player leaves through the pause menu. It is a plain `Player`, not a `SubmittingPlayer`: no score
+  token, no submission, no spectator data, "last played" stays untouched; the local score import is switched
+  off, no replay is recorded and there is no results screen. Starting inside a map works like the editor's
+  test play. `BanchosucksPracticeSection` holds the arithmetic. Tests: `BanchosucksPracticeSectionTest`,
+  `TestSceneBanchosucksPractice`, `TestSceneBanchosucksPracticeNavigation`.
+- **Retry from the miss** (fail menu of solo play, between Retry and Quit): `Player` remembers the map time
+  of the fail (`BanchosucksFailTime`); the button calls `BanchosucksPracticeLauncher.StartFromFail`, which
+  leaves the failed play like Quit and opens the practice setup with the section from five seconds before
+  the fail to the end of the map, started right away. Only `SoloPlayer` enables it. Hooks:
+  `GameplayMenuOverlay.AddBanchosucksButtons`, `FailOverlay.BanchosucksPracticeFromFail`.
+- **Miss review** (results screen > extended statistics): `osu.Game/Screens/Ranking/Statistics/
+  BanchosucksMissReview.cs` lists every miss and combo break of a score with its map time and a reason; a
+  click opens the replay one second before it if the replay is stored locally (`OsuGame.PresentScore(...,
+  banchosucksMissTime)` > `ReplayPlayerLoader` > `ReplayPlayer.BanchosucksInitialMissTime`).
+  `BanchosucksMissClassifier` is pure and works on the score's hit events only: too early, not hit in time
+  (a later press never reaches the object, so "too late" and "not pressed" cannot be told apart), aim and
+  "click did not count" for osu! (via `IBanchosucksHitAreaProvider` on `OsuRuleset`), judged inside the hit
+  window (wrong key in taiko, skipped object in osu!), combo breaks on ticks. At most 100 lines.
+  Tests: `BanchosucksMissClassifierTest`, `TestSceneBanchosucksMissReview`,
+  `TestSceneBanchosucksMissReviewNavigation`.
+- **pp if FC** (skin layout editor > `BanchosucksPerformanceIfFcCounter`): an optional HUD counter that shows
+  what the run so far would be worth without combo breaks. `osu.Game/Scoring/
+  BanchosucksFullComboProjection.cs` holds the rule: misses become the ruleset's best basic result, slider
+  breaks become tick hits, mania hold breaks become `IgnoreHit`; 100s, 50s and dropped slider ends stay.
+  The pp always comes from the ruleset's own `PerformanceCalculator` through the hook
+  `PerformancePointsCounter.AdjustScoreBeforeCalculation`. The test skin `modified-default-20261123.osk`
+  covers the component. Tests: `BanchosucksFullComboProjectionTest`,
+  `TestSceneBanchosucksPerformanceIfFcCounter`.
+- **Daily goal and activity log** (Settings > General > Daily goal): minutes played and/or maps passed per
+  day (`OsuSetting.BanchosucksDailyGoalMinutes` / `...Maps`, 0 = off). `osu.Game/Screens/Banchosucks/Stats/
+  BanchosucksActivityLog.cs`, a component of `OsuGame`, records every finished real play (no replays,
+  autoplay or editor test play; unpassed plays under 10 s are dropped) with end time in local time, active
+  seconds, ruleset, passed and accuracy into `<game data>/banchosucks/activity-log.json` (+ `.bak.json`,
+  atomic, versioned, 400 days). The file never leaves the PC; it contains the PC's UTC offset, so a later
+  feature that uploads any of it would have to strip that. `BanchosucksDailyGoalDisplay` shows today's
+  progress and the streak top left on the main menu; reaching the goal posts one notification. Saved
+  scores from before the log existed are taken over once as entries marked `estimated`. Tests:
+  `BanchosucksActivityLogTest`, `TestSceneBanchosucksDailyGoal`.
+- **Personal statistics** (Settings > General > Daily goal > Open personal statistics, or a click on the
+  daily goal on the main menu): `BanchosucksStatsScreen` shows the local activity log: totals, bests, the
+  goal streak, and bar charts of the last 30 days (`BanchosucksBarChart`). Numbers come from
+  `BanchosucksActivityStats`. Tests: `TestSceneBanchosucksStatsScreen`.
+- **"No score yet" filter** (song select): the search keyword `score=no` (also `score=nein`, the opposite
+  `score=yes` / `score=ja`) limits the list to difficulties without an own local score in the selected
+  ruleset; the button next to "Show converts" only writes that keyword into the search box, so the filter
+  is always visible, also in the stable look. `BanchosucksLocalScoreTracker` reads the ids of the scored
+  difficulties once on the filter thread and keeps them until a score is added or removed. Hooks in
+  `FilterQueryParser`, `FilterCriteria`, `BeatmapCarouselFilterMatching`, `FilterControl`. Tests:
+  `BanchosucksLocalScoreFilterTest`, `TestSceneBanchosucksNoScoreFilter`.
+- **pp preview** (song select, difficulty wedge next to the star rating): `BanchosucksPerformancePreviewLine`
+  shows what the selected difficulty is worth with the selected mods and a full combo at 95 %, 98 % and
+  100 % accuracy, from the ruleset's own calculators (in osu!mania the server formula), off the update
+  thread; 0 or a failure is shown as a dash. `BanchosucksFullComboPlay` turns an accuracy into judgement
+  counts without breaking combo: osu! and taiko GREAT to OK only; mania no miss, near 100 % PERFECT to
+  GREAT, below that `MANIA_PERFECT_TO_GREAT_RATIO` (2, a modelling choice) PERFECT per GREAT and GOOD for
+  the rest; catch only tiny droplets missed. Tests: `BanchosucksFullComboPlayTest`,
+  `TestSceneBanchosucksPerformancePreview`.
+- **Clean up library** (Settings > Maintenance > Beatmaps): `BanchosucksLibraryCleanupButton` scans the local
+  library in the background (`BanchosucksLibraryScanner`, read-only) and shows the counts. Removing needs a
+  second, held confirmation that names the number of sets and is the game's normal soft delete.
+  `BanchosucksLibraryCleanup` decides: duplicates are intact sets with the same online id or exactly the
+  same .osu hashes, every copy with local scores stays, otherwise the most recently imported one; broken
+  sets have no difficulty or lack the .osu or the named audio file for every difficulty; sets with at least
+  one playable difficulty are only reported. Tests: `BanchosucksLibraryCleanupTest`,
+  `TestSceneBanchosucksLibraryCleanup`.
