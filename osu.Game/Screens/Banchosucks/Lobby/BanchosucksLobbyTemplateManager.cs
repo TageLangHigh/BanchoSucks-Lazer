@@ -412,6 +412,23 @@ namespace osu.Game.Screens.Banchosucks.Lobby
 
         #endregion
 
+        /// <summary>
+        /// Looks up the names of maps by their online ids ("Artist - Title [Difficulty]"), for the lobby tools.
+        /// Ids the server does not answer for are missing from the result.
+        /// </summary>
+        /// <param name="ids">Online ids of difficulties.</param>
+        /// <param name="done">Called on the update thread.</param>
+        public void ResolveTitles(int[] ids, Action<IReadOnlyDictionary<int, string>> done)
+        {
+            int[] unknown = ids.Where(id => !known.ContainsKey(id)).Distinct().ToArray();
+
+            lookup(unknown).ContinueWith(task => Schedule(() =>
+            {
+                remember(task);
+                done(ids.Distinct().Where(known.ContainsKey).ToDictionary(id => id, id => BanchosucksLobbyTemplateStore.TitleOf(known[id])));
+            }));
+        }
+
         private void setStatus(IReadOnlyList<BanchosucksLobbyTemplateText.Line> lines)
         {
             Status = lines;

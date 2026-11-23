@@ -157,6 +157,9 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer
 
         private MatchChatDisplay chat = null!;
 
+        // Banchosucks: the host's tournament helpers (team draw, roll, ban/pick board), opened by a button above the chat.
+        private BanchosucksLobbyToolsPanel banchosucksTools = null!;
+
         private Sample? sampleStart;
         private IDisposable? userModsSelectOverlayRegistration;
 
@@ -379,6 +382,7 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer
                                                                     RelativeSizeAxes = Axes.Both,
                                                                     RowDimensions = new[]
                                                                     {
+                                                                        new Dimension(GridSizeMode.AutoSize),
                                                                         new Dimension(GridSizeMode.AutoSize)
                                                                     },
                                                                     Content = new[]
@@ -386,6 +390,22 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer
                                                                         new Drawable[]
                                                                         {
                                                                             new SectionHeader(OnlinePlayStrings.Chat)
+                                                                        },
+                                                                        // Banchosucks: opens the lobby tournament tools; hidden (and without height) for everybody but the host.
+                                                                        new Drawable[]
+                                                                        {
+                                                                            new Container
+                                                                            {
+                                                                                RelativeSizeAxes = Axes.X,
+                                                                                AutoSizeAxes = Axes.Y,
+                                                                                Child = new BanchosucksLobbyToolsButton
+                                                                                {
+                                                                                    RelativeSizeAxes = Axes.X,
+                                                                                    Height = 30,
+                                                                                    Margin = new MarginPadding { Bottom = 5 },
+                                                                                    Action = () => banchosucksTools.ToggleVisibility()
+                                                                                }
+                                                                            }
                                                                         },
                                                                         new Drawable[]
                                                                         {
@@ -398,7 +418,9 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer
                                                                 }
                                                             }
                                                         }
-                                                    }
+                                                    },
+                                                    // Banchosucks: the host's tournament tools lie over the participants and the queue; the chat stays visible.
+                                                    banchosucksTools = new BanchosucksLobbyToolsPanel()
                                                 }
                                             }
                                         }
@@ -825,6 +847,13 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer
             if (settingsOverlay.State.Value == Visibility.Visible)
             {
                 settingsOverlay.Hide();
+                return true;
+            }
+
+            // Banchosucks: back closes the tournament tools first.
+            if (banchosucksTools.State.Value == Visibility.Visible)
+            {
+                banchosucksTools.Hide();
                 return true;
             }
 
