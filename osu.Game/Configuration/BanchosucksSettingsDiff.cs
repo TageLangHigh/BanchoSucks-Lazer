@@ -69,7 +69,7 @@ namespace osu.Game.Configuration
                 var existing = current.RulesetSettings.FirstOrDefault(s => s.Ruleset == setting.Ruleset && s.Variant == setting.Variant && s.Key == setting.Key);
 
                 if (existing != null && !SameValue(existing.Value, setting.Value))
-                    changes.Add(new BanchosucksSettingsChange(BanchosucksSettingsSection.RulesetSettings, setting.Ruleset, setting.Variant, setting.Key, existing.Value, setting.Value));
+                    changes.Add(new BanchosucksSettingsChange(BanchosucksSettingsSection.RulesetSettings, setting.Ruleset, setting.Variant, setting.Key, Display(existing.Value), Display(setting.Value)));
             }
 
             foreach (var profile in incoming.KeyProfiles)
@@ -145,12 +145,20 @@ namespace osu.Game.Configuration
             return false;
         }
 
+        /// <summary>
+        /// A setting text as the preview shows it: numbers without the padding of the config file ("0.0" becomes "0").
+        /// </summary>
+        public static string Display(string value)
+            => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double number) && double.IsFinite(number)
+                ? number.ToString("0.####", CultureInfo.InvariantCulture)
+                : value;
+
         private static void compareValues(BanchosucksSettingsSection section, IDictionary<string, string> current, IDictionary<string, string> incoming, List<BanchosucksSettingsChange> changes)
         {
             foreach (var pair in incoming)
             {
                 if (current.TryGetValue(pair.Key, out string? existing) && !SameValue(existing, pair.Value))
-                    changes.Add(new BanchosucksSettingsChange(section, string.Empty, 0, pair.Key, existing, pair.Value));
+                    changes.Add(new BanchosucksSettingsChange(section, string.Empty, 0, pair.Key, Display(existing), Display(pair.Value)));
             }
         }
 

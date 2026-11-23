@@ -29,6 +29,9 @@ namespace osu.Game.Overlays.Settings.Sections
             Add(new BanchosucksPresetSettings());
             // Banchosucks: settings export / import with backup, next to the presets
             Add(new BanchosucksSettingsBackupSettings());
+            // Banchosucks: take over settings from an osu!stable installation (desktop only, like the stable import)
+            if (RuntimeInfo.IsDesktop)
+                Add(new BanchosucksStableSettings());
             // Banchosucks: the player's own daily goal and the way into the personal statistics
             Add(new BanchosucksDailyGoalSettings());
             Add(new LanguageSettings());

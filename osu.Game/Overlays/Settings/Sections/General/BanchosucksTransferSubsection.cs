@@ -124,7 +124,7 @@ namespace osu.Game.Overlays.Settings.Sections.General
         /// <param name="titles">When given, every setting gets its own checkbox with this title (see <see cref="BanchosucksChangeGroups.BySetting"/>).</param>
         /// <param name="extraNotes">Notes to show above the list.</param>
         protected void ShowPreview(LocalisableString heading, BanchosucksSettingsDocument incoming, Func<BanchosucksSettingsChange, (string En, string De)?>? titles = null,
-                                   IEnumerable<LocalisableString>? extraNotes = null)
+                                   IEnumerable<BanchosucksTransferNote>? extraNotes = null)
         {
             List<BanchosucksSettingsChange> changes;
             List<BanchosucksTransferNote> notes;
@@ -144,7 +144,7 @@ namespace osu.Game.Overlays.Settings.Sections.General
                 ? BanchosucksChangeGroups.BySection(changes, Rulesets)
                 : BanchosucksChangeGroups.BySetting(changes, Rulesets, titles);
 
-            var noteTexts = (extraNotes ?? Enumerable.Empty<LocalisableString>()).Concat(notes.Select(describe)).ToList();
+            var noteTexts = (extraNotes ?? Enumerable.Empty<BanchosucksTransferNote>()).Concat(notes).Select(describe).ToList();
 
             previewHolder.Child = CurrentPreview = new BanchosucksChangePreview(heading, groups, noteTexts)
             {
@@ -236,8 +236,8 @@ namespace osu.Game.Overlays.Settings.Sections.General
                         "{0} Einträge der Datei sind hier unbekannt und werden übersprungen.", note.Detail);
 
                 default:
-                    return ClickerStrings.Text("\"{0}\" has a value that cannot be taken over.",
-                        "„{0}“ hat einen Wert, der sich nicht übernehmen lässt.", note.Detail);
+                    return ClickerStrings.Text("\"{0}\" in the osu!stable settings has a value that cannot be taken over.",
+                        "„{0}“ in den osu!stable-Einstellungen hat einen Wert, der sich nicht übernehmen lässt.", note.Detail);
             }
         }
     }
