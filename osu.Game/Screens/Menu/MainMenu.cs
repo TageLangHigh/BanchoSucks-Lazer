@@ -194,6 +194,14 @@ namespace osu.Game.Screens.Menu
                     Origin = Anchor.TopRight,
                     Margin = new MarginPadding { Right = 15, Top = 5 }
                 },
+                // Banchosucks: today's progress towards the player's own daily goal, opposite the song ticker.
+                // Invisible while no goal is set.
+                new osu.Game.Screens.Banchosucks.Stats.BanchosucksDailyGoalDisplay
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                    Margin = new MarginPadding { Left = 15, Top = 5 },
+                },
                 // For now, this is too much alongside the seasonal lighting.
                 SeasonalUIConfig.ENABLED ? Empty() : new KiaiMenuFountains(),
                 bottomElementsFlow = new FillFlowContainer
