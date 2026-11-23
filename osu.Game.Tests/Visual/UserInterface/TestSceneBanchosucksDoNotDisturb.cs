@@ -61,7 +61,7 @@ namespace osu.Game.Tests.Visual.UserInterface
             AddAssert("nothing held", () => overlay.BanchosucksHeldCount, () => Is.EqualTo(0));
             AddAssert("only the summary is a toast", () => overlay.AllNotifications.Where(n => n.IsInToastTray).Select(n => n.GetType()),
                 () => Is.EqualTo(new[] { typeof(NotificationOverlay.BanchosucksHeldSummaryNotification) }));
-            AddAssert("summary counts three", () => overlay.AllNotifications.OfType<NotificationOverlay.BanchosucksHeldSummaryNotification>().Single().Count, () => Is.EqualTo(3));
+            AddAssert("summary counts three", () => overlay.AllNotifications.OfType<NotificationOverlay.BanchosucksHeldSummaryNotification>().Single().HeldCount, () => Is.EqualTo(3));
 
             AddStep("click summary", () => overlay.AllNotifications.OfType<NotificationOverlay.BanchosucksHeldSummaryNotification>().Single().TriggerClick());
             AddUntilStep("overlay opened", () => overlay.State.Value, () => Is.EqualTo(Visibility.Visible));

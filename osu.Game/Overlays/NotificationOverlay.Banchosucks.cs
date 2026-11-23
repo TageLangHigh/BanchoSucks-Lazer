@@ -99,12 +99,12 @@ namespace osu.Game.Overlays
         public partial class BanchosucksHeldSummaryNotification : SimpleNotification
         {
             public readonly BanchosucksHoldReason Reason;
-            public readonly int Count;
+            public readonly int HeldCount;
 
             public BanchosucksHeldSummaryNotification(BanchosucksHoldReason reason, int count)
             {
                 Reason = reason;
-                Count = count;
+                HeldCount = count;
 
                 // only a pointer at the overlay, where the held notifications are now
                 Transient = true;
