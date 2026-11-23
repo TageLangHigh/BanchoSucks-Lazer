@@ -98,6 +98,9 @@ namespace osu.Game.Screens.Select
                                     new Dimension(GridSizeMode.AutoSize),
                                     new Dimension(GridSizeMode.Absolute, 6),
                                     new Dimension(),
+                                    // Banchosucks: pp preview at the right end of the line; the difficulty name truncates to make room.
+                                    new Dimension(GridSizeMode.Absolute, 6),
+                                    new Dimension(GridSizeMode.AutoSize),
                                 },
                                 Content = new[]
                                 {
@@ -144,6 +147,14 @@ namespace osu.Game.Screens.Select
                                                     },
                                                 },
                                             },
+                                        },
+                                        Empty(),
+                                        // Banchosucks: what the difficulty is worth at 95 %, 98 % and 100 % with the selected mods.
+                                        new BanchosucksPerformancePreviewLine
+                                        {
+                                            Anchor = Anchor.CentreLeft,
+                                            Origin = Anchor.CentreLeft,
+                                            Margin = new MarginPadding { Right = 20f, Bottom = 2f },
                                         },
                                     }
                                 },
