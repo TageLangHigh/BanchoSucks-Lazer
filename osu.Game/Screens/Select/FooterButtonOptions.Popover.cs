@@ -18,6 +18,7 @@ using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Localisation;
 using osu.Game.Overlays;
+using osu.Game.Screens.Banchosucks.Clicker;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
@@ -84,6 +85,13 @@ namespace osu.Game.Screens.Select
                     }
 
                     addButton(item.Text.Value, item.Icon, item.Action.Value, item.Type == MenuItemType.Destructive ? colours.Red1 : null);
+                }
+
+                // Banchosucks: warm-up series, only where maps are played solo. Added last so the number keys of the entries above stay as they are.
+                if (SongSelect is SoloSongSelect solo)
+                {
+                    addHeader(ClickerStrings.Text("Warm-up", "Aufwärmen"), ClickerStrings.Pick("Three maps from your library, a bit below your level", "Drei Maps aus deiner Sammlung, knapp unter deinem Niveau"));
+                    addButton(ClickerStrings.Text("Start warm-up", "Aufwärmen starten"), FontAwesome.Solid.Fire, solo.BanchosucksStartWarmup);
                 }
             }
 

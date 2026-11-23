@@ -250,6 +250,7 @@ namespace osu.Game.Input.Bindings
             new KeyBinding(new[] { InputKey.Control, InputKey.Up }, GlobalAction.IncreaseModSpeed),
             new KeyBinding(new[] { InputKey.Control, InputKey.Down }, GlobalAction.DecreaseModSpeed),
             new KeyBinding(InputKey.None, GlobalAction.AbsoluteScrollSongList),
+            new KeyBinding(InputKey.None, GlobalAction.BanchosucksWarmup), // Banchosucks: no default key, the player binds one if wanted
         };
 
         private static IEnumerable<KeyBinding> audioControlKeyBindings => new[]
@@ -646,6 +647,8 @@ namespace osu.Game.Input.Bindings
 
         [Description("Streamer-Modus umschalten / Toggle streamer mode")]
         BanchosucksToggleStreamerMode,
+        [Description("Aufwärmen: drei Maps knapp unter dem eigenen Niveau / Warm-up: three maps a bit below your level")]
+        BanchosucksWarmup,
     }
 
     public enum GlobalActionCategory

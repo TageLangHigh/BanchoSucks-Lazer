@@ -28,6 +28,7 @@ using osu.Game.Localisation;
 using osu.Game.Online.Placeholders;
 using osu.Game.Overlays;
 using osu.Game.Scoring;
+using osu.Game.Screens.Banchosucks.Warmup;
 using osu.Game.Screens.Footer;
 using osu.Game.Screens.Play;
 using osu.Game.Screens.Ranking.Expanded.Accuracy;
@@ -59,6 +60,10 @@ namespace osu.Game.Screens.Ranking
 
         [Resolved]
         private Player? player { get; set; }
+
+        // Banchosucks: set by solo song select while a warm-up series runs (Options > Warm-up); null everywhere else.
+        [Resolved]
+        private BanchosucksWarmupSeries? banchosucksWarmup { get; set; }
 
         private bool skipExitTransition;
 
@@ -252,6 +257,23 @@ namespace osu.Game.Screens.Ranking
 
             if (useLegacyResults)
                 AddInternal(legacyOverlay = new LegacyRankingOverlay(this, StatisticsPanel, VerticalScrollContent, bottomPanel, autoShowDetails: this is SoloResultsScreen) { Depth = float.MinValue });
+
+            // Banchosucks: after a map of a warm-up series the results lead on to the next one. The stable-style results
+            // hide the bottom bar, so there the button floats in the top right corner, above the overlay (added after it).
+            if (player != null && banchosucksWarmup?.HasNext == true && banchosucksWarmup.IsCurrent(Score?.BeatmapInfo))
+            {
+                var next = new BanchosucksWarmupNextButton(banchosucksWarmup);
+
+                if (useLegacyResults)
+                {
+                    next.Anchor = next.Origin = Anchor.TopRight;
+                    next.Margin = new MarginPadding(20);
+                    next.Depth = float.MinValue;
+                    AddInternal(next);
+                }
+                else
+                    buttons.Add(next);
+            }
         }
 
         protected override void LoadComplete()

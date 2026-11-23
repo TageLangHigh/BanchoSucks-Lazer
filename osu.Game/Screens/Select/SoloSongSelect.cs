@@ -9,9 +9,11 @@ using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
 using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input.Events;
 using osu.Framework.Screens;
 using osu.Game.Beatmaps;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Input.Bindings;
 using osu.Game.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Overlays;
@@ -19,6 +21,7 @@ using osu.Game.Overlays.Notifications;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Screens.Banchosucks.Clicker;
 using osu.Game.Screens.Banchosucks.Practice;
+using osu.Game.Screens.Banchosucks.Warmup;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Footer;
 using osu.Game.Screens.Play;
@@ -57,12 +60,60 @@ namespace osu.Game.Screens.Select
 
         private Sample? sampleConfirmSelection { get; set; }
 
+        // Banchosucks: the warm-up series (Options > Warm-up, or the key binding). Cached so the results screen pushed from here can offer the next map.
+        [Cached]
+        private readonly BanchosucksWarmupSeries banchosucksWarmupSeries = new BanchosucksWarmupSeries();
+
+        private BanchosucksWarmupController banchosucksWarmup = null!;
+
+        internal BanchosucksWarmupController BanchosucksWarmup => banchosucksWarmup;
+
+        private bool banchosucksStartingWarmup;
+
         [BackgroundDependencyLoader]
         private void load(AudioManager audio)
         {
             sampleConfirmSelection = audio.Samples.Get(@"SongSelect/confirm-selection");
 
             AddInternal(new SongSelectTouchInputDetector());
+
+            // Banchosucks: picks and runs the warm-up maps; starts them the same way a click on the map does.
+            AddInternal(banchosucksWarmup = new BanchosucksWarmupController(banchosucksWarmupSeries, beatmap =>
+            {
+                banchosucksStartingWarmup = true;
+
+                try
+                {
+                    SelectAndRun(beatmap, OnStart);
+                }
+                finally
+                {
+                    banchosucksStartingWarmup = false;
+                }
+
+                return playerLoader != null;
+            }));
+        }
+
+        /// <summary>
+        /// Banchosucks: starts a warm-up series: three local maps a bit below the player's level, played one after another.
+        /// </summary>
+        public void BanchosucksStartWarmup()
+        {
+            if (this.IsCurrentScreen())
+                banchosucksWarmup.Start();
+        }
+
+        // Banchosucks: the warm-up has a rebindable action without a default key.
+        public override bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
+        {
+            if (e.Action == GlobalAction.BanchosucksWarmup && !e.Repeat && this.IsCurrentScreen())
+            {
+                BanchosucksStartWarmup();
+                return true;
+            }
+
+            return base.OnPressed(e);
         }
 
         public override IEnumerable<OsuMenuItem> GetForwardActions(BeatmapInfo beatmap)
@@ -109,7 +160,8 @@ namespace osu.Game.Screens.Select
             modsAtGameplayStart = Mods.Value.Select(m => m.DeepClone()).ToArray();
 
             // Ctrl+Enter should start map with autoplay enabled.
-            if (GetContainingInputManager()?.CurrentState?.Keyboard.ControlPressed == true)
+            // Banchosucks: not for a warm-up map, which may be started by a key binding that contains Ctrl.
+            if (!banchosucksStartingWarmup && GetContainingInputManager()?.CurrentState?.Keyboard.ControlPressed == true)
             {
                 var autoInstance = getAutoplayMod();
 
@@ -165,12 +217,18 @@ namespace osu.Game.Screens.Select
         {
             base.OnResuming(e);
             revertMods();
+
+            // Banchosucks: back at song select without asking for the next map means the warm-up series was left.
+            banchosucksWarmup.OnSongSelectResumed();
         }
 
         public override bool OnExiting(ScreenExitEvent e)
         {
             if (base.OnExiting(e))
                 return true;
+
+            // Banchosucks: leaving song select ends a warm-up series.
+            banchosucksWarmup.Stop();
 
             revertMods();
             return false;
