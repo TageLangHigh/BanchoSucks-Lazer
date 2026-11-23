@@ -27,7 +27,7 @@ namespace osu.Game.Overlays.Settings.Sections
         {
             Add(new QuickActionSettings());
             Add(new BanchosucksPresetSettings());
-            // Banchosucks: the player's own daily goal
+            // Banchosucks: the player's own daily goal and the way into the personal statistics
             Add(new BanchosucksDailyGoalSettings());
             Add(new LanguageSettings());
             if (updateManager?.CanCheckForUpdate == true)

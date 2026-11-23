@@ -20,7 +20,7 @@ namespace osu.Game.Screens.Banchosucks.Stats
 {
     /// <summary>
     /// Banchosucks: the small daily goal line on the main menu: today's progress, a thin bar and the streak.
-    /// Invisible (and not clickable) while the player has no goal set.
+    /// Invisible (and not clickable) while the player has no goal set. A click opens the personal statistics.
     /// </summary>
     public partial class BanchosucksDailyGoalDisplay : OsuClickableContainer
     {
@@ -59,7 +59,7 @@ namespace osu.Game.Screens.Banchosucks.Stats
         [BackgroundDependencyLoader]
         private void load()
         {
-            TooltipText = ClickerStrings.Text("Your daily goal for today.", "Dein Tagesziel für heute.");
+            TooltipText = ClickerStrings.Text("Your daily goal. Click for your personal statistics.", "Dein Tagesziel. Klick für deine eigene Statistik.");
 
             Child = new FillFlowContainer
             {

@@ -11,9 +11,12 @@ using osu.Framework.Screens;
 using osu.Framework.Testing;
 using osu.Game.Configuration;
 using osu.Game.Overlays.Notifications;
+using osu.Game.Overlays.Settings;
+using osu.Game.Overlays.Settings.Sections.General;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Screens.Banchosucks.Stats;
+using osu.Game.Screens.Menu;
 using osu.Game.Screens.Play;
 using osu.Game.Screens.Ranking;
 using osu.Game.Screens.Select;
@@ -24,7 +27,7 @@ namespace osu.Game.Tests.Visual.Navigation
 {
     /// <summary>
     /// Daily goal and personal statistics in the running game: the activity log in <see cref="OsuGame"/>, the line on
-    /// the main menu, the notification, and which plays are recorded.
+    /// the main menu, the notification, the statistics screen, and which plays are recorded.
     /// </summary>
     public partial class TestSceneBanchosucksDailyGoal : OsuGameTestScene
     {
@@ -116,6 +119,54 @@ namespace osu.Game.Tests.Visual.Navigation
                 var file = BanchosucksActivityFile.Read(logStorage.GetFullPath(BanchosucksActivityLog.LOG_FILE))!;
                 return (file.Version, file.Entries.Count, file.GoalDays.Count, file.Entries[0].At.Offset, file.Entries[^1].Ruleset);
             }, () => Is.EqualTo((1, 6, 2, TimeSpan.FromHours(1), "mania")));
+        }
+
+        [Test]
+        public void TestStatisticsScreen()
+        {
+            startLog(30, 0);
+
+            AddStep("play on three days", () =>
+            {
+                now = now.AddDays(-2);
+                log.RecordPlay(600, "osu", true, 0.90);
+                now = now.AddDays(1);
+                log.RecordPlay(300, "taiko", false, 0.50);
+                now = now.AddDays(1);
+                log.RecordPlay(120, "osu", true, 1.00);
+                log.RecordPlay(180, "osu", true, 0.95);
+            });
+
+            AddUntilStep("goal shown on the main menu", () => display.Shown && display.Alpha > 0);
+            AddStep("click it", () =>
+            {
+                InputManager.MoveMouseTo(display);
+                InputManager.Click(MouseButton.Left);
+            });
+
+            BanchosucksStatsScreen screen() => (BanchosucksStatsScreen)Game.ScreenStack.CurrentScreen;
+
+            AddUntilStep("statistics open", () => Game.ScreenStack.CurrentScreen is BanchosucksStatsScreen s && s.IsLoaded && s.ShownTotals != null);
+            AddAssert("totals", () => (screen().ShownTotals!.Played, screen().ShownTotals!.Passed, screen().ShownTotals!.Seconds, screen().ShownTotals!.ActiveDays),
+                () => Is.EqualTo((4, 3, 1200.0, 3)));
+            AddAssert("average accuracy of the passed maps", () => screen().ShownTotals!.Accuracy, () => Is.EqualTo(0.95).Within(1e-9));
+            AddAssert("three days with a bar", () => screen().TimeChart.FilledBars, () => Is.EqualTo(3));
+
+            AddStep("a play comes in while the screen is open", () => log.RecordPlay(60, "osu", true, 0.99));
+            AddAssert("screen follows", () => screen().ShownTotals!.Played, () => Is.EqualTo(5));
+
+            AddStep("escape", () => InputManager.Key(Key.Escape));
+            ConfirmAtMainMenu();
+
+            // the second way in: Settings > General > Daily goal
+            AddStep("open settings", () => Game.Settings.Show());
+            AddUntilStep("daily goal settings loaded", () => Game.Settings.ChildrenOfType<BanchosucksDailyGoalSettings>().SingleOrDefault()?.IsLoaded == true);
+            AddStep("press the statistics button", () => Game.Settings.ChildrenOfType<BanchosucksDailyGoalSettings>().Single().ChildrenOfType<SettingsButtonV2>().Single().TriggerClick());
+            AddUntilStep("statistics open", () => Game.ScreenStack.CurrentScreen is BanchosucksStatsScreen s && s.IsLoaded);
+            AddUntilStep("settings closed", () => Game.Settings.State.Value, () => Is.EqualTo(osu.Framework.Graphics.Containers.Visibility.Hidden));
+
+            AddStep("exit", () => Game.ScreenStack.CurrentScreen.Exit());
+            ConfirmAtMainMenu();
         }
 
         [Test]

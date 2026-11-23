@@ -67,6 +67,9 @@ namespace osu.Game.Screens.Banchosucks.Stats
         [Resolved(CanBeNull = true)]
         private INotificationOverlay? notifications { get; set; }
 
+        [Resolved(CanBeNull = true)]
+        private OsuGame? game { get; set; }
+
         /// <summary>
         /// The PC's local time. Replaced in tests to cross midnight.
         /// </summary>
@@ -266,6 +269,11 @@ namespace osu.Game.Screens.Banchosucks.Stats
                 Text = streak == 1
                     ? ClickerStrings.Text("Daily goal reached! First day of a new streak.", "Tagesziel erreicht! Erster Tag einer neuen Serie.")
                     : ClickerStrings.Text("Daily goal reached! Streak: {0} days in a row.", "Tagesziel erreicht! Serie: {0} Tage in Folge.", streak),
+                Activated = () =>
+                {
+                    game?.PerformFromScreen(menu => menu.Push(new BanchosucksStatsScreen()));
+                    return true;
+                },
             });
         }
 

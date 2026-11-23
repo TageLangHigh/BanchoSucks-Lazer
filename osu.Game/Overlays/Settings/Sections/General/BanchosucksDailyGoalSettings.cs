@@ -4,21 +4,24 @@
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Localisation;
+using osu.Framework.Screens;
 using osu.Game.Configuration;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Screens;
 using osu.Game.Screens.Banchosucks.Stats;
 
 namespace osu.Game.Overlays.Settings.Sections.General
 {
     /// <summary>
-    /// Banchosucks: the player's own daily goal (minutes played and / or maps passed per day, 0 = off). Progress and streak are shown on the main menu by <see cref="BanchosucksDailyGoalDisplay"/>.
+    /// Banchosucks: the player's own daily goal (minutes played and / or maps passed per day, 0 = off) and the way
+    /// into the personal statistics. Progress and streak are shown on the main menu by <see cref="BanchosucksDailyGoalDisplay"/>.
     /// </summary>
     public partial class BanchosucksDailyGoalSettings : SettingsSubsection
     {
         protected override LocalisableString Header => "Tagesziel / Daily goal";
 
         [BackgroundDependencyLoader]
-        private void load(OsuConfigManager config)
+        private void load(OsuConfigManager config, IPerformFromScreenRunner? performer, SettingsOverlay? settings)
         {
             AddRange(new Drawable[]
             {
@@ -43,6 +46,18 @@ namespace osu.Game.Overlays.Settings.Sections.General
                 })
                 {
                     Keywords = new[] { @"goal", @"ziel", @"tagesziel", @"daily", @"streak", @"serie", @"maps" },
+                },
+                new SettingsButtonV2
+                {
+                    Text = "Eigene Statistik öffnen / Open personal statistics",
+                    TooltipText = "Spielzeit, gespielte und bestandene Maps und Genauigkeit der letzten 30 Tage, nur von diesem PC. / Play time, maps played and passed and accuracy of the last 30 days, from this PC only.",
+                    Keywords = new[] { @"statistik", @"statistics", @"stats", @"playtime", @"spielzeit", @"activity" },
+                    Action = () =>
+                    {
+                        // the panel would cover the left third of the screen it opens
+                        settings?.Hide();
+                        performer?.PerformFromScreen(menu => menu.Push(new BanchosucksStatsScreen()));
+                    },
                 },
             });
         }
