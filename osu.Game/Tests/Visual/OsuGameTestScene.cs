@@ -177,6 +177,8 @@ namespace osu.Game.Tests.Visual
                 LocalConfig.SetValue(OsuSetting.ShowFirstRunSetup, false);
                 // Banchosucks: the one-time presets hint would cover the screen under test
                 LocalConfig.SetValue(OsuSetting.BanchosucksPresetsHintShown, true);
+                // Banchosucks: the tests expect notifications to behave as upstream; "do not disturb" has its own tests
+                LocalConfig.SetValue(OsuSetting.BanchosucksDoNotDisturb, false);
 
                 API.Login("Rhythm Champion", "osu!");
                 ((DummyAPIAccess)API).AuthenticateSecondFactor("abcdefgh");

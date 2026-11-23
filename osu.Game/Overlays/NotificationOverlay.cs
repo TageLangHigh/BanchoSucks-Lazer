@@ -151,6 +151,9 @@ namespace osu.Game.Overlays
 
             State.BindValueChanged(_ => updateProcessingMode());
             OverlayActivationMode.BindValueChanged(_ => updateProcessingMode(), true);
+
+            // Banchosucks: "do not disturb" during a map, see NotificationOverlay.Banchosucks.cs
+            initialiseBanchosucksHold();
         }
 
         public IBindable<int> UnreadCount => unreadCount;
@@ -172,7 +175,18 @@ namespace osu.Game.Overlays
 
         private double? lastSamplePlayback;
 
-        public void Post(Notification notification) => (notification.IsCritical ? criticalPostScheduler : postScheduler).Add(() =>
+        public void Post(Notification notification)
+        {
+            // Banchosucks: some notifications wait until the map is over (see NotificationOverlay.Banchosucks.cs)
+            if (banchosucksGate.TryHold(notification))
+                return;
+
+            post(notification, false);
+        }
+
+        // Banchosucks: the body of Post, with one addition: a notification that was held back is delivered "silently",
+        // straight into the overlay without toast, sound or window flash.
+        private void post(Notification notification, bool silent) => (notification.IsCritical ? criticalPostScheduler : postScheduler).Add(() =>
         {
             ++runningDepth;
 
@@ -183,15 +197,16 @@ namespace osu.Game.Overlays
             if (notification is IHasCompletionTarget hasCompletionTarget)
                 hasCompletionTarget.CompletionTarget ??= Post;
 
-            playDebouncedSample(notification.PopInSampleName);
+            if (!silent)
+                playDebouncedSample(notification.PopInSampleName);
 
-            if (notification.IsImportant)
+            if (notification.IsImportant && !silent)
             {
                 game?.Window?.Flash();
                 notification.Closed += () => game?.Window?.CancelFlash();
             }
 
-            if (State.Value == Visibility.Hidden)
+            if (State.Value == Visibility.Hidden && !silent)
             {
                 notification.IsInToastTray = true;
                 toastTray.Post(notification);

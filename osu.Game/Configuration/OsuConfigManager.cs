@@ -145,6 +145,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.BanchosucksStarRatingCheckPosition, string.Empty);
             SetDefault(OsuSetting.BanchosucksDailyGoalMinutes, 0, 0, 240);
             SetDefault(OsuSetting.BanchosucksDailyGoalMaps, 0, 0, 100);
+            SetDefault(OsuSetting.BanchosucksDoNotDisturb, true);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -608,5 +609,8 @@ namespace osu.Game.Configuration
         /// (see <c>BanchosucksSkinSync</c>). Off by default.
         /// </summary>
         BanchosucksSkinSync,
+        /// Banchosucks: hold non-critical notifications back while a map is played and show one summary afterwards.
+        /// </summary>
+        BanchosucksDoNotDisturb,
     }
 }

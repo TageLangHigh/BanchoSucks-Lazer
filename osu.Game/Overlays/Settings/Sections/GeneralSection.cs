@@ -34,6 +34,8 @@ namespace osu.Game.Overlays.Settings.Sections
                 Add(new BanchosucksStableSettings());
             // Banchosucks: the player's own daily goal and the way into the personal statistics
             Add(new BanchosucksDailyGoalSettings());
+            // Banchosucks: do not disturb, streamer mode, stutter report, overlay data source
+            Add(new BanchosucksComfortSettings());
             Add(new LanguageSettings());
             if (updateManager?.CanCheckForUpdate == true)
                 Add(new UpdateSettings());
