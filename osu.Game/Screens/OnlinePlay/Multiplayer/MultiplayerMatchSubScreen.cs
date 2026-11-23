@@ -31,6 +31,7 @@ using osu.Game.Overlays;
 using osu.Game.Overlays.Dialog;
 using osu.Game.Rulesets;
 using osu.Game.Scoring;
+using osu.Game.Screens.Banchosucks.Lobby;
 using osu.Game.Screens.Menu;
 using osu.Game.Screens.OnlinePlay.Components;
 using osu.Game.Screens.OnlinePlay.Match;
@@ -141,6 +142,10 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer
 
         private readonly Room room;
 
+        // Banchosucks: lobby templates (room settings > Templates). Lives in the screen so it keeps working while the settings overlay is closed.
+        [Cached]
+        private readonly BanchosucksLobbyTemplateManager banchosucksTemplates;
+
         private Drawable roomContent = null!;
         private MultiplayerMatchSettingsOverlay settingsOverlay = null!;
 
@@ -161,6 +166,7 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer
         public MultiplayerMatchSubScreen(Room room)
         {
             this.room = room;
+            banchosucksTemplates = new BanchosucksLobbyTemplateManager(room);
 
             Title = room.RoomID == null ? "New room" : room.Name;
             Activity.Value = new UserActivity.InLobby(room);
@@ -187,6 +193,7 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer
                     {
                         beatmapAvailabilityTracker,
                         new MultiplayerRoomSounds(),
+                        banchosucksTemplates,
                         new Container
                         {
                             RelativeSizeAxes = Axes.Both,

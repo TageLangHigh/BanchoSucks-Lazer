@@ -20,6 +20,8 @@ using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Online.Rooms;
 using osu.Game.Overlays;
+using osu.Game.Screens.Banchosucks.Clicker;
+using osu.Game.Screens.Banchosucks.Lobby;
 using osu.Game.Screens.OnlinePlay.Match.Components;
 using osuTK;
 using Container = osu.Framework.Graphics.Containers.Container;
@@ -50,7 +52,8 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer.Match
             SettingsApplied = Hide,
         };
 
-        protected partial class MatchSettings : CompositeDrawable
+        // Banchosucks: IBanchosucksLobbyTemplateForm lets a lobby template read and fill the fields of this form.
+        protected partial class MatchSettings : CompositeDrawable, IBanchosucksLobbyTemplateForm
         {
             public override bool IsPresent => base.IsPresent || Scheduler.HasPendingTasks;
 
@@ -263,6 +266,11 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer.Match
                                                                     {
                                                                         LabelText = "Automatically skip the beatmap intro"
                                                                     }
+                                                                },
+                                                                // Banchosucks: save this setup (without the password) as a named template, or load one.
+                                                                new Section(ClickerStrings.Pick("Templates", "Vorlagen"))
+                                                                {
+                                                                    Child = new BanchosucksLobbyTemplateControls(this)
                                                                 }
                                                             }
                                                         }
@@ -419,6 +427,20 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer.Match
                         updateRoomPlaylist();
                         break;
                 }
+            }
+
+            // Banchosucks: what a lobby template saves from this form (never the password) ...
+            BanchosucksLobbyTemplateSettings IBanchosucksLobbyTemplateForm.BanchosucksReadSettings()
+                => new BanchosucksLobbyTemplateSettings(NameField.Text, TypePicker.Current.Value, QueueModeDropdown.Current.Value, (int)startModeDropdown.Current.Value, AutoSkipCheckbox.Current.Value);
+
+            // ... and what loading one fills in before the room exists. In a joined room the template goes through the client instead.
+            void IBanchosucksLobbyTemplateForm.BanchosucksWriteSettings(BanchosucksLobbyTemplateSettings settings)
+            {
+                NameField.Text = settings.Name;
+                TypePicker.Current.Value = settings.Type;
+                QueueModeDropdown.Current.Value = settings.QueueMode;
+                startModeDropdown.Current.Value = (StartMode)settings.AutoStartSeconds;
+                AutoSkipCheckbox.Current.Value = settings.AutoSkip;
             }
 
             private void updateRoomName()
