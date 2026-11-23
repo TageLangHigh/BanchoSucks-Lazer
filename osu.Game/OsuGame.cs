@@ -1227,6 +1227,9 @@ namespace osu.Game
             // Banchosucks: tells score rows which scores were imported from the stable server ("Stable" badge); cached for the session
             loadComponentSingleFile(new osu.Game.Online.Banchosucks.BanchosucksScoreOrigins(), Add, true);
 
+            // Banchosucks: downloads many beatmap sets two at a time ("download missing maps" in the profile overlay)
+            loadComponentSingleFile(new osu.Game.Online.Banchosucks.BanchosucksBeatmapDownloadQueue(), Add, true);
+
             loadComponentSingleFile(fpsCounter = new FPSCounter
             {
                 Anchor = Anchor.BottomRight,

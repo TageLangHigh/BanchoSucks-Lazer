@@ -58,13 +58,42 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
             if (CurrentPage == null || CurrentPage?.Offset == 0)
             {
                 drawableItemIndex = 0;
+                banchosucksLoadedScores.Clear();
+                banchosucksLoadedScoresOwner = User.Value;
 
                 // Banchosucks: the profile card prints the best play; it is taken from this list instead of a request of its own
                 if (type == ScoreType.Best && User.Value != null)
                     BanchosucksProfileBestScores.Remember(User.Value.User.Id, User.Value.Ruleset.ShortName, items.Count > 0 ? items[0] : null);
             }
 
+            banchosucksLoadedScores.AddRange(items);
+
             base.OnItemsReceived(items);
+        }
+
+        // Banchosucks: the best performances get a button above the list ("download missing maps",
+        // see BanchosucksTopPlaysActions). It works on the scores this section has loaded, which are remembered here.
+        private readonly List<SoloScoreInfo> banchosucksLoadedScores = new List<SoloScoreInfo>();
+        private UserProfileData? banchosucksLoadedScoresOwner;
+
+        protected override Drawable CreateContent()
+        {
+            var content = base.CreateContent();
+
+            if (type != ScoreType.Best)
+                return content;
+
+            return new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Vertical,
+                Children = new[]
+                {
+                    new BanchosucksTopPlaysActions(User, () => ReferenceEquals(banchosucksLoadedScoresOwner, User.Value) ? banchosucksLoadedScores : new List<SoloScoreInfo>()),
+                    content,
+                },
+            };
         }
 
         protected override APIRequest<List<SoloScoreInfo>> CreateRequest(UserProfileData user, PaginationParameters pagination) =>
