@@ -83,6 +83,9 @@ namespace osu.Game.Tests.Visual.Multiplayer
         {
             base.SetUpSteps();
 
+            // the texts checked below are the English ones; another game test in the same run may have switched the static to German
+            AddStep("english", () => osu.Game.Screens.Banchosucks.Clicker.ClickerStrings.IsGerman = false);
+
             AddStep("answer chat posts", () =>
             {
                 announced.Clear();
