@@ -380,3 +380,31 @@ and restart the app container.
   sends. Never contains password, tokens, e-mail, IP, country, chat or local paths. Web pages that are not
   local are refused by origin. Overlay files in `<game data>/banchosucks-overlays/<name>/` are served at
   `http://127.0.0.1:24050/<name>/`. tosu cannot run at the same time (same port).
+- **Render replays as video** is also offered on the results screen (camera button,
+  `BanchosucksRenderVideoButton`) and in the context menu of scores in the profile overlay
+  (`BanchosucksProfileScoreActions`). Requests no longer get refused while a render runs:
+  `BanchosucksRenderQueue` lets up to five wait, each with its own notification showing its place; closing
+  the notification of a waiting request removes it. osu!standard only.
+- **Beatmap previews in chat** (`osu.Game/Overlays/Chat/BanchosucksChatBeatmap*.cs`,
+  `osu.Game/Online/Chat/BanchosucksChatBeatmap*.cs`): a message with a link to a beatmap or set on our
+  website, or an osu://b, osu://s or osu://dl link, gets a compact card under it, built from the beatmap
+  listing's card parts. `BanchosucksChatBeatmapLookup` asks our own API once per set, throttled by
+  `BanchosucksLookupThrottle` (one request per 400 ms, two at a time), and only for lines that have been on
+  screen for half a second. Off switch: `OsuSetting.BanchosucksChatBeatmapPreviews` (Online > Alerts and
+  Privacy).
+- **Share cards** (`osu.Game/Screens/Banchosucks/Share/`): the results screen has a button that saves a
+  1200 x 630 picture of the score, and the profile overlay one for the profile. `BanchosucksCardExporter`
+  renders the card off screen (`BanchosucksDrawableCapture`: a buffered draw node plus
+  `IRenderer.ExtractFrameBufferData`), saves it as PNG under `screenshots/cards` and copies it to the
+  clipboard; the client uploads nothing. A marker strip below the card tells top from bottom after the
+  read-back; images without it are discarded. The read-back has never run on a real renderer (the headless
+  test host does not draw): this is the first thing to try by hand. The profile card uses only what the
+  overlay has loaded; the best play is the first entry of the "best performance" list
+  (`BanchosucksProfileBestScores`).
+- **Replay comparison** (osu!standard): on a leaderboard, mark one score and pick a second one on the same
+  beatmap (`BanchosucksReplayCompare`). The first replay plays normally; the second is drawn as a ghost
+  cursor by `osu.Game.Rulesets.Osu/UI/BanchosucksGhostCursorOverlay.cs` (drawing only, fed by
+  `BanchosucksGhostTrack`, never by an input handler). `BanchosucksReplayComparison` refuses pairs whose
+  playfields would not match (different map version; HR, EZ, MR, DA, RD, TP, DP, WG, TR or rate mods that
+  differ; AS, MG, RP always). The ghost travels through `ReplayPlayer.BanchosucksGhostScore` and
+  `OsuGame.PresentScore(..., banchosucksGhostScore:)`.

@@ -614,6 +614,8 @@ namespace osu.Game.Configuration
         /// (see <c>BanchosucksSkinSync</c>). Off by default.
         /// </summary>
         BanchosucksSkinSync,
+
+        /// <summary>
         /// Banchosucks: hold non-critical notifications back while a map is played and show one summary afterwards.
         /// </summary>
         BanchosucksDoNotDisturb,
@@ -639,6 +641,8 @@ namespace osu.Game.Configuration
         /// (see <c>BanchosucksOverlayDataSource</c>). Off by default.
         /// </summary>
         BanchosucksOverlayDataSource,
+
+        /// <summary>
         /// Banchosucks: whether chat messages with a beatmap link get a preview card under them.
         /// </summary>
         BanchosucksChatBeatmapPreviews,

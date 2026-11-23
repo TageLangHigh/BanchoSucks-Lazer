@@ -201,6 +201,7 @@ namespace osu.Game.Configuration
             OsuSetting.BanchosucksDailyGoalMaps,
             OsuSetting.BanchosucksDoNotDisturb,
             OsuSetting.BanchosucksStutterReport,
+            OsuSetting.BanchosucksChatBeatmapPreviews,
         };
 
         /// <summary>
