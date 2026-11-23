@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using osu.Game.Online.API;
 using osu.Framework.Allocation;
 using osu.Framework.Localisation;
+using osu.Game.Screens.Banchosucks.Share;
 using APIUser = osu.Game.Online.API.Requests.Responses.APIUser;
 
 namespace osu.Game.Overlays.Profile.Sections.Ranks
@@ -55,7 +56,13 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
         protected override void OnItemsReceived(List<SoloScoreInfo> items)
         {
             if (CurrentPage == null || CurrentPage?.Offset == 0)
+            {
                 drawableItemIndex = 0;
+
+                // Banchosucks: the profile card prints the best play; it is taken from this list instead of a request of its own
+                if (type == ScoreType.Best && User.Value != null)
+                    BanchosucksProfileBestScores.Remember(User.Value.User.Id, User.Value.Ruleset.ShortName, items.Count > 0 ? items[0] : null);
+            }
 
             base.OnItemsReceived(items);
         }

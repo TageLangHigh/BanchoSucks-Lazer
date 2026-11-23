@@ -58,6 +58,11 @@ namespace osu.Game.Overlays.Profile.Header
                         new UserActionsButton
                         {
                             User = { BindTarget = User }
+                        },
+                        // Banchosucks: saves a picture of the profile (avatar, ranks, pp, best play) for sharing
+                        new BanchosucksProfileCardButton
+                        {
+                            User = { BindTarget = User }
                         }
                     }
                 },
