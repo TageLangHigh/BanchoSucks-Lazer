@@ -3,6 +3,7 @@
 
 using System;
 using System.IO;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
@@ -47,6 +48,9 @@ namespace osu.Game.Graphics
         private GameHost host { get; set; } = null!;
 
         [Resolved]
+        private OsuGame? game { get; set; }
+
+        [Resolved]
         private Clipboard clipboard { get; set; } = null!;
 
         [Resolved]
@@ -58,6 +62,9 @@ namespace osu.Game.Graphics
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
 
+        private Bindable<ScreenshotFormat> screenshotFormat = null!;
+        private Bindable<bool> captureMenuCursor = null!;
+
         private Storage storage = null!;
 
         private Sample? shutter;
@@ -67,6 +74,9 @@ namespace osu.Game.Graphics
         {
             this.storage = storage.GetStorageForDirectory(@"screenshots");
             shutter = audio.Samples.Get(@"UI/shutter");
+
+            screenshotFormat = config.GetBindable<ScreenshotFormat>(OsuSetting.ScreenshotFormat);
+            captureMenuCursor = config.GetBindable<bool>(OsuSetting.ScreenshotCaptureMenuCursor);
         }
 
         public bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
@@ -83,7 +93,7 @@ namespace osu.Game.Graphics
 
                 case GlobalAction.TakeAndUploadScreeshot:
                     shutter?.Play();
-                    UploadScreenshotAsync().FireAndForget();
+                    TakeAndUploadScreenshotAsync().FireAndForget();
                     return true;
             }
 
@@ -96,16 +106,80 @@ namespace osu.Game.Graphics
 
         private volatile int screenShotTasks;
 
-        public Task<string?> TakeScreenshotAsync(bool forUpload = false) => Task.Run<string?>(async () =>
+        public Task TakeAndUploadScreenshotAsync() => Task.Run(async () =>
+        {
+            // Don't copy the image to clipboard when uploading a screenshot, as it's going to be overwritten by the URL
+            // anyway.
+            string? filename = await TakeScreenshotAsync(copyToClipboard: false, showNotification: false).ConfigureAwait(false);
+
+            if (filename == null)
+                return;
+
+            Stream stream;
+
+            switch (screenshotFormat.Value)
+            {
+                case ScreenshotFormat.Jpg:
+                    stream = storage.GetStream(filename, FileAccess.Read, FileMode.Open);
+                    break;
+
+                case ScreenshotFormat.Png:
+                    // Convert the taken screenshot to JPEG (to save storage) before uploading if user set their screenshots to
+                    // save in a different format.
+                    var image = await Image.LoadAsync(storage.GetFullPath(filename)).ConfigureAwait(false);
+
+                    stream = new MemoryStream();
+                    await image.SaveAsJpegAsync(stream, new JpegEncoder { Quality = jpeg_quality }).ConfigureAwait(false);
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            var uploadRequest = new UploadScreenshot(await stream.ReadAllBytesToArrayAsync().ConfigureAwait(false));
+
+            var notification = new ProgressNotification
+            {
+                State = ProgressNotificationState.Active,
+                Text = NotificationsStrings.UploadingScreenshot,
+                CompletionText = NotificationsStrings.ScreenshotUploadSuccess,
+            };
+
+            uploadRequest.Progressed += (current, total) => notification.Progress = (float)current / total * 0.8f;
+            uploadRequest.Success += content =>
+            {
+                clipboard.SetText(content.Url);
+
+                notification.CompletionClickAction = () =>
+                {
+                    game?.OpenUrlExternally(content.Url);
+                    return true;
+                };
+
+                notification.Progress = 1;
+                notification.State = ProgressNotificationState.Completed;
+            };
+            uploadRequest.Failure += e =>
+            {
+                notification.State = ProgressNotificationState.Cancelled;
+
+                if (e is APIException apiException && apiException.StatusCode == HttpStatusCode.TooManyRequests)
+                    notification.Text = NotificationsStrings.ScreenshotTooManyUploads;
+                else
+                    notification.Text = NotificationsStrings.ScreenshotUploadFailure;
+            };
+
+            notificationOverlay.Post(notification);
+            api.Queue(uploadRequest);
+        });
+
+        public Task<string?> TakeScreenshotAsync(bool copyToClipboard = true, bool showNotification = true) => Task.Run<string?>(async () =>
         {
             Interlocked.Increment(ref screenShotTasks);
 
-            ScreenshotFormat screenshotFormat = config.Get<ScreenshotFormat>(OsuSetting.ScreenshotFormat);
-            bool captureMenuCursor = config.Get<bool>(OsuSetting.ScreenshotCaptureMenuCursor);
-
             try
             {
-                if (!captureMenuCursor)
+                if (!captureMenuCursor.Value)
                 {
                     cursorVisibility.Value = false;
 
@@ -156,20 +230,16 @@ namespace osu.Game.Graphics
                         });
                     }
 
-                    // Don't copy the image to clipboard when uploading a screenshot,
-                    // as it's going to be overwritten by the URL anyway.
-                    if (!forUpload)
-                    {
+                    if (copyToClipboard)
                         clipboard.SetImage(image);
-                    }
 
-                    (string? filename, Stream? stream) = getWritableStream(screenshotFormat);
+                    (string? filename, Stream? stream) = getWritableStream(screenshotFormat.Value);
 
                     if (filename == null) return null;
 
                     using (stream)
                     {
-                        switch (screenshotFormat)
+                        switch (screenshotFormat.Value)
                         {
                             case ScreenshotFormat.Png:
                                 await image.SaveAsPngAsync(stream).ConfigureAwait(false);
@@ -180,19 +250,22 @@ namespace osu.Game.Graphics
                                 break;
 
                             default:
-                                throw new InvalidOperationException($"Unknown enum member {nameof(ScreenshotFormat)} {screenshotFormat}.");
+                                throw new ArgumentOutOfRangeException();
                         }
                     }
 
-                    notificationOverlay.Post(new SimpleNotification
+                    if (showNotification)
                     {
-                        Text = NotificationsStrings.ScreenshotSaved(filename),
-                        Activated = () =>
+                        notificationOverlay.Post(new SimpleNotification
                         {
-                            storage.PresentFileExternally(filename);
-                            return true;
-                        }
-                    });
+                            Text = NotificationsStrings.ScreenshotSaved(filename),
+                            Activated = () =>
+                            {
+                                storage.PresentFileExternally(filename);
+                                return true;
+                            }
+                        });
+                    }
 
                     return filename;
                 }
@@ -204,65 +277,7 @@ namespace osu.Game.Graphics
             }
         });
 
-        public Task UploadScreenshotAsync() => Task.Run(async () =>
-        {
-            string? filename = await TakeScreenshotAsync(true).ConfigureAwait(false);
-
-            if (filename == null)
-            {
-                return;
-            }
-
-            Stream stream;
-
-            // Convert the taken screenshot to JPEG (to save storage) before uploading
-            // if user set their screenshots to save in a different format.
-            if (config.Get<ScreenshotFormat>(OsuSetting.ScreenshotFormat) != ScreenshotFormat.Jpg)
-            {
-                using var image = await Image.LoadAsync(storage.GetFullPath(filename)).ConfigureAwait(false);
-
-                var convertedStream = new MemoryStream();
-                await image.SaveAsJpegAsync(convertedStream, new JpegEncoder { Quality = jpeg_quality }).ConfigureAwait(false);
-                convertedStream.Position = 0;
-                stream = convertedStream;
-            }
-            else
-            {
-                stream = storage.GetStream(filename, FileAccess.Read, FileMode.Open);
-            }
-
-            using (stream)
-            {
-                var uploadRequest = new UploadScreenshot(await stream.ReadAllBytesToArrayAsync().ConfigureAwait(false));
-
-                var notification = new ProgressNotification
-                {
-                    State = ProgressNotificationState.Active,
-                    Text = ScreenshotManagerStrings.UploadingScreenshot,
-                    CompletionText = ScreenshotManagerStrings.UploadSuccess,
-                    Progress = 0,
-                };
-
-                uploadRequest.Progressed += (current, total) => notification.Progress = (float)current / total;
-                uploadRequest.Success += content =>
-                {
-                    clipboard.SetText(content.Url);
-
-                    notification.Progress = 1;
-                    notification.State = ProgressNotificationState.Completed;
-                };
-                uploadRequest.Failure += _ =>
-                {
-                    notification.State = ProgressNotificationState.Cancelled;
-                    notification.Text = ScreenshotManagerStrings.UploadFailure;
-                };
-
-                notificationOverlay.Post(notification);
-                api.Queue(uploadRequest);
-            }
-        });
-
-        private static readonly object filename_reservation_lock = new object();
+        private static readonly Lock filename_reservation_lock = new Lock();
 
         private (string? filename, Stream? stream) getWritableStream(ScreenshotFormat format)
         {

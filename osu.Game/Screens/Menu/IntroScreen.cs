@@ -131,7 +131,7 @@ namespace osu.Game.Screens.Menu
                 initialBeatmap = working;
             }
 
-            AddInternal(new GlobalScrollAdjustsVolume());
+            AddInternal(new ScrollAdjustsVolume());
         }
 
         public override void OnEntering(ScreenTransitionEvent e)

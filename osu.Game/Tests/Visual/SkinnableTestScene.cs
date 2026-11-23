@@ -175,7 +175,7 @@ namespace osu.Game.Tests.Visual
 
         #endregion
 
-        private partial class OutlineBox : CompositeDrawable
+        public partial class OutlineBox : CompositeDrawable
         {
             public OutlineBox()
             {

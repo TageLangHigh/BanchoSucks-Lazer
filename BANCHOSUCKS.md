@@ -2,6 +2,10 @@
 
 Windows x64 client based on GooGuTeam/g0v0 v2026.913.0-g0v0
 (fb9d767658b361887830bd475a42efe00721966b).
+On top of that base the official osu!lazer changes up to ppy/osu `fe16a2c0` (2026-10-31) were taken
+over directly (three-way merge against ppy/osu `c729c6d7`, the state the g0v0 base contains), with
+`ppy.osu.Framework` 2026.1030.0 and `g0v0.osu.Game.Resources` 2026.1021.0. g0v0's own framework
+fork (`g0v0.Framework`) is not used.
 
 Website: https://banchosucks.cc/lazer (lazer profiles, rankings and beatmaps live
 under the /lazer prefix of the main Banchosucks site; the client's links point there)

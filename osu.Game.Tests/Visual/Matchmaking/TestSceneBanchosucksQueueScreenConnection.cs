@@ -34,7 +34,7 @@ namespace osu.Game.Tests.Visual.Matchmaking
 
             AddStep("load screen", () => LoadScreen(new ScreenIntro(MatchmakingPoolType.QuickPlay)));
             AddUntilStep("wait for queue screen", () => queueScreen?.IsLoaded == true);
-            AddStep("show idle state", () => queueScreen!.SetState(ScreenQueue.MatchmakingScreenState.Idle));
+            AddStep("show idle state", () => QueueController.CurrentState.Value = ScreenQueue.MatchmakingScreenState.Idle);
             AddUntilStep("button loaded", () => beginQueueingButton?.IsLoaded == true);
         }
 

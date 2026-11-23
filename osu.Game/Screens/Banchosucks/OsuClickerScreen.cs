@@ -176,7 +176,7 @@ namespace osu.Game.Screens.Banchosucks
             InternalChildren = new Drawable[]
             {
                 // the mouse wheel (with or without Alt) adjusts the volume like at the main menu; the shop keeps scrolling
-                new GlobalScrollAdjustsVolume(),
+                new ScrollAdjustsVolume(),
                 // background: dark gradient over the menu background, drifting triangles and a glow behind the circle
                 new Box
                 {
