@@ -99,6 +99,9 @@ namespace osu.Game.Overlays.Settings.Sections.Input
                 Defaults = defaults.Select(d => d.KeyCombination),
             };
 
+        // Banchosucks: lets a key profile switch (BanchosucksKeyProfileButton) refresh the rows after it rewrote the database.
+        protected void BanchosucksReloadAllBindings() => reloadAllBindings();
+
         private void reloadAllBindings()
         {
             var bindings = getAllBindings();

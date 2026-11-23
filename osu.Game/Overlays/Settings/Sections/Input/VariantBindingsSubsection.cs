@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using osu.Framework.Allocation;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Localisation;
 using osu.Game.Input.Bindings;
@@ -29,6 +30,16 @@ namespace osu.Game.Overlays.Settings.Sections.Input
 
             Header = rulesetInstance.GetVariantName(variant);
             Defaults = rulesetInstance.GetDefaultKeyBindings(variant);
+        }
+
+        // Banchosucks: key profiles of this ruleset and variant (save, switch, delete), shown above the bindings.
+        [BackgroundDependencyLoader]
+        private void load()
+        {
+            var profiles = new BanchosucksKeyProfileButton(Ruleset, variant) { ProfileApplied = BanchosucksReloadAllBindings };
+
+            Add(profiles);
+            FlowContent.SetLayoutPosition(profiles, -1);
         }
 
         protected override IEnumerable<RealmKeyBinding> GetKeyBindings(Realm realm)
