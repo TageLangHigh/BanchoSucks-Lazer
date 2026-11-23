@@ -445,3 +445,25 @@ and restart the app container.
   `banchosucks_stablescores/origin?ids=` (batch) or a flag on leaderboard scores; `maintenance_at` and
   `maintenance_message` in `banchosucks_status/summary`; `grouping`/`ordering` in the medal catalogue and
   `banchosucks_medals/progress`; `banchosucks_rankedmods/rules` to replace the hand mirror.
+- **Warm-up** (song select: Options > Warm-up > Start warm-up, or the rebindable action "Warm-up" without a
+  default key): `osu.Game/Screens/Banchosucks/Warmup/`. `BanchosucksWarmupController` reads the player's
+  own local scores of the last 42 days in the selected ruleset and the local library;
+  `BanchosucksWarmupSelector` (pure) takes the 75th percentile of the star ratings of maps passed with at
+  least 90 % accuracy as the level (at least 10 needed) and draws one map each around 70 %, 80 % and 90 %
+  of it: 1 to 4 minutes long, not played today, three different sets. With too few scores or no fitting map
+  a notification says what is missing and nothing starts. `ResultsScreen` shows
+  `BanchosucksWarmupNextButton` while a series runs. Nothing is requested from or sent to the server.
+- **Lobby templates** (multiplayer room settings > Templates): `osu.Game/Screens/Banchosucks/Lobby/
+  BanchosucksLobbyTemplate*.cs`. "Save as template" stores room name (placeholders `{user}`, `{date}`), game
+  type, queue mode, auto start, intro skipping and the waiting queue under a name in
+  `<game data>/banchosucks/lobby-templates.json`. The format has no field for the password. "Load template"
+  asks the server for the maps through the existing beatmap lookup, shows what will change and asks once;
+  `BanchosucksLobbyTemplateManager` then changes a hosted room only through
+  `MultiplayerClient.ChangeSettings` and `AddPlaylistItem`. Nothing of the multiplayer client is bound.
+- **Lobby tournament tools** (multiplayer room, button "Tournament tools" above the chat, host only):
+  `BanchosucksLobbyToolsPanel` offers three helpers that run on the host's client and announce their result
+  in the room chat as ordinary messages from the host. Draw teams (`BanchosucksLobbyDraw`, seeded and
+  repeatable; in team versus only the host's own team is set, the game has no way for a host to move other
+  players), roll (1 to 100 for ticked players, or "Send !roll" for the server bot), ban/pick board
+  (`BanchosucksBanPickBoard`, maps from the queue or a lobby template). Nothing here changes the room, a
+  score or a result.
